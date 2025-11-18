@@ -261,8 +261,15 @@ uv sync
 
 Comprehensive documentation is available:
 
+- **[📚 Online Documentation](https://bet-lab.github.io/En_system_Ex_analysis/)**: Full API reference and user guide (Sphinx-generated)
 - **[IO_DOCS.md](IO_DOCS.md)**: Complete input/output interface documentation for all components
 - **[EXAMPLES.md](EXAMPLES.md)**: Detailed usage examples and tutorials for each component
+
+The online documentation includes:
+- Installation guide
+- User guide with examples
+- Complete API reference for all classes and functions
+- Automatic documentation from docstrings
 
 English versions are also available in the `docs/` folder.
 
