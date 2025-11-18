@@ -135,7 +135,7 @@ Supporting components for complete system modeling:
 ### Example 1: Electric Boiler System
 
 ```python
-from enex_analysis import ElectricBoiler, print_balance
+from enex_analysis_engine import ElectricBoiler, print_balance
 
 # Initialize system
 boiler = ElectricBoiler()
@@ -165,7 +165,7 @@ print_balance(boiler.exergy_balance)
 ### Example 2: Gas Boiler System
 
 ```python
-from enex_analysis import GasBoiler, print_balance
+from enex_analysis_engine import GasBoiler, print_balance
 
 # Initialize gas boiler
 boiler = GasBoiler()
@@ -190,7 +190,7 @@ print(f"Exergy destruction: {boiler.X_c_tot:.2f} W")
 ### Example 3: Air-Source Heat Pump (Heating)
 
 ```python
-from enex_analysis import AirSourceHeatPump_heating
+from enex_analysis_engine import AirSourceHeatPump_heating
 
 # Initialize heat pump
 hp = AirSourceHeatPump_heating()
@@ -261,7 +261,7 @@ uv sync
 
 Comprehensive documentation is available:
 
-- **[📚 Online Documentation](https://bet-lab.github.io/En_system_Ex_analysis/)**: Full API reference and user guide (Sphinx-generated)
+- **[📚 Online Documentation](https://bet-lab.github.io/enex_analysis_engine/)**: Full API reference and user guide (Sphinx-generated)
 - **[IO_DOCS.md](IO_DOCS.md)**: Complete input/output interface documentation for all components
 - **[EXAMPLES.md](EXAMPLES.md)**: Detailed usage examples and tutorials for each component
 
