@@ -2,104 +2,114 @@
 
 Exergy-focused thermodynamic modeling for building energy systems
 
-## 개요
+## Overview
 
-**ENEX Analysis Engine**은 건물 에너지 시스템의 열역학적 분석을 위한 Python 라이브러리입니다. 특히 제2법칙(엑서지, exergy) 분석에 중점을 두고 있으며, 전기 보일러, 가스 보일러, 히트펌프 등 다양한 난방 시스템의 컴포넌트 모델을 제공합니다. 각 컴포넌트에 대해 에너지(energy), 엔트로피(entropy), 엑서지(exergy) 밸런스를 일관되게 계산할 수 있습니다.
+**ENEX Analysis Engine** is a Python library designed for thermodynamic analysis of building energy systems. With a strong emphasis on second-law (exergy) analysis, it provides component models for various heating systems including electric boilers, gas boilers, heat pumps, and more. Each component consistently calculates energy, entropy, and exergy balances, enabling comprehensive thermodynamic evaluation.
 
-이 라이브러리는 교육, 연구, 프로토타이핑 목적으로 설계되었으며, 특히 엑서지 분석이 중요한 건물 에너지 시스템 연구에 적합합니다.
+This library is designed for educational, research, and prototyping purposes, making it particularly suitable for building energy system research where exergy analysis is crucial. Whether you're studying system efficiency, comparing different technologies, or developing new models, ENEX Analysis Engine provides a solid foundation for thermodynamic analysis.
 
-## 주요 기능
+## Key Features
 
-### 컴포넌트 모델
+### Component Models
 
-- **전기 보일러** (`ElectricBoiler`): 전기 히터를 사용하는 온수 시스템
-- **가스 보일러** (`GasBoiler`): 천연가스 연소를 사용하는 온수 시스템
-- **공기원 히트펌프 보일러** (`HeatPumpBoiler`): 공기원 히트펌프를 사용하는 온수 시스템
-- **태양열 보조 가스 보일러** (`SolarAssistedGasBoiler`): 태양열 집열기와 가스 보일러를 결합한 시스템
-- **지열 히트펌프 보일러** (`GroundSourceHeatPumpBoiler`): 지열 히트펌프를 사용하는 온수 시스템
-- **공기원 히트펌프** (`AirSourceHeatPump_cooling`, `AirSourceHeatPump_heating`): 냉방/난방용 공기원 히트펌프
-- **지열 히트펌프** (`GroundSourceHeatPump_cooling`, `GroundSourceHeatPump_heating`): 냉방/난방용 지열 히트펌프
-- **전기 히터** (`ElectricHeater`): 전기 히터의 동적 열전달 분석
-- **보조 장치**: 팬(`Fan`), 펌프(`Pump`) 모델
+The library offers a comprehensive set of component models for building energy systems:
 
-### 열역학적 분석
+- **Electric Boiler** (`ElectricBoiler`): Hot water system using electric heaters
+- **Gas Boiler** (`GasBoiler`): Hot water system using natural gas combustion
+- **Air-Source Heat Pump Boiler** (`HeatPumpBoiler`): Hot water system using air-source heat pumps
+- **Solar-Assisted Gas Boiler** (`SolarAssistedGasBoiler`): Combined system with solar collectors and gas boiler
+- **Ground-Source Heat Pump Boiler** (`GroundSourceHeatPumpBoiler`): Hot water system using ground-source heat pumps
+- **Air-Source Heat Pumps** (`AirSourceHeatPump_cooling`, `AirSourceHeatPump_heating`): Air-source heat pumps for cooling and heating applications
+- **Ground-Source Heat Pumps** (`GroundSourceHeatPump_cooling`, `GroundSourceHeatPump_heating`): Ground-source heat pumps for cooling and heating applications
+- **Electric Heater** (`ElectricHeater`): Dynamic heat transfer analysis for electric heaters
+- **Auxiliary Devices**: Fan (`Fan`) and Pump (`Pump`) models
 
-각 컴포넌트는 다음 세 가지 밸런스를 자동으로 계산합니다:
+### Thermodynamic Analysis
 
-1. **에너지 밸런스**: 제1법칙 열역학에 따른 에너지 보존
-2. **엔트로피 밸런스**: 엔트로피 생성 및 전달 분석
-3. **엑서지 밸런스**: 제2법칙 열역학에 따른 엑서지 소멸 분석
+Each component automatically calculates three types of balances:
 
-### 유틸리티 기능
+1. **Energy Balance**: Energy conservation according to the first law of thermodynamics
+2. **Entropy Balance**: Entropy generation and transfer analysis
+3. **Exergy Balance**: Exergy destruction analysis according to the second law of thermodynamics
 
-- 단위 변환 함수 (온도, 시간, 길이, 에너지, 전력 등)
-- COP(성능계수) 계산 함수
-- 지열 시스템용 g-function 계산
-- 자연 대류 열전달 계수 계산
-- 밸런스 결과 출력 및 시각화
+These balances provide a complete picture of system performance from both first-law and second-law perspectives, enabling you to identify inefficiencies and optimization opportunities.
 
-## 설치
+### Utility Functions
 
-### 요구사항
+The library includes a rich set of utility functions to support your analysis:
+
+- **Unit conversion functions**: Temperature, time, length, energy, power, and more
+- **COP (Coefficient of Performance) calculation functions**: For various heat pump systems
+- **g-function calculations**: For ground-source heat exchange systems
+- **Natural convection heat transfer coefficient calculations**: For thermal analysis
+- **Balance result output and visualization**: Easy-to-use functions for displaying results
+
+## Installation
+
+### Requirements
 
 - Python >= 3.10
-- uv 패키지 관리자
+- `uv` package manager (recommended) or `pip`
 
-### 설치 방법
+### Installation Methods
 
-#### Option A: 로컬 개발 환경 (기여자용, 권장)
+#### Option A: Local Development Environment (Recommended for Contributors)
+
+This method is recommended if you plan to contribute to the project or need the latest development version.
 
 ```bash
-# 1) uv 설치 (Windows PowerShell)
+# 1) Install uv (Windows PowerShell)
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Linux/Mac의 경우
+# For Linux/Mac
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2) 저장소 클론
+# 2) Clone the repository
 git clone https://github.com/BET-lab/enex_analysis_engine.git
 cd enex_analysis_engine
 
-# 3) 가상 환경 생성 및 동기화
+# 3) Create virtual environment and sync dependencies
 uv sync
 ```
 
-#### Option B: 패키지로 설치
+#### Option B: Package Installation
 
 ```bash
-# 패키지 설치 (향후 PyPI 배포 시)
+# Install package (when available on PyPI)
 pip install enex-analysis
 ```
 
-## 빠른 시작
+## Quick Start
 
-### 기본 사용 예시
+### Basic Usage Example
+
+Here's a simple example to get you started with an electric boiler system:
 
 ```python
 from enex_analysis import ElectricBoiler
 
-# 전기 보일러 시스템 생성
+# Create an electric boiler system
 boiler = ElectricBoiler()
 
-# 시스템 파라미터 설정
-boiler.T_w_tank = 60  # 탱크 온수 온도 [°C]
-boiler.T_w_sup = 10   # 공급수 온도 [°C]
-boiler.T_w_serv = 45  # 사용 온수 온도 [°C]
-boiler.dV_w_serv = 1.2  # 사용 유량 [L/min]
+# Set system parameters
+boiler.T_w_tank = 60  # Tank hot water temperature [°C]
+boiler.T_w_sup = 10   # Supply water temperature [°C]
+boiler.T_w_serv = 45  # Service water temperature [°C]
+boiler.dV_w_serv = 1.2  # Service water flow rate [L/min]
 
-# 시스템 계산 실행
+# Run system calculation
 boiler.system_update()
 
-# 결과 확인
-print(f"전기 히터 입력 전력: {boiler.E_heater:.2f} W")
-print(f"엑서지 효율: {boiler.X_eff:.3f}")
+# Check results
+print(f"Electric heater input power: {boiler.E_heater:.2f} W")
+print(f"Exergy efficiency: {boiler.X_eff:.3f}")
 
-# 엑서지 밸런스 출력
+# Print exergy balance
 from enex_analysis import print_balance
 print_balance(boiler.exergy_balance)
 ```
 
-### 출력 예시
+### Example Output
 
 ```
 HOT WATER TANK EXERGY BALANCE: =====================
@@ -116,93 +126,103 @@ CONSUMED ENTRIES:
 X_c_tank: 555.56 [W]
 ```
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 enex_analysis_engine/
 ├── src/
 │   └── enex_analysis/
-│       ├── __init__.py          # 패키지 초기화
-│       ├── calc_util.py          # 단위 변환 유틸리티
-│       ├── enex_engine.py        # 정적 시스템 모델
-│       └── enex_engine_dynamic.py # 동적 시스템 모델
-├── pyproject.toml                # 프로젝트 설정
-├── uv.lock                       # 의존성 잠금 파일
-└── README.md                     # 이 파일
+│       ├── __init__.py          # Package initialization
+│       ├── calc_util.py          # Unit conversion utilities
+│       ├── enex_engine.py        # Steady-state system models
+│       └── enex_engine_dynamic.py # Dynamic system models
+├── pyproject.toml                # Project configuration
+├── uv.lock                       # Dependency lock file
+└── README.md                     # This file
 ```
 
-### 주요 모듈
+### Key Modules
 
-- **`calc_util.py`**: 단위 변환 상수 및 헬퍼 함수
-  - 온도 변환: `C2K()`, `K2C()`
-  - 시간 변환: `h2s`, `s2h` 등
-  - 에너지/전력 변환: `J2kWh`, `W2kW` 등
+- **`calc_util.py`**: Unit conversion constants and helper functions
+  - Temperature conversion: `C2K()`, `K2C()`
+  - Time conversion: `h2s`, `s2h`, etc.
+  - Energy/power conversion: `J2kWh`, `W2kW`, etc.
 
-- **`enex_engine.py`**: 정적(steady-state) 시스템 모델
-  - 모든 보일러 및 히트펌프 컴포넌트 클래스
-  - COP 계산 함수
-  - 보조 함수들 (열전달 계수, g-function 등)
+- **`enex_engine.py`**: Steady-state system models
+  - All boiler and heat pump component classes
+  - COP calculation functions
+  - Helper functions (heat transfer coefficients, g-functions, etc.)
 
-- **`enex_engine_dynamic.py`**: 동적(dynamic) 시스템 모델
-  - 시간에 따른 변화를 고려한 시뮬레이션 모델
+- **`enex_engine_dynamic.py`**: Dynamic system models
+  - Time-dependent simulation models that account for transient behavior
 
-## 핵심 개념
+## Core Concepts
 
-### 엑서지(Exergy)란?
+### What is Exergy?
 
-엑서지는 시스템이 주변 환경과 평형을 이룰 때까지 할 수 있는 최대 유용한 일의 양입니다. 엑서지 분석은 에너지의 "품질"을 평가하는 데 사용되며, 제2법칙 열역학의 관점에서 시스템의 효율성을 분석합니다.
+Exergy represents the maximum useful work that can be obtained from a system as it reaches equilibrium with its surrounding environment. Exergy analysis is used to evaluate the "quality" of energy and analyze system efficiency from a second-law thermodynamics perspective.
 
-엑서지 소멸(consumption)은 비가역성(irreversibility)의 척도이며, 다음 관계식으로 계산됩니다:
+Unlike energy, which is conserved, exergy is destroyed in real processes due to irreversibilities. Exergy destruction (consumption) is a measure of irreversibility and is calculated using the following relationship:
 
 $$X_c = T_0 \cdot S_g$$
 
-여기서:
-- $X_c$: 엑서지 소멸 [W]
-- $T_0$: 기준 온도 [K]
-- $S_g$: 엔트로피 생성률 [W/K]
+where:
+- $X_c$: Exergy destruction [W]
+- $T_0$: Reference temperature [K]
+- $S_g$: Entropy generation rate [W/K]
 
-### 엑서지 효율
+### Exergy Efficiency
 
-엑서지 효율은 유용한 엑서지 출력과 엑서지 입력의 비율로 정의됩니다:
+Exergy efficiency is defined as the ratio of useful exergy output to exergy input:
 
 $$\eta_{ex} = \frac{X_{out}}{X_{in}}$$
 
-이 값은 0과 1 사이이며, 1에 가까울수록 열역학적으로 효율적인 시스템입니다.
+This value ranges between 0 and 1, with values closer to 1 indicating a more thermodynamically efficient system. Unlike energy efficiency, exergy efficiency accounts for the quality of energy, making it a more meaningful metric for comparing different energy conversion technologies.
 
-## 문서
+## Documentation
 
-- **[IO_DOCS.md](IO_DOCS.md)**: 모든 컴포넌트의 상세한 입출력 인터페이스 문서
-- **[EXAMPLES.md](EXAMPLES.md)**: 다양한 사용 예시 및 튜토리얼
+For detailed information, please refer to the following documentation:
 
-## 의존성
+- **[IO_DOCS.md](IO_DOCS.md)**: Detailed input/output interface documentation for all components
+- **[EXAMPLES.md](EXAMPLES.md)**: Comprehensive usage examples and tutorials
 
-주요 의존성 패키지:
+English versions of these documents are also available in the `docs/` folder.
 
-- `numpy`: 수치 계산
-- `scipy`: 과학 계산 (최적화, 적분 등)
-- `matplotlib`: 시각화
-- `dartwork-mpl`: 플롯 스타일링 (https://github.com/dartwork-repo/dartwork-mpl)
-- `pandas`: 데이터 처리
-- `dataclasses`: 데이터 클래스 지원
+## Dependencies
 
-전체 의존성 목록은 `pyproject.toml`을 참조하세요.
+The library relies on the following key packages:
 
-## 라이센스
+- `numpy`: Numerical computations
+- `scipy`: Scientific computing (optimization, integration, etc.)
+- `matplotlib`: Visualization
+- `dartwork-mpl`: Plot styling (https://github.com/dartwork-repo/dartwork-mpl)
+- `pandas`: Data processing
+- `dataclasses`: Data class support (built-in with Python 3.7+)
 
-[라이센스 정보 추가 필요]
+For the complete list of dependencies and their versions, please refer to `pyproject.toml`.
 
-## 기여
+## License
 
-기여를 환영합니다! 이슈를 제기하거나 풀 리퀘스트를 보내주세요.
+[License information to be added]
 
-## 참고 문헌
+## Contributing
 
-이 라이브러리는 다음 연구 및 이론을 기반으로 합니다:
+Contributions are welcome! We encourage you to:
+
+- Report bugs by opening an issue
+- Suggest new features or improvements
+- Submit pull requests with your contributions
+
+Please feel free to reach out if you have any questions or ideas for improving the library.
+
+## References
+
+This library is based on the following research and theoretical foundations:
 
 - Shukuya, M. (2013). *Exergy theory and applications in the built environment*. Springer.
-- 지열 히트펌프 COP 계산: [논문 참조](https://www.sciencedirect.com/science/article/pii/S0360544219304347)
-- 공기원 히트펌프 COP 계산: [IBPSA 논문](https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf)
+- Ground-source heat pump COP calculation: [Research paper](https://www.sciencedirect.com/science/article/pii/S0360544219304347)
+- Air-source heat pump COP calculation: [IBPSA paper](https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf)
 
-## 연락처
+## Contact
 
-프로젝트 관리자: Habin Jo (habinjo0608@gmail.com)
+Project Maintainer: Habin Jo (habinjo0608@gmail.com)
