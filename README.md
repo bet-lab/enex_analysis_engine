@@ -23,12 +23,12 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 
 ### Unified Balance Calculations
 
-Every component model automatically calculates three complementary balances:
+Every component model automatically calculates three balances:
 
-1. **Energy Balance** (First Law of Thermodynamics)
+1. **Energy Balance** (First Law of Thermodynamics): Identifies energy flows and losses
 
 
-   - **Energy conservation:**
+ - **Energy conservation:**
 
 $$
 \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
@@ -40,13 +40,11 @@ $$
 \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
 $$
 
-   - Identifies energy flows and losses
-   - Units: [W]
 
-2. **Entropy Balance** (Second Law of Thermodynamics)
+2. **Entropy Balance** (Second Law of Thermodynamics): Quantifies irreversibilities
 
 
-   - **Entropy transfer and generation:**
+- **Entropy transfer and generation:**
 
 $$
 \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
@@ -58,13 +56,11 @@ $$
 \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
 $$
 
-   - Quantifies irreversibilities
-   - Units: [W/K]
 
-3. **Exergy Balance** (Both First and Second Law of Thermodynamics)
+3. **Exergy Balance** (Both First and Second Law of Thermodynamics): Reveals thermodynamic inefficiencies
 
 
-   - **General form:**
+- **General form:**
 
 $$
 \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
@@ -82,8 +78,6 @@ $$
 \dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
 $$
 
-   - Reveals thermodynamic inefficiencies
-   - Units: [W]
 
 These balances are calculated consistently across all components, enabling system-level analysis and comparison.
 
