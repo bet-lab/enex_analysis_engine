@@ -37,6 +37,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
+html_baseurl = 'https://bet-lab.github.io/En_system_Ex_analysis/'
 
 # -- Options for sphinx-book-theme -------------------------------------------
 
