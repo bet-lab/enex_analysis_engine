@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath('../src'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'en-system-ex-analysis'
-copyright = '2024, Habin Jo'
-author = 'Habin Jo'
+copyright = '2025, betlab'
+author = 'Habin Jo, Wonjun Choi'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------
