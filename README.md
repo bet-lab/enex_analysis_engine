@@ -25,48 +25,61 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 
 Every component model automatically calculates three complementary balances:
 
-1. **Energy Balance** (First Law of Thermodynamics)  
-   - **Energy conservation:**  
-     $$
-     \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
-     $$
-     - **Steady state:**  
-       $$
-       \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
-       $$
-     - Identifies energy flows and losses  
-     - Units: [W]
+1. **Energy Balance** (First Law of Thermodynamics)
+   - **Energy conservation:**
 
-2. **Entropy Balance** (Second Law of Thermodynamics)  
-   - **Entropy transfer and generation:**  
-     $$
-     \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
-     $$
-     - **Steady state:**  
-       $$
-       \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
-       $$
-     - Quantifies irreversibilities  
-     - Units: [W/K]
+$$
+\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
+$$
 
-3. **Exergy Balance**  
-   - **General form:**  
-     $$
-     \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
-     $$
-     - **Steady state:**  
-       $$
-       \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
-       $$
-     - **Exergy destruction:**  
-       $$
-       \dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
-       $$
-     - Reveals thermodynamic inefficiencies  
-     - Units: [W]
+   - **Steady state:**
+
+$$
+\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
+$$
+
+   - Identifies energy flows and losses
+   - Units: [W]
+
+2. **Entropy Balance** (Second Law of Thermodynamics)
+   - **Entropy transfer and generation:**
+
+$$
+\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
+$$
+
+   - **Steady state:**
+
+$$
+\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
+$$
+
+   - Quantifies irreversibilities
+   - Units: [W/K]
+
+3. **Exergy Balance** (Second Law of Thermodynamics)
+   - **General form:**
+
+$$
+\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
+$$
+
+   - **Steady state:**
+
+$$
+\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
+$$
+
+   - **Exergy destruction:**
+
+$$
+\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
+$$
+
+   - Reveals thermodynamic inefficiencies
+   - Units: [W]
 
 These balances are calculated consistently across all components, enabling system-level analysis and comparison.
-
 
 ### Analysis Features
 
@@ -215,110 +228,16 @@ X_c_tank: 555.56 [W]
 
 ---
 
-## Understanding the Analysis
-
-### Energy Analysis (First Law)
-
-Energy analysis follows the conservation principle:
-
-$$
-\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses} + \frac{dE_{system}}{dt}
-$$
-
-For steady-state systems:
-
-$$
-\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses}
-$$
-
-This tells you:
-- How much energy enters and leaves the system
-- Where energy is lost (e.g., heat losses to surroundings)
-- Overall energy efficiency: 
-  $$\eta_{energy} = \frac{\dot{E}_{useful}}{\dot{E}_{input}}$$
-
-**Limitation**: Energy analysis doesn't distinguish between high-quality energy (electricity) and low-quality energy (waste heat at ambient temperature).
-
-### Exergy Analysis (Second Law)
-
-Exergy analysis reveals the *quality* of energy and identifies true thermodynamic losses:
-
-#### Exergy Destruction
-
-$$
-\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
-$$
-
-where:
-- $\dot{X}_{destroyed}$: Rate of exergy destruction [W] - the measure of irreversibility
-- $T_0$: Reference (environment) temperature [K]
-- $\dot{S}_{gen}$: Entropy generation rate [W/K]
-
-#### Exergy Balance
-
-For a control volume at steady state:
-
-$$
-\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
-$$
-
-Expanding for typical systems:
-
-$$
-\dot{X}_{heat} - \dot{X}_{work} + \sum (\dot{m} \cdot e_f)_{in} = \sum (\dot{m} \cdot e_f)_{out} + \dot{X}_{destroyed}
-$$
-
-where:
-- $\dot{X}_{heat} = \sum \left(1 - \frac{T_0}{T}\right) \dot{Q}$: Exergy transfer by heat
-- $\dot{X}_{work} = \dot{W}$: Exergy transfer by work (for boundary work)
-- $e_f$: Specific flow exergy [J/kg]
-- $\dot{m}$: Mass flow rate [kg/s]
-
-#### Exergy Efficiency
-
-Exergy efficiency is defined as:
-
-$$
-\eta_{exergy} = \frac{\text{Useful exergy output}}{\text{Total exergy input}} = \frac{\dot{X}_{product}}{\dot{X}_{fuel}}
-$$
-
-Or alternatively:
-
-$$
-\eta_{exergy} = 1 - \frac{\dot{X}_{destroyed}}{\dot{X}_{fuel}}
-$$
-
-**Key insight**: Exergy efficiency is always lower than energy efficiency because it accounts for the degradation of energy quality.
-
-### Why Both Matter
-
-- **Energy analysis** answers: "How much energy do I need?"
-- **Exergy analysis** answers: "How efficiently am I using that energy?"
-- **Together** they provide: Complete understanding for optimization
-
-#### Comparison Example: Electric vs. Gas Water Heater
-
-| System | Energy Efficiency | Exergy Efficiency | Insight |
-|--------|------------------|-------------------|---------|
-| Electric Heater | 95% | 5% | High energy efficiency masks poor thermodynamic performance |
-| Gas Heater | 85% | 12% | Lower energy efficiency but better exergy utilization |
-| Heat Pump | 300% (COP=3) | 30% | Best performance in both metrics |
-
-The dramatic difference between energy and exergy efficiencies reveals that using high-quality electricity for low-temperature heating is thermodynamically wasteful, even when energy losses are minimal.
-
----
-
 ## Installation
 
 ### Requirements
 
 - Python >= 3.10
-- `uv` package manager (recommended) or `pip`
+- `uv` package manager
 
 ### Installation Methods
 
-
-Best for contributors and users who want the latest features:
+This project uses `uv` for package management. To get started:
 
 ```bash
 # 1) Install uv
