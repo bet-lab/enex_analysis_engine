@@ -217,7 +217,9 @@ where:
 
 Exergy efficiency is defined as:
 
-$$\eta_{ex} = \frac{X_{useful,out}}{X_{in}}$$
+$$
+\sum X_{in} - + X_{consume} = \sum X_{out} 
+$$
 
 **Key insight**: Exergy efficiency is always lower than energy efficiency because it accounts for the degradation of energy quality.
 
