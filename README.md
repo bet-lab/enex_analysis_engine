@@ -57,7 +57,7 @@ $$
    - Quantifies irreversibilities
    - Units: [W/K]
 
-3. **Exergy Balance** (Second Law of Thermodynamics)
+3. **Exergy Balance** (Both First and Second Law of Thermodynamics)
    - **General form:**
 
 $$
