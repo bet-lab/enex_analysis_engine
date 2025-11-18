@@ -24,5 +24,12 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project.optional-dependencies]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-book-theme>=1.0.0",
+    "sphinx-autodoc-typehints>=1.24.0",
+]
+
 [tool.uv.sources]
 dartwork-mpl = { git = "https://github.com/dartwork-repo/dartwork-mpl" }
