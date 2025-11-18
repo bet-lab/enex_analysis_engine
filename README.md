@@ -26,6 +26,8 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 Every component model automatically calculates three complementary balances:
 
 1. **Energy Balance** (First Law of Thermodynamics)
+
+
    - **Energy conservation:**
 
 $$
@@ -42,6 +44,8 @@ $$
    - Units: [W]
 
 2. **Entropy Balance** (Second Law of Thermodynamics)
+
+
    - **Entropy transfer and generation:**
 
 $$
@@ -58,6 +62,8 @@ $$
    - Units: [W/K]
 
 3. **Exergy Balance** (Both First and Second Law of Thermodynamics)
+
+
    - **General form:**
 
 $$
