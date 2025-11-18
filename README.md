@@ -25,47 +25,48 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 
 Every component model automatically calculates three complementary balances:
 
-1. **Energy Balance** (First Law of Thermodynamics)
-   - Energy conservation:
+1. **Energy Balance** (First Law of Thermodynamics)  
+   - **Energy conservation:**  
+     $$
+     \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
+     $$
+     - **Steady state:**  
+       $$
+       \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
+       $$
+     - Identifies energy flows and losses  
+     - Units: [W]
 
-$$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}$$
+2. **Entropy Balance** (Second Law of Thermodynamics)  
+   - **Entropy transfer and generation:**  
+     $$
+     \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
+     $$
+     - **Steady state:**  
+       $$
+       \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
+       $$
+     - Quantifies irreversibilities  
+     - Units: [W/K]
 
-   - For steady state:
-
-$$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}$$
-
-   - Identifies energy flows and losses
-   - Units: [W]
-
-2. **Entropy Balance** (Second Law of Thermodynamics)
-   - Entropy transfer and generation:
-
-$$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}$$
-
-   - For steady state:
-
-$$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}$$
-
-   - Quantifies irreversibilities
-   - Units: [W/K]
-
-3. **Exergy Balance** 
-   - General form:
-
-$$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}$$
-
-   - For steady state:
-
-$$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}$$
-
-   - Exergy destruction:
-
-$$\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}$$
-
-   - Reveals thermodynamic inefficiencies
-   - Units: [W]
+3. **Exergy Balance**  
+   - **General form:**  
+     $$
+     \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
+     $$
+     - **Steady state:**  
+       $$
+       \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
+       $$
+     - **Exergy destruction:**  
+       $$
+       \dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
+       $$
+     - Reveals thermodynamic inefficiencies  
+     - Units: [W]
 
 These balances are calculated consistently across all components, enabling system-level analysis and comparison.
+
 
 ### Analysis Features
 
