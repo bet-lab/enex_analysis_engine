@@ -1,12 +1,12 @@
 API Reference
 ==============
 
-This page contains the complete API reference for the en-system-ex-analysis package, organized by category.
+This page contains the complete API reference for the Energy-Exergy Analysis Engine package, organized by category.
 
 Utility Module
 --------------
 
-.. automodule:: en_system_ex_analysis.calc_util
+.. automodule:: enex_analysis_engine.calc_util
    :members:
    :undoc-members:
    :show-inheritance:
@@ -16,8 +16,8 @@ The utility module provides unit conversion functions and constants for temperat
 Temperature Conversion Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: en_system_ex_analysis.calc_util.C2K
-.. autofunction:: en_system_ex_analysis.calc_util.K2C
+.. autofunction:: enex_analysis_engine.calc_util.C2K
+.. autofunction:: enex_analysis_engine.calc_util.K2C
 
 Unit Conversion Constants
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -37,7 +37,7 @@ The module includes numerous conversion constants:
 Energy System Integration Module
 --------------------------------
 
-.. automodule:: en_system_ex_analysis.En_system_intergrated
+.. automodule:: enex_analysis_engine.enex_engine
    :members:
    :undoc-members:
    :show-inheritance:
@@ -48,7 +48,7 @@ Domestic Hot Water (DHW) Systems
 ElectricBoiler
 ^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.ElectricBoiler
+.. autoclass:: enex_analysis_engine.enex_engine.ElectricBoiler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -88,7 +88,7 @@ After calling ``system_update()``:
 GasBoiler
 ^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.GasBoiler
+.. autoclass:: enex_analysis_engine.enex_engine.GasBoiler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -117,7 +117,7 @@ A natural gas combustion boiler system with hot water storage tank. Includes com
 HeatPumpBoiler
 ^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.HeatPumpBoiler
+.. autoclass:: enex_analysis_engine.enex_engine.HeatPumpBoiler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -150,7 +150,7 @@ An air-source heat pump boiler system with external unit, refrigerant loop, hot 
 SolarAssistedGasBoiler
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.SolarAssistedGasBoiler
+.. autoclass:: enex_analysis_engine.enex_engine.SolarAssistedGasBoiler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -183,7 +183,7 @@ A hybrid system combining solar thermal collectors with gas backup boiler.
 GroundSourceHeatPumpBoiler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.GroundSourceHeatPumpBoiler
+.. autoclass:: enex_analysis_engine.enex_engine.GroundSourceHeatPumpBoiler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -223,7 +223,7 @@ Heat Pump Systems
 AirSourceHeatPump_cooling
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.AirSourceHeatPump_cooling
+.. autoclass:: enex_analysis_engine.enex_engine.AirSourceHeatPump_cooling
    :members:
    :undoc-members:
    :show-inheritance:
@@ -259,7 +259,7 @@ Air-source heat pump in cooling mode for space conditioning.
 AirSourceHeatPump_heating
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.AirSourceHeatPump_heating
+.. autoclass:: enex_analysis_engine.enex_engine.AirSourceHeatPump_heating
    :members:
    :undoc-members:
    :show-inheritance:
@@ -283,7 +283,7 @@ Similar to cooling mode but with reversed heat transfer direction.
 GroundSourceHeatPump_cooling
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.GroundSourceHeatPump_cooling
+.. autoclass:: enex_analysis_engine.enex_engine.GroundSourceHeatPump_cooling
    :members:
    :undoc-members:
    :show-inheritance:
@@ -308,7 +308,7 @@ Similar to ``GroundSourceHeatPumpBoiler`` but adjusted for cooling mode.
 GroundSourceHeatPump_heating
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.GroundSourceHeatPump_heating
+.. autoclass:: enex_analysis_engine.enex_engine.GroundSourceHeatPump_heating
    :members:
    :undoc-members:
    :show-inheritance:
@@ -333,7 +333,7 @@ Dynamic Systems
 ElectricHeater
 ^^^^^^^^^^^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.ElectricHeater
+.. autoclass:: enex_analysis_engine.enex_engine.ElectricHeater
    :members:
    :undoc-members:
    :show-inheritance:
@@ -380,7 +380,7 @@ Auxiliary Components
 Fan
 ^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.Fan
+.. autoclass:: enex_analysis_engine.enex_engine.Fan
    :members:
    :undoc-members:
    :show-inheritance:
@@ -397,7 +397,7 @@ Air handling fan with performance curves. Provides three fan datasets: ``fan1``,
 Pump
 ^^^^
 
-.. autoclass:: en_system_ex_analysis.En_system_intergrated.Pump
+.. autoclass:: enex_analysis_engine.enex_engine.Pump
    :members:
    :undoc-members:
    :show-inheritance:
@@ -416,7 +416,7 @@ Utility Functions
 Heat Transfer Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.darcy_friction_factor
+.. autofunction:: enex_analysis_engine.enex_engine.darcy_friction_factor
 
 Calculates the Darcy friction factor for given Reynolds number and relative roughness.
 
@@ -427,7 +427,7 @@ Calculates the Darcy friction factor for given Reynolds number and relative roug
 **Returns:**
 * ``float``: Darcy friction factor [-]
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.calc_h_vertical_plate
+.. autofunction:: enex_analysis_engine.enex_engine.calc_h_vertical_plate
 
 Calculates natural convection heat transfer coefficient for a vertical plate using Churchill & Chu correlation.
 
@@ -442,7 +442,7 @@ Calculates natural convection heat transfer coefficient for a vertical plate usi
 COP Calculation Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.calculate_ASHP_cooling_COP
+.. autofunction:: enex_analysis_engine.enex_engine.calculate_ASHP_cooling_COP
 
 Calculates COP for air-source heat pump in cooling mode based on outdoor/indoor temperatures and part-load ratio.
 
@@ -456,7 +456,7 @@ Calculates COP for air-source heat pump in cooling mode based on outdoor/indoor 
 **Returns:**
 * ``float``: Calculated COP [-]
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.calculate_ASHP_heating_COP
+.. autofunction:: enex_analysis_engine.enex_engine.calculate_ASHP_heating_COP
 
 Calculates COP for air-source heat pump in heating mode based on outdoor temperature and part-load ratio.
 
@@ -468,7 +468,7 @@ Calculates COP for air-source heat pump in heating mode based on outdoor tempera
 **Returns:**
 * ``float``: Calculated COP [-]
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.calculate_GSHP_COP
+.. autofunction:: enex_analysis_engine.enex_engine.calculate_GSHP_COP
 
 Calculates modified Carnot-based COP for ground-source heat pump.
 
@@ -484,7 +484,7 @@ Calculates modified Carnot-based COP for ground-source heat pump.
 Balance Functions
 ^^^^^^^^^^^^^^^^^
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.print_balance
+.. autofunction:: enex_analysis_engine.enex_engine.print_balance
 
 Prints energy, entropy, or exergy balance in a formatted way.
 
@@ -512,9 +512,9 @@ Prints energy, entropy, or exergy balance in a formatted way.
 Polynomial Functions
 ^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.linear_function
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.quadratic_wunction
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.cubic_wunction
-.. autofunction:: en_system_ex_analysis.En_system_intergrated.quartic_wunction
+.. autofunction:: enex_analysis_engine.enex_engine.linear_function
+.. autofunction:: enex_analysis_engine.enex_engine.quadratic_wunction
+.. autofunction:: enex_analysis_engine.enex_engine.cubic_wunction
+.. autofunction:: enex_analysis_engine.enex_engine.quartic_wunction
 
 Polynomial functions for curve fitting and interpolation.

@@ -11,7 +11,7 @@ Using uv (recommended)
 
 .. code-block:: bash
 
-   uv add git+https://github.com/BET-lab/En_system_Ex_analysis.git
+   uv add git+https://github.com/BET-lab/enex_analysis_engine.git
 
 .. code-block:: bash
 
@@ -22,23 +22,22 @@ Using pip
 
 .. code-block:: bash
 
-   pip install git+https://github.com/BET-lab/En_system_Ex_analysis.git
+   pip install git+https://github.com/BET-lab/enex_analysis_engine.git
 
 Dependencies
 ------------
 
 The package requires the following dependencies:
 
-* dartwork-mpl
-* ipykernel (>=6.29.5)
-* matplotlib (>=3.10.0)
-* notebook (>=7.3.2)
-* numpy (>=2.2.3)
-* pandas (>=2.2.3)
-* salib (>=1.5.1)
-* scipy (>=1.15.2)
-* seaborn (>=0.13.2)
-* tqdm (>=4.67.1)
+* `dartwork-mpl <https://github.com/dartwork-repo/dartwork-mpl>`_
+* `ipykernel <https://pypi.org/project/ipykernel/>`_ (>=6.29.5)
+* `matplotlib <https://pypi.org/project/matplotlib/>`_ (>=3.10.0)
+* `notebook <https://pypi.org/project/notebook/>`_ (>=7.3.2)
+* `numpy <https://pypi.org/project/numpy/>`_ (>=2.2.3)
+* `pandas <https://pypi.org/project/pandas/>`_ (>=2.2.3)
+* `salib <https://pypi.org/project/SALib/>`_ (>=1.5.1)
+* `scipy <https://pypi.org/project/scipy/>`_ (>=1.15.2)
+* `tqdm <https://pypi.org/project/tqdm/>`_ (>=4.67.1)
 
 These will be automatically installed when you install the package.
 

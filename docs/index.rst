@@ -1,7 +1,7 @@
-.. en-system-ex-analysis documentation master file
+.. Energy-Exergy Analysis Engine documentation master file
 
-Welcome to en-system-ex-analysis's documentation!
-==================================================
+Welcome to Energy-Exergy Analysis Engine's documentation!
+==========================================================
 
 **Comprehensive thermodynamic modeling for diverse energy systems through unified energy-exergy analysis**
 
@@ -65,7 +65,7 @@ Here's a simple example to get you started:
 
 .. code-block:: python
 
-   import en_system_ex_analysis as enex
+   import enex_analysis_engine as enex
 
    # Create an electric boiler instance
    EB = enex.ElectricBoiler()

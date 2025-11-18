@@ -1,7 +1,7 @@
 User Guide
 ===========
 
-This guide provides comprehensive instructions for using the en-system-ex-analysis package.
+This guide provides comprehensive instructions for using the Energy-Exergy Analysis Engine package.
 
 Getting Started
 ---------------
@@ -13,7 +13,7 @@ To use the energy system analysis module, import it as follows:
 
 .. code-block:: python
 
-   import en_system_ex_analysis as enex
+   import enex_analysis_engine as enex
 
 Basic Usage Pattern
 ^^^^^^^^^^^^^^^^^^^
@@ -33,7 +33,7 @@ Here's a complete example of how to create and use an electric boiler system:
 
 .. code-block:: python
 
-   import en_system_ex_analysis as enex
+   import enex_analysis_engine as enex
 
    # Create an electric boiler instance
    EB = enex.ElectricBoiler()
@@ -226,7 +226,7 @@ Temperature Conversions
 
 .. code-block:: python
 
-   from en_system_ex_analysis import C2K, K2C
+   from enex_analysis_engine import C2K, K2C
    
    T_K = C2K(25)  # 298.15
    T_C = K2C(298.15)  # 25.0
@@ -243,7 +243,7 @@ Constants for time conversions:
 
 .. code-block:: python
 
-   from en_system_ex_analysis.calc_util import h2s, d2h
+   from enex_analysis_engine.calc_util import h2s, d2h
    
    hours = 2
    seconds = hours * h2s  # 7200

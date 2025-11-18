@@ -1,7 +1,7 @@
 Examples
 ========
 
-This page provides comprehensive usage examples for all components in the en-system-ex-analysis package.
+This page provides comprehensive usage examples for all components in the Energy-Exergy Analysis Engine package.
 
 Electric Boiler
 ---------------
@@ -11,7 +11,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import ElectricBoiler, print_balance
+   from enex_analysis_engine import ElectricBoiler, print_balance
 
    # Initialize boiler with default parameters
    boiler = ElectricBoiler()
@@ -54,7 +54,7 @@ Parameter Study
 
    import numpy as np
    import matplotlib.pyplot as plt
-   from en_system_ex_analysis import ElectricBoiler
+   from enex_analysis_engine import ElectricBoiler
 
    # Study effect of tank temperature on exergy efficiency
    tank_temps = np.linspace(50, 70, 21)
@@ -98,7 +98,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import GasBoiler, print_balance
+   from enex_analysis_engine import GasBoiler, print_balance
 
    # Initialize gas boiler
    boiler = GasBoiler()
@@ -128,7 +128,7 @@ Efficiency Comparison
 
 .. code-block:: python
 
-   from en_system_ex_analysis import ElectricBoiler, GasBoiler
+   from enex_analysis_engine import ElectricBoiler, GasBoiler
 
    # Compare electric and gas boilers
    elec_boiler = ElectricBoiler()
@@ -159,7 +159,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import HeatPumpBoiler, print_balance
+   from enex_analysis_engine import HeatPumpBoiler, print_balance
 
    # Initialize heat pump boiler
    hp_boiler = HeatPumpBoiler()
@@ -194,7 +194,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import SolarAssistedGasBoiler, print_balance
+   from enex_analysis_engine import SolarAssistedGasBoiler, print_balance
 
    # Initialize solar-assisted gas boiler
    solar_boiler = SolarAssistedGasBoiler()
@@ -236,7 +236,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import GroundSourceHeatPumpBoiler, print_balance
+   from enex_analysis_engine import GroundSourceHeatPumpBoiler, print_balance
 
    # Initialize ground-source heat pump boiler
    gshp_boiler = GroundSourceHeatPumpBoiler()
@@ -284,7 +284,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import AirSourceHeatPump_cooling, print_balance
+   from enex_analysis_engine import AirSourceHeatPump_cooling, print_balance
 
    # Initialize air-source heat pump (cooling)
    ashp_cool = AirSourceHeatPump_cooling()
@@ -318,7 +318,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from en_system_ex_analysis import AirSourceHeatPump_heating, print_balance
+   from enex_analysis_engine import AirSourceHeatPump_heating, print_balance
 
    # Initialize air-source heat pump (heating)
    ashp_heat = AirSourceHeatPump_heating()
@@ -350,7 +350,7 @@ Basic Usage with Visualization
 
 .. code-block:: python
 
-   from en_system_ex_analysis import ElectricHeater, print_balance
+   from enex_analysis_engine import ElectricHeater, print_balance
    import matplotlib.pyplot as plt
 
    # Initialize electric heater
@@ -430,7 +430,7 @@ Fan Performance
 
 .. code-block:: python
 
-   from en_system_ex_analysis import Fan
+   from enex_analysis_engine import Fan
    import numpy as np
    import matplotlib.pyplot as plt
 
@@ -488,7 +488,7 @@ Pump Performance
 
 .. code-block:: python
 
-   from en_system_ex_analysis import Pump
+   from enex_analysis_engine import Pump
    import numpy as np
    import matplotlib.pyplot as plt
 
@@ -537,7 +537,7 @@ Comparing Energy, Entropy, and Exergy Balances
 
 .. code-block:: python
 
-   from en_system_ex_analysis import ElectricBoiler, print_balance
+   from enex_analysis_engine import ElectricBoiler, print_balance
 
    # Initialize and run boiler
    boiler = ElectricBoiler()
@@ -580,7 +580,7 @@ Comparing Different Boiler Types
 
 .. code-block:: python
 
-   from en_system_ex_analysis import ElectricBoiler, GasBoiler, HeatPumpBoiler
+   from enex_analysis_engine import ElectricBoiler, GasBoiler, HeatPumpBoiler
    import pandas as pd
 
    # Compare three boiler types
