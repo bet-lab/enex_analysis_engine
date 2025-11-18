@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath('../src'))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'en-system-ex-analysis'
+project = 'Energy-Exergy Analysis Engine'
 copyright = '2025, betlab'
 author = 'Habin Jo, Wonjun Choi'
 release = '0.1.0'
@@ -39,12 +39,12 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
-html_baseurl = 'https://bet-lab.github.io/En_system_Ex_analysis/'
+html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 
 # -- Options for sphinx-book-theme -------------------------------------------
 
 html_theme_options = {
-    "repository_url": "https://github.com/BET-lab/En_system_Ex_analysis",
+    "repository_url": "https://github.com/BET-lab/enex_analysis_engine",
     "use_repository_button": True,
     "use_edit_page_button": True,
     "use_issues_button": True,
