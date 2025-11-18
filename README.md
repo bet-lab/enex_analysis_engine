@@ -26,21 +26,28 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 Every component model automatically calculates three complementary balances:
 
 1. **Energy Balance** (First Law of Thermodynamics)
-   - Energy conservation: $$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}$$
-   - For steady state: $$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}$$
+   - Energy conservation: 
+     $$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}$$
+   - For steady state: 
+     $$\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}$$
    - Identifies energy flows and losses
    - Units: [W]
 
 2. **Entropy Balance** (Second Law Foundation)
-   - Entropy transfer and generation: $$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}$$
-   - For steady state: $$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}$$
+   - Entropy transfer and generation: 
+     $$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}$$
+   - For steady state: 
+     $$\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}$$
    - Quantifies irreversibilities
    - Units: [W/K]
 
 3. **Exergy Balance** (Second Law of Thermodynamics)
-   - General form: $$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}$$
-   - For steady state: $$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}$$
-   - Exergy destruction: $$\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}$$
+   - General form: 
+     $$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}$$
+   - For steady state: 
+     $$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}$$
+   - Exergy destruction: 
+     $$\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}$$
    - Reveals thermodynamic inefficiencies
    - Units: [W]
 
@@ -199,16 +206,21 @@ X_c_tank: 555.56 [W]
 
 Energy analysis follows the conservation principle:
 
-$$\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses} + \frac{dE_{system}}{dt}$$
+$$
+\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses} + \frac{dE_{system}}{dt}
+$$
 
 For steady-state systems:
 
-$$\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses}$$
+$$
+\dot{E}_{in} = \dot{E}_{out} + \dot{E}_{losses}
+$$
 
 This tells you:
 - How much energy enters and leaves the system
 - Where energy is lost (e.g., heat losses to surroundings)
-- Overall energy efficiency: $$\eta_{energy} = \frac{\dot{E}_{useful}}{\dot{E}_{input}}$$
+- Overall energy efficiency: 
+  $$\eta_{energy} = \frac{\dot{E}_{useful}}{\dot{E}_{input}}$$
 
 **Limitation**: Energy analysis doesn't distinguish between high-quality energy (electricity) and low-quality energy (waste heat at ambient temperature).
 
@@ -218,7 +230,9 @@ Exergy analysis reveals the *quality* of energy and identifies true thermodynami
 
 #### Exergy Destruction
 
-$$\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}$$
+$$
+\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
+$$
 
 where:
 - $\dot{X}_{destroyed}$: Rate of exergy destruction [W] - the measure of irreversibility
@@ -229,11 +243,15 @@ where:
 
 For a control volume at steady state:
 
-$$\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}$$
+$$
+\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
+$$
 
 Expanding for typical systems:
 
-$$\dot{X}_{heat} - \dot{X}_{work} + \sum (\dot{m} \cdot e_f)_{in} = \sum (\dot{m} \cdot e_f)_{out} + \dot{X}_{destroyed}$$
+$$
+\dot{X}_{heat} - \dot{X}_{work} + \sum (\dot{m} \cdot e_f)_{in} = \sum (\dot{m} \cdot e_f)_{out} + \dot{X}_{destroyed}
+$$
 
 where:
 - $\dot{X}_{heat} = \sum \left(1 - \frac{T_0}{T}\right) \dot{Q}$: Exergy transfer by heat
@@ -245,11 +263,15 @@ where:
 
 Exergy efficiency is defined as:
 
-$$\eta_{exergy} = \frac{\text{Useful exergy output}}{\text{Total exergy input}} = \frac{\dot{X}_{product}}{\dot{X}_{fuel}}$$
+$$
+\eta_{exergy} = \frac{\text{Useful exergy output}}{\text{Total exergy input}} = \frac{\dot{X}_{product}}{\dot{X}_{fuel}}
+$$
 
 Or alternatively:
 
-$$\eta_{exergy} = 1 - \frac{\dot{X}_{destroyed}}{\dot{X}_{fuel}}$$
+$$
+\eta_{exergy} = 1 - \frac{\dot{X}_{destroyed}}{\dot{X}_{fuel}}
+$$
 
 **Key insight**: Exergy efficiency is always lower than energy efficiency because it accounts for the degradation of energy quality.
 
@@ -280,7 +302,6 @@ The dramatic difference between energy and exergy efficiencies reveals that usin
 
 ### Installation Methods
 
-#### Option A: Local Development (Recommended)
 
 Best for contributors and users who want the latest features:
 
@@ -298,12 +319,6 @@ cd enex_analysis_engine
 
 # 3) Install dependencies
 uv sync
-```
-
-#### Option B: Package Installation
-
-```bash
-pip install enex-analysis
 ```
 
 ---
