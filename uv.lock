@@ -381,8 +381,8 @@ wheels = [
 
 [[package]]
 name = "dartwork-mpl"
-version = "0.1.0"
-source = { git = "https://github.com/dartwork-repo/dartwork-mpl#258ed7f34b7676acea28404c91060563e1c34456" }
+version = "0.1.1"
+source = { git = "https://github.com/dartwork-repo/dartwork-mpl#8004e5fa4bd7543777a423ca42bb882d59ff4d18" }
 dependencies = [
     { name = "colorspacious" },
     { name = "matplotlib" },
@@ -444,7 +444,7 @@ wheels = [
 ]
 
 [[package]]
-name = "en-system-ex-analysis"
+name = "enex-analysis"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

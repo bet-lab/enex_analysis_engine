@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 *.so
 .Python
@@ -19,11 +20,13 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual environments
+# Virtual Environment
 venv/
-ENV/
 env/
+ENV/
+.venv
 
 # IDE
 .vscode/
@@ -33,14 +36,60 @@ env/
 *~
 
 # Jupyter Notebook
-.ipynb_checkpoints
+*.ipynb_checkpoints
 
 # Sphinx documentation
 docs/_build/
 docs/_static/
 docs/_templates/
 
-# OS
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.bmp
+*.ico
+*.webp
+*.tiff
+*.tif
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.flv
+*.wmv
+*.mpg
+*.mpeg
+*.3gp
+
+# Document files
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+*.ods
+*.odp
+
+# Archive files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# OS files
 .DS_Store
 Thumbs.db
 
+# Project specific directories (if needed)
+# figure/
+# video/
