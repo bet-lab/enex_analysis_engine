@@ -37,8 +37,12 @@ ENV/
 *~
 
 # Jupyter Notebook
-.ipynb_checkpoints
 *.ipynb_checkpoints
+
+# Sphinx documentation
+docs/_build/
+docs/_static/
+docs/_templates/
 
 # Image files
 *.png
@@ -90,4 +94,3 @@ Thumbs.db
 # Project specific directories (if needed)
 # figure/
 # video/
-

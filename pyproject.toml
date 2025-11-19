@@ -1,7 +1,7 @@
 [project]
-name = "enex-analysis"
+name = "enex-analysis-engine"
 version = "0.1.0"
-description = "Add your description here"
+description = "Energy-Exergy Analysis Engine for Building Energy Systems"
 readme = "README.md"
 authors = [
     { name = "Habin Jo", email = "habinjo0608@gmail.com" }
@@ -16,13 +16,22 @@ dependencies = [
     "pandas>=2.2.3",
     "salib>=1.5.1",
     "scipy>=1.15.2",
-    "seaborn>=0.13.2",
     "tqdm>=4.67.1",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enex_analysis"]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-book-theme>=1.0.0",
+    "sphinx-autodoc-typehints>=1.24.0",
+]
 
 [tool.uv.sources]
 dartwork-mpl = { git = "https://github.com/dartwork-repo/dartwork-mpl" }
