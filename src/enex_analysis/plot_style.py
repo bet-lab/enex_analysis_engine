@@ -25,7 +25,7 @@ fs = {
     'legend': dm.fs(-2.0),
     'subtitle': dm.fs(-0.5),
     'cbar_tick': dm.fs(-2.0),
-    'cbar_label': dm.fs(-1.0),
+    'cbar_label': dm.fs(0),
     'cbar_title': dm.fs(-1),
     'setpoint': dm.fs(-1),
     'text': dm.fs(-3.0),

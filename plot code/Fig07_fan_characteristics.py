@@ -28,8 +28,8 @@ ylim_pressure = [(130, 210), (250, 370)]
 yticks_pressure = [np.linspace(130, 210, 5), np.linspace(250, 370, 5)]
 ylim_efficiency = [(50, 70), (50, 70)]
 yticks_efficiency = [np.linspace(50, 70, 5), np.linspace(50, 70, 5)]
-ylim_power = [(200, 1200), (600, 2200)]
-yticks_power = [np.linspace(200, 1200, 5), np.linspace(600, 2200, 5)]
+ylim_power = [(0.2, 1.0), (0.6, 2.2)]
+yticks_power = [np.linspace(0.2, 1.0, 5), np.linspace(0.6, 2.2, 5)]
 xlims = [(1.0, 3.0), (1.5, 3.5)]
 xticks = [np.arange(1.0, 3.1, 0.5), np.arange(1.5, 3.6, 0.5)]
 
@@ -54,8 +54,8 @@ for ax, fan, label, flow_range, ylim_p, yticks_p, ylim_e, yticks_e, ylim_pow, yt
 
     # Power - First right y-axis
     ax2 = ax.twinx()
-    ax2.set_ylabel('Power [W]', color=colors[2], fontsize=fs['label'], labelpad=pad['label'])
-    power_line, = ax2.plot(flow_range, power, color=colors[2], linestyle=':', label='Power', linewidth=line_width)
+    ax2.set_ylabel('Power [kW]', color=colors[2], fontsize=fs['label'], labelpad=pad['label'])
+    power_line, = ax2.plot(flow_range, power*enex.W2kW, color=colors[2], linestyle=':', label='Power', linewidth=line_width)
     ax2.tick_params(axis='y', labelsize=fs['tick'], colors=colors[2], pad=pad['tick'])
     ax2.set_ylim(ylim_pow)
     ax2.set_yticks(yticks_pow)
@@ -66,7 +66,7 @@ for ax, fan, label, flow_range, ylim_p, yticks_p, ylim_e, yticks_e, ylim_pow, yt
 
     # Pressure drop - Second right y-axis
     ax3 = ax.twinx()
-    ax3.spines['right'].set_position(('axes', 1.28))
+    ax3.spines['right'].set_position(('axes', 1.25))
     ax3.set_ylabel('Pressure drop [Pa]', color=colors[0], fontsize=fs['label'], labelpad=pad['label'])
     pressure_line, = ax3.plot(flow_range, pressure, color=colors[0], linestyle='--', label='Pressure drop', linewidth=line_width)
     ax3.tick_params(axis='y', labelsize=fs['tick'], colors=colors[0], pad=pad['tick'])
