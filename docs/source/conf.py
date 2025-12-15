@@ -79,10 +79,18 @@ html_static_path = ['_static']
 html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 
 # -- Options for sphinx-shibuya-theme ----------------------------------------
+#
+# Layout is inspired by the dartwork-mpl documentation:
+# - Top navigation bar for the main sections
+# - Collapsible left-hand sidebar for the global/site TOC
+# - Per-page table of contents in the page sidebar
 
 html_theme_options = {
+    # Global links
     "github_url": "https://github.com/BET-lab/enex_analysis_engine",
     "accent_color": "indigo",
+
+    # Top navigation bar links
     "nav_links": [
         {
             "title": "Installation",
@@ -110,7 +118,20 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-    # 로고가 있으면 추가
+
+    # Sidebar configuration: show page-level TOC on the left
+    "page_sidebar_items": ["page-toc", "edit-this-page"],
+
+    # Footer links (kept minimal)
+    "footer_links": [
+        {
+            "title": "GitHub",
+            "url": "https://github.com/BET-lab/enex_analysis_engine",
+            "icon": "fa-brands fa-github",
+        },
+    ],
+
+    # Logo placeholders – enable when logo assets are available
     # "light_logo": "_static/logo-light.svg",
     # "dark_logo": "_static/logo-dark.svg",
 }
