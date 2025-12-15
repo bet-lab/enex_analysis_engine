@@ -30,7 +30,7 @@ copyright = '2025, betlab'
 author = 'Habin Jo, Wonjun Choi'
 release = '0.1.0'
 
-# Force rebuild to update copyright
+# Force rebuild to update copyright and apply Shibuya theme
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
