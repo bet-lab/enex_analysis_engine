@@ -51,6 +51,9 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'build', 'Thumbs.db', '.DS_Store']
 
+# Suppress warnings for myst cross-references (anchor links work in HTML output)
+suppress_warnings = ['myst.xref_missing']
+
 # -- Options for myst-parser ----------------------------------------------------
 # https://myst-parser.readthedocs.io/en/latest/configuration.html
 

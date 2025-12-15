@@ -115,7 +115,7 @@ Dynamic System Models
 * :class:`ElectricHeater` - Dynamic heat transfer analysis for electric heating elements
 
 Auxiliary Components
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 * :class:`Fan` - Air handling fan with performance curves
 * :class:`Pump` - Fluid circulation pump with efficiency curves
@@ -129,6 +129,8 @@ Auxiliary Components
    examples
    api
    theory
+   EXAMPLES
+   IO_DOCS
 
 Indices and tables
 ==================

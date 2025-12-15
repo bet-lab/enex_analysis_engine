@@ -23,15 +23,15 @@ def darcy_friction_factor(Re, e_d):
     """
     Calculate the Darcy friction factor for given Reynolds number and relative roughness.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     Re : float
         Reynolds number
     e_d : float
         Relative roughness (e/D)
     
-    Returns:
-    --------
+    Returns
+    -------
     float
         Darcy friction factor
     """
@@ -50,8 +50,8 @@ def calc_h_vertical_plate(T_s, T_inf, L):
     This function calculates the heat transfer coefficient due to natural convection
     using the Churchill & Chu correlation.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     T_s : float
         Surface temperature [K]
     T_inf : float
@@ -59,13 +59,13 @@ def calc_h_vertical_plate(T_s, T_inf, L):
     L : float
         Characteristic length [m]
     
-    Returns:
-    --------
+    Returns
+    -------
     float
         Heat transfer coefficient [W/m²K]
     
-    Note:
-    -----
+    Note
+    ----
     Uses Churchill & Chu correlation.
     Reference: https://doi.org/10.1016/0017-9310(75)90243-4
     """
@@ -114,8 +114,8 @@ def print_balance(balance, decimal=2):
     This function prints balance information for subsystems, categorizing entries
     into in, out, consumed, and generated categories.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     balance : dict
         Dictionary containing balance information for subsystems.
         Structure: {subsystem_name: {category: {symbol: value}}}
@@ -123,13 +123,13 @@ def print_balance(balance, decimal=2):
     decimal : int, optional
         Number of decimal places for output (default: 2)
     
-    Returns:
-    --------
+    Returns
+    -------
     None
         Only prints output
     
-    Example:
-    --------
+    Example
+    -------
     >>> balance = {
     ...     "hot water tank": {
     ...         "in": {"E_heater": 5000.0},
@@ -171,8 +171,8 @@ def calculate_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_re
     
     Reference: https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     T_a_int_out : float
         Indoor air temperature [K]
     T_a_ext_in : float
@@ -184,13 +184,13 @@ def calculate_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_re
     COP_ref : float
         Reference COP at standard conditions
     
-    Returns:
-    --------
+    Returns
+    -------
     float
         COP value
     
-    Note:
-    -----
+    Note
+    ----
     COP is calculated based on:
     - PLR: Part Load Ratio
     - EIR: Energy input to cooling output ratio
@@ -210,8 +210,8 @@ def calculate_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     
     Reference: https://www.mdpi.com/2071-1050/15/3/1880
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     T0 : float
         Environmental temperature [K]
     Q_r_int : float
@@ -219,13 +219,13 @@ def calculate_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     Q_r_max : float
         Maximum heating capacity [W]
     
-    Returns:
-    --------
+    Returns
+    -------
     float
         COP value
     
-    Note:
-    -----
+    Note
+    ----
     COP is calculated based on PLR (Part Load Ratio).
     """
     PLR = Q_r_int / Q_r_max
@@ -243,8 +243,8 @@ def calculate_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
     
     Formula: COP = 1 / (1 - T0/T_cond + ΔT * θ̂ / T_cond)
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     Tg : float
         Undisturbed ground temperature [K]
     T_cond : float
@@ -255,13 +255,13 @@ def calculate_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
         θ̂(x0, k_sb), dimensionless average fluid temperature
         Reference: Paper Fig 8, Table 1
     
-    Returns:
-    --------
+    Returns
+    -------
     float
         Modified Carnot-based COP. Returns NaN if denominator <= 0.
     
-    Raises:
-    -------
+    Raises
+    ------
     ValueError
         If T_cond <= T_evap (invalid for COP calculation)
     """

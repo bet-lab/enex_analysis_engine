@@ -160,7 +160,7 @@ Understanding Results
 ---------------------
 
 Energy Balance
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 The energy balance shows energy flows into and out of each subsystem:
 

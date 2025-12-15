@@ -513,8 +513,7 @@ Polynomial Functions
 ^^^^^^^^^^^^^^^^^^^^
 
 .. autofunction:: enex_analysis_engine.enex_engine.linear_function
-.. autofunction:: enex_analysis_engine.enex_engine.quadratic_wunction
-.. autofunction:: enex_analysis_engine.enex_engine.cubic_wunction
-.. autofunction:: enex_analysis_engine.enex_engine.quartic_wunction
 
 Polynomial functions for curve fitting and interpolation.
+
+Note: Additional polynomial functions (quadratic, cubic, quartic) are available in the codebase but are not currently exposed in the public API.

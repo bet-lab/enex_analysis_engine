@@ -85,7 +85,7 @@ System-Specific Theory
 ----------------------
 
 Electric Boiler
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 The electric boiler converts electrical energy directly to thermal energy. The energy balance for the tank is:
 
