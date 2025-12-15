@@ -82,13 +82,37 @@ html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 
 html_theme_options = {
     "github_url": "https://github.com/BET-lab/enex_analysis_engine",
+    "accent_color": "indigo",
     "nav_links": [
+        {
+            "title": "Installation",
+            "url": "installation",
+        },
+        {
+            "title": "User Guide",
+            "url": "user_guide",
+        },
+        {
+            "title": "Examples",
+            "url": "examples",
+        },
+        {
+            "title": "API Reference",
+            "url": "api",
+        },
+        {
+            "title": "Theory",
+            "url": "theory",
+        },
         {
             "title": "GitHub",
             "url": "https://github.com/BET-lab/enex_analysis_engine",
             "icon": "fa-brands fa-github",
         },
     ],
+    # 로고가 있으면 추가
+    # "light_logo": "_static/logo-light.svg",
+    # "dark_logo": "_static/logo-dark.svg",
 }
 
 # -- Options for autodoc -----------------------------------------------------
