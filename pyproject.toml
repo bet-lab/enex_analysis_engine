@@ -29,7 +29,7 @@ packages = ["src/enex_analysis"]
 [project.optional-dependencies]
 docs = [
     "sphinx>=7.0.0",
-    "sphinx-book-theme>=1.0.0",
+    "sphinx-shibuya-theme>=0.2.0",
     "sphinx-autodoc-typehints>=1.24.0",
 ]
 

@@ -44,11 +44,7 @@ html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 # -- Options for sphinx-shibuya-theme ----------------------------------------
 
 html_theme_options = {
-    "light_logo": "_static/logo-light.svg",
-    "dark_logo": "_static/logo-dark.svg",
     "github_url": "https://github.com/BET-lab/enex_analysis_engine",
-    "twitter_url": None,
-    "mastodon_url": None,
     "nav_links": [
         {
             "title": "GitHub",
@@ -64,7 +60,6 @@ html_theme_options = {
         },
     ],
     "page_sidebar_items": ["page-toc", "edit-this-page"],
-    "announcement": None,
 }
 
 # -- Options for autodoc -----------------------------------------------------
