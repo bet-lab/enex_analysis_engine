@@ -7,7 +7,20 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../src'))
+# Add src directory to path for importing enex_analysis
+src_path = os.path.abspath('../../src')
+sys.path.insert(0, src_path)
+
+# Try to import the package - if it fails, we'll mock it
+try:
+    import enex_analysis
+    # Create alias for enex_analysis_engine
+    import sys as _sys
+    _sys.modules['enex_analysis_engine'] = enex_analysis
+    _sys.modules['enex_analysis_engine.calc_util'] = enex_analysis.calc_util
+    _sys.modules['enex_analysis_engine.enex_engine'] = enex_analysis.enex_engine
+except ImportError:
+    pass
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -29,15 +42,36 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx_autodoc_typehints',
+    'sphinx_copybutton',      # Copy button for code blocks
+    'sphinx_design',         # Grid layouts and cards
+    'myst_parser',           # Markdown support
+    'sphinx_click',         # CLI documentation
 ]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'build', 'Thumbs.db', '.DS_Store']
 
+# -- Options for myst-parser ----------------------------------------------------
+# https://myst-parser.readthedocs.io/en/latest/configuration.html
+
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
+]
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_shibuya'
+html_theme = 'shibuya'
 html_static_path = ['_static']
 html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 
@@ -52,14 +86,6 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-    "footer_links": [
-        {
-            "title": "GitHub",
-            "url": "https://github.com/BET-lab/enex_analysis_engine",
-            "icon": "fa-brands fa-github",
-        },
-    ],
-    "page_sidebar_items": ["page-toc", "edit-this-page"],
 }
 
 # -- Options for autodoc -----------------------------------------------------
