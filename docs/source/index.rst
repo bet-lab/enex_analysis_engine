@@ -122,13 +122,14 @@ Auxiliary Components
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    installation
    user_guide
    examples
    api
    theory
+
    EXAMPLES
    IO_DOCS
 
