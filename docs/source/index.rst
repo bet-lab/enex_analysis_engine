@@ -1,7 +1,7 @@
 .. Energy-Exergy Analysis Engine documentation master file
 
 =====================================
-Energy-Exergy Analysis Engine
+Energy-Exergy Analysis Engine [TEST]
 =====================================
 
 .. rst-class:: lead
