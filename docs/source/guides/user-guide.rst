@@ -297,4 +297,4 @@ Best Practices
 
 7. **Visualization**: Use ``dartwork-mpl`` for publication-quality plots.
 
-See the :doc:`api` documentation for detailed information about each class and function, and :doc:`examples` for more comprehensive usage examples.
+See the :doc:`/api/index` documentation for detailed information about each class and function, and :doc:`/examples/index` for more comprehensive usage examples.
