@@ -79,6 +79,7 @@ myst_enable_extensions = [
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "furo"
+html_title = "Energy-Exergy Analysis Engine"
 html_static_path = ["_static"]
 html_baseurl = "https://bet-lab.github.io/enex_analysis_engine/"
 
