@@ -78,62 +78,49 @@ myst_enable_extensions = [
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "shibuya"
+html_theme = "furo"
 html_static_path = ["_static"]
 html_baseurl = "https://bet-lab.github.io/enex_analysis_engine/"
 
-# -- Options for sphinx-shibuya-theme ----------------------------------------
-#
-# Layout is inspired by the dartwork-mpl documentation:
-# - Top navigation bar for the main sections
-# - Collapsible left-hand sidebar for the global/site TOC
-# - Per-page table of contents in the page sidebar
+# Custom CSS
+html_css_files = [
+    "css/custom.css",
+]
+
+# -- Options for Furo theme --------------------------------------------------
+# https://pradyunsg.me/furo/customisation/
 
 html_theme_options = {
-    # Global links
-    "github_url": "https://github.com/bet-lab/enex_analysis_engine",
-    "accent_color": "indigo",
-    # Top navigation bar links
-    "nav_links": [
+    # Color scheme
+    "light_css_variables": {
+        "color-brand-primary": "#4051b5",  # Indigo
+        "color-brand-content": "#4051b5",
+        "color-sidebar-background": "#f8f9fa",
+        "color-sidebar-background-border": "#e9ecef",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#7c88cc",  # Lighter indigo for dark mode
+        "color-brand-content": "#7c88cc",
+    },
+    # Sidebar
+    "sidebar_hide_name": False,
+    # Footer
+    "footer_icons": [
         {
-            "title": "Installation",
-            "url": "installation",
-        },
-        {
-            "title": "User Guide",
-            "url": "user_guide",
-        },
-        {
-            "title": "Examples",
-            "url": "examples",
-        },
-        {
-            "title": "API Reference",
-            "url": "api",
-        },
-        {
-            "title": "Theory",
-            "url": "theory",
-        },
-        {
-            "title": "GitHub",
+            "name": "GitHub",
             "url": "https://github.com/bet-lab/enex_analysis_engine",
-            "icon": "fa-brands fa-github",
+            "html": """
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            """,
+            "class": "",
         },
     ],
-    # Sidebar configuration: show page-level TOC on the left
-    "page_sidebar_items": ["page-toc", "edit-this-page"],
-    # Footer links (kept minimal)
-    "footer_links": [
-        {
-            "title": "GitHub",
-            "url": "https://github.com/bet-lab/enex_analysis_engine",
-            "icon": "fa-brands fa-github",
-        },
-    ],
-    # Logo placeholders – enable when logo assets are available
-    # "light_logo": "_static/logo-light.svg",
-    # "dark_logo": "_static/logo-dark.svg",
+    # Source code repository
+    "source_repository": "https://github.com/bet-lab/enex_analysis_engine",
+    "source_branch": "main",
+    "source_directory": "docs/source/",
 }
 
 # -- Options for autodoc -----------------------------------------------------
