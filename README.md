@@ -185,19 +185,3 @@ enex_analysis_engine/
 - **`balance_helpers.py`**: Utilities for calculating and formatting thermodynamic balances.
 
 ---
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
-## References
-
-This library is based on the following research and theory:
-
-- Shukuya, M. (2013). _Exergy theory and applications in the built environment_. Springer.
-- Ground-source heat pump COP calculations: [Reference paper](https://www.sciencedirect.com/science/article/pii/S0360544219304347)
-- Air-source heat pump COP calculations: [IBPSA paper](https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf)
-
-## Contact
-
-Project Manager: Habin Jo (habinjo0608@gmail.com)
