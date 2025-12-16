@@ -7,28 +7,31 @@
 
 import os
 import sys
+
 # Add src directory to path for importing enex_analysis
-src_path = os.path.abspath('../../src')
+src_path = os.path.abspath("../../src")
 sys.path.insert(0, src_path)
 
 # Try to import the package - if it fails, we'll mock it
 try:
     import enex_analysis
+
     # Create alias for enex_analysis_engine
     import sys as _sys
-    _sys.modules['enex_analysis_engine'] = enex_analysis
-    _sys.modules['enex_analysis_engine.calc_util'] = enex_analysis.calc_util
-    _sys.modules['enex_analysis_engine.enex_engine'] = enex_analysis.enex_engine
+
+    _sys.modules["enex_analysis_engine"] = enex_analysis
+    _sys.modules["enex_analysis_engine.calc_util"] = enex_analysis.calc_util
+    _sys.modules["enex_analysis_engine.enex_engine"] = enex_analysis.enex_engine
 except ImportError:
     pass
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Energy-Exergy Analysis Engine'
-copyright = '2025, betlab'
-author = 'Habin Jo, Wonjun Choi'
-release = '0.1.0'
+project = "Energy-Exergy Analysis Engine"
+copyright = "2025, betlab"
+author = "Habin Jo, Wonjun Choi"
+release = "0.1.0"
 
 # Force rebuild to update copyright and apply Shibuya theme
 
@@ -36,23 +39,24 @@ release = '0.1.0'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx',
-    'sphinx_autodoc_typehints',
-    'sphinx_copybutton',      # Copy button for code blocks
-    'sphinx_design',         # Grid layouts and cards
-    'myst_parser',           # Markdown support
-    'sphinx_click',         # CLI documentation
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx_autodoc_typehints",
+    "sphinx_copybutton",  # Copy button for code blocks
+    "sphinx_design",  # Grid layouts and cards
+    "myst_parser",  # Markdown support
+    "sphinx_click",  # CLI documentation
+    "sphinx.ext.githubpages",  # Fix for GitHub Pages ignoring _static
 ]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'build', 'Thumbs.db', '.DS_Store']
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "build", "Thumbs.db", ".DS_Store"]
 
 # Suppress warnings for myst cross-references (anchor links work in HTML output)
-suppress_warnings = ['myst.xref_missing']
+suppress_warnings = ["myst.xref_missing"]
 
 # -- Options for myst-parser ----------------------------------------------------
 # https://myst-parser.readthedocs.io/en/latest/configuration.html
@@ -74,9 +78,9 @@ myst_enable_extensions = [
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'shibuya'
-html_static_path = ['_static']
-html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
+html_theme = "shibuya"
+html_static_path = ["_static"]
+html_baseurl = "https://bet-lab.github.io/enex_analysis_engine/"
 
 # -- Options for sphinx-shibuya-theme ----------------------------------------
 #
@@ -89,7 +93,6 @@ html_theme_options = {
     # Global links
     "github_url": "https://github.com/bet-lab/enex_analysis_engine",
     "accent_color": "indigo",
-
     # Top navigation bar links
     "nav_links": [
         {
@@ -118,10 +121,8 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-
     # Sidebar configuration: show page-level TOC on the left
     "page_sidebar_items": ["page-toc", "edit-this-page"],
-
     # Footer links (kept minimal)
     "footer_links": [
         {
@@ -130,7 +131,6 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-
     # Logo placeholders – enable when logo assets are available
     # "light_logo": "_static/logo-light.svg",
     # "dark_logo": "_static/logo-dark.svg",
@@ -140,14 +140,14 @@ html_theme_options = {
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
 
 autodoc_default_options = {
-    'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__'
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
 }
 
-autodoc_mock_imports = ['dartwork_mpl', 'dartwork-mpl']
+autodoc_mock_imports = ["dartwork_mpl", "dartwork-mpl"]
 
 # -- Options for napoleon ----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
@@ -169,4 +169,3 @@ napoleon_use_rtype = True
 typehints_fully_qualified = False
 always_document_param_types = True
 typehints_document_rtype = True
-
