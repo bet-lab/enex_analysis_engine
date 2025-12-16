@@ -248,7 +248,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2) Clone repository
-git clone https://github.com/BET-lab/enex_analysis_engine.git
+git clone https://github.com/bet-lab/enex_analysis_engine.git
 cd enex_analysis_engine
 
 # 3) Install dependencies

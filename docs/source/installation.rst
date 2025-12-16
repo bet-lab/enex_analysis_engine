@@ -11,7 +11,7 @@ Using uv (recommended)
 
 .. code-block:: bash
 
-   uv add git+https://github.com/BET-lab/enex_analysis_engine.git
+   uv add git+https://github.com/bet-lab/enex_analysis_engine.git
 
 .. code-block:: bash
 
@@ -22,7 +22,7 @@ Using pip
 
 .. code-block:: bash
 
-   pip install git+https://github.com/BET-lab/enex_analysis_engine.git
+   pip install git+https://github.com/bet-lab/enex_analysis_engine.git
 
 Dependencies
 ------------

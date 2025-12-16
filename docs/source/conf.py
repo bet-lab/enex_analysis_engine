@@ -87,7 +87,7 @@ html_baseurl = 'https://bet-lab.github.io/enex_analysis_engine/'
 
 html_theme_options = {
     # Global links
-    "github_url": "https://github.com/BET-lab/enex_analysis_engine",
+    "github_url": "https://github.com/bet-lab/enex_analysis_engine",
     "accent_color": "indigo",
 
     # Top navigation bar links
@@ -114,7 +114,7 @@ html_theme_options = {
         },
         {
             "title": "GitHub",
-            "url": "https://github.com/BET-lab/enex_analysis_engine",
+            "url": "https://github.com/bet-lab/enex_analysis_engine",
             "icon": "fa-brands fa-github",
         },
     ],
@@ -126,7 +126,7 @@ html_theme_options = {
     "footer_links": [
         {
             "title": "GitHub",
-            "url": "https://github.com/BET-lab/enex_analysis_engine",
+            "url": "https://github.com/bet-lab/enex_analysis_engine",
             "icon": "fa-brands fa-github",
         },
     ],
