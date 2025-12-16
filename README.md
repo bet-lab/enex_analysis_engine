@@ -26,52 +26,8 @@ This library makes energy-exergy analysis accessible by providing ready-to-use m
 Every component model automatically calculates three balances:
 
 1. **Energy Balance** (First Law of Thermodynamics): Identifies energy flows and losses
-
-- **Energy conservation:**
-
-$$
-\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
-$$
-
-- **Steady state:**
-
-$$
-\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
-$$
-
 2. **Entropy Balance** (Second Law of Thermodynamics): Quantifies irreversibilities
-
-- **Entropy transfer and generation:**
-
-$$
-\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
-$$
-
-- **Steady state:**
-
-$$
-\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
-$$
-
 3. **Exergy Balance** (Both First and Second Law of Thermodynamics): Reveals thermodynamic inefficiencies
-
-- **General form:**
-
-$$
-\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
-$$
-
-- **Steady state:**
-
-$$
-\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
-$$
-
-- **Exergy destruction:**
-
-$$
-\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
-$$
 
 These balances are calculated consistently across all components, enabling system-level analysis and comparison.
 
@@ -91,8 +47,6 @@ The library provides models for a wide range of energy conversion systems, organ
 
 ### Domestic Hot Water (DHW) Systems
 
-Complete models for residential and commercial hot water production:
-
 - **`ElectricBoiler`**: Electric resistance heating system with hot water storage tank
 - **`GasBoiler`**: Natural gas combustion boiler with hot water storage
 - **`HeatPumpBoiler`**: Air-source heat pump for hot water production
@@ -101,8 +55,6 @@ Complete models for residential and commercial hot water production:
 
 ### Heat Pump Systems
 
-Standalone heat pump models for space conditioning:
-
 - **`AirSourceHeatPump_cooling`**: Air-source heat pump in cooling mode
 - **`AirSourceHeatPump_heating`**: Air-source heat pump in heating mode
 - **`GroundSourceHeatPump_cooling`**: Ground-source heat pump in cooling mode
@@ -110,14 +62,9 @@ Standalone heat pump models for space conditioning:
 
 ### Dynamic System Models
 
-Time-dependent analysis for transient behavior:
-
 - **`ElectricHeater`**: Dynamic heat transfer analysis for electric heating elements
-- **`ElectricBoiler_Dynamic`**: Time-dependent hot water tank simulation
 
 ### Auxiliary Components
-
-Supporting components for complete system modeling:
 
 - **`Fan`**: Air handling fan with performance curves
 - **`Pump`**: Fluid circulation pump with efficiency curves
@@ -156,69 +103,7 @@ print("\n=== Exergy Balance ===")
 print_balance(boiler.exergy_balance)
 ```
 
-### Example 2: Gas Boiler System
-
-```python
-from enex_analysis_engine import GasBoiler, print_balance
-
-# Initialize gas boiler
-boiler = GasBoiler()
-
-# Set parameters
-boiler.T_w_tank = 60
-boiler.T_w_sup = 10
-boiler.T_w_serv = 45
-boiler.dV_w_serv = 1.2
-boiler.T0 = 0
-
-# Run analysis
-boiler.system_update()
-
-# Compare energy vs exergy efficiency
-print(f"Energy efficiency: {boiler.E_eff:.4f}")
-print(f"Exergy efficiency: {boiler.X_eff:.4f}")
-print(f"Natural gas exergy: {boiler.X_NG:.2f} W")
-print(f"Exergy destruction: {boiler.X_c_tot:.2f} W")
-```
-
-### Example 3: Air-Source Heat Pump (Heating)
-
-```python
-from enex_analysis_engine import AirSourceHeatPump_heating
-
-# Initialize heat pump
-hp = AirSourceHeatPump_heating()
-
-# Set conditions
-hp.T0 = 0          # Outdoor temperature [°C]
-hp.Q_r_int = 5000  # Heating load [W]
-hp.Q_r_max = 8000  # Maximum capacity [W]
-
-# Run analysis
-hp.system_update()
-
-# View performance
-print(f"COP: {hp.COP:.2f}")
-print(f"Compressor power: {hp.E_cmp:.2f} W")
-print(f"Exergy efficiency: {hp.X_eff:.4f}")
-```
-
-### Example Output
-
-```
-HOT WATER TANK EXERGY BALANCE: =====================
-
-IN ENTRIES:
-E_heater: 5234.56 [W]
-X_w_sup_tank: 123.45 [W]
-
-OUT ENTRIES:
-X_w_tank: 4567.89 [W]
-X_l_tank: 234.56 [W]
-
-CONSUMED ENTRIES:
-X_c_tank: 555.56 [W]
-```
+For more examples, see the [Documentation](https://bet-lab.github.io/enex_analysis_engine/).
 
 ---
 
@@ -257,16 +142,18 @@ Comprehensive documentation is available:
 
 - **[📚 Online Documentation](https://bet-lab.github.io/enex_analysis_engine/)**: Full API reference and user guide (Sphinx-generated)
 - **[IO_DOCS.md](IO_DOCS.md)**: Complete input/output interface documentation for all components
-- **[EXAMPLES.md](EXAMPLES.md)**: Detailed usage examples and tutorials for each component
+- **[EXAMPLES.md](EXAMPLES.md)**: Additional usage examples and tutorials (Korean)
 
 The online documentation includes:
 
-- Installation guide
-- User guide with examples
-- Complete API reference for all classes and functions
-- Automatic documentation from docstrings
-
-English versions are also available in the `docs/` folder.
+- **Getting Started**: Installation and quick start guides
+- **User Guides**: Detailed guides on using the library features
+- **Examples**:
+  - [Electric Boiler](docs/source/examples/electric-boiler.md)
+  - [Gas Boiler](docs/source/examples/gas-boiler.md)
+  - [Heat Pump Systems](docs/source/examples/air-source-heat-pump.md)
+  - And more...
+- **API Reference**: Complete documentation for all classes and functions
 
 ---
 
@@ -276,60 +163,28 @@ English versions are also available in the `docs/` folder.
 enex_analysis_engine/
 ├── src/
 │   └── enex_analysis/
-│       ├── __init__.py              # Package initialization
-│       ├── calc_util.py              # Unit conversion utilities
-│       ├── enex_engine.py            # Steady-state system models
-│       └── enex_engine_dynamic.py    # Dynamic system models
-├── docs/                             # English documentation
-├── pyproject.toml                    # Project configuration
-├── uv.lock                           # Dependency lock file
-├── IO_DOCS.md                        # I/O documentation (Korean)
-├── EXAMPLES.md                       # Usage examples (Korean)
-└── README.md                         # This file
+│       ├── __init__.py           # Package initialization
+│       ├── balance_helpers.py    # Balance calculation utilities
+│       ├── calc_util.py          # Unit conversion utilities
+│       ├── constants.py          # Physical constants
+│       ├── enex_engine.py        # Core system models
+│       └── enex_functions.py     # Shared functions for calc modules
+├── docs/                         # Sphinx documentation
+├── pyproject.toml                # Project configuration
+├── uv.lock                       # Dependency lock file
+├── IO_DOCS.md                    # I/O documentation (Korean)
+├── EXAMPLES.md                   # Usage examples (Korean)
+└── README.md                     # This file
 ```
 
 ### Key Modules
 
-- **`calc_util.py`**: Unit conversion constants and helper functions
-
-  - Temperature: `C2K()`, `K2C()`
-  - Time: `h2s`, `s2h`, `d2h`, etc.
-  - Energy/Power: `J2kWh`, `W2kW`, etc.
-  - Length, Area, Volume, Mass, Pressure, Angle conversions
-
-- **`enex_engine.py`**: Steady-state system models
-
-  - All component classes (boilers, heat pumps, auxiliaries)
-  - COP calculation functions for heat pumps
-  - Heat transfer coefficient calculations
-  - g-function calculations for ground-source systems
-  - Balance calculation utilities
-
-- **`enex_engine_dynamic.py`**: Dynamic system models
-  - Time-dependent simulations
-  - Transient heat transfer analysis
-  - Dynamic tank temperature calculations
+- **`enex_engine.py`**: Contains the core energy system classes (Boilers, Heat Pumps, etc.).
+- **`calc_util.py`**: Unit conversion constants (e.g., `C2K`, `h2s`, `W2kW`).
+- **`enex_functions.py`**: Shared helper functions used across different engines.
+- **`balance_helpers.py`**: Utilities for calculating and formatting thermodynamic balances.
 
 ---
-
-## Dependencies
-
-Core dependencies:
-
-- `numpy`: Numerical computations
-- `scipy`: Scientific computing (optimization, integration, special functions)
-- `matplotlib`: Visualization
-- `dartwork-mpl`: Plot styling (https://github.com/dartwork-repo/dartwork-mpl)
-- `pandas`: Data processing
-- `dataclasses`: Data class support (built-in)
-
-For complete dependency list and versions, see `pyproject.toml`.
-
----
-
-## License
-
-[License information to be added]
 
 ## Contributing
 

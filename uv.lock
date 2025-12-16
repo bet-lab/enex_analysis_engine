@@ -415,9 +415,10 @@ wheels = [
 [[package]]
 name = "dartwork-mpl"
 version = "0.1.1"
-source = { git = "https://github.com/dartwork-repo/dartwork-mpl#8004e5fa4bd7543777a423ca42bb882d59ff4d18" }
+source = { git = "https://github.com/dartworklabs/dartwork-mpl#f0fd6160b6b2194e8dcc04887a6c29b2814c6b69" }
 dependencies = [
     { name = "colorspacious" },
+    { name = "ipython" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "palettable" },
@@ -517,7 +518,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dartwork-mpl", git = "https://github.com/dartwork-repo/dartwork-mpl" },
+    { name = "dartwork-mpl", git = "https://github.com/dartworklabs/dartwork-mpl" },
     { name = "furo", marker = "extra == 'docs'", specifier = ">=2024.8.6" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "linkify-it-py", marker = "extra == 'docs'", specifier = ">=2.0.0" },
