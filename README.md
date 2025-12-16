@@ -8,7 +8,7 @@ A Python library that enables simultaneous energy (first-law) and exergy (second
 
 ## Why Energy-Exergy Analysis?
 
-Traditional energy analysis tells you *how much* energy is used, but not *how well* it's used. Exergy analysis reveals the true thermodynamic efficiency by accounting for energy quality and identifying where irreversibilities occur. Together, energy-exergy analysis provides:
+Traditional energy analysis tells you _how much_ energy is used, but not _how well_ it's used. Exergy analysis reveals the true thermodynamic efficiency by accounting for energy quality and identifying where irreversibilities occur. Together, energy-exergy analysis provides:
 
 - **Complete thermodynamic picture**: Understand both quantity (energy) and quality (exergy) of energy flows
 - **Inefficiency identification**: Pinpoint where and why energy is being destroyed
@@ -27,22 +27,19 @@ Every component model automatically calculates three balances:
 
 1. **Energy Balance** (First Law of Thermodynamics): Identifies energy flows and losses
 
-
- - **Energy conservation:**
+- **Energy conservation:**
 
 $$
 \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss} + \frac{dE_{system}}{dt}
 $$
 
-   - **Steady state:**
+- **Steady state:**
 
 $$
 \sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}
 $$
 
-
 2. **Entropy Balance** (Second Law of Thermodynamics): Quantifies irreversibilities
-
 
 - **Entropy transfer and generation:**
 
@@ -50,15 +47,13 @@ $$
 \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out} + \frac{dS_{system}}{dt}
 $$
 
-   - **Steady state:**
+- **Steady state:**
 
 $$
 \sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}
 $$
 
-
 3. **Exergy Balance** (Both First and Second Law of Thermodynamics): Reveals thermodynamic inefficiencies
-
 
 - **General form:**
 
@@ -66,18 +61,17 @@ $$
 \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed} + \frac{dX_{system}}{dt}
 $$
 
-   - **Steady state:**
+- **Steady state:**
 
 $$
 \sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}
 $$
 
-   - **Exergy destruction:**
+- **Exergy destruction:**
 
 $$
 \dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}
 $$
-
 
 These balances are calculated consistently across all components, enabling system-level analysis and comparison.
 
@@ -266,6 +260,7 @@ Comprehensive documentation is available:
 - **[EXAMPLES.md](EXAMPLES.md)**: Detailed usage examples and tutorials for each component
 
 The online documentation includes:
+
 - Installation guide
 - User guide with examples
 - Complete API reference for all classes and functions
@@ -296,12 +291,14 @@ enex_analysis_engine/
 ### Key Modules
 
 - **`calc_util.py`**: Unit conversion constants and helper functions
+
   - Temperature: `C2K()`, `K2C()`
   - Time: `h2s`, `s2h`, `d2h`, etc.
   - Energy/Power: `J2kWh`, `W2kW`, etc.
   - Length, Area, Volume, Mass, Pressure, Angle conversions
 
 - **`enex_engine.py`**: Steady-state system models
+
   - All component classes (boilers, heat pumps, auxiliaries)
   - COP calculation functions for heat pumps
   - Heat transfer coefficient calculations
@@ -329,3 +326,23 @@ Core dependencies:
 For complete dependency list and versions, see `pyproject.toml`.
 
 ---
+
+## License
+
+[License information to be added]
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## References
+
+This library is based on the following research and theory:
+
+- Shukuya, M. (2013). _Exergy theory and applications in the built environment_. Springer.
+- Ground-source heat pump COP calculations: [Reference paper](https://www.sciencedirect.com/science/article/pii/S0360544219304347)
+- Air-source heat pump COP calculations: [IBPSA paper](https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf)
+
+## Contact
+
+Project Manager: Habin Jo (habinjo0608@gmail.com)
