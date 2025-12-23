@@ -13,12 +13,15 @@ from tqdm import tqdm
 from scipy.optimize import minimize
 import pandas as pd
 from . import cycle_performance as cp
-from . import utility_functions as uf
 import os
 
-# Import constants and functions from utility_functions
-from .utility_functions import (
-    c_a, rho_a, k_a, c_w, rho_w, mu_w, k_w, sigma, k_D, k_d, ex_eff_NG, SP,
+# Import constants from constants.py
+from .constants import (
+    c_a, rho_a, k_a, c_w, rho_w, mu_w, k_w, sigma, k_D, k_d, ex_eff_NG, SP
+)
+
+# Import functions from enex_functions.py
+from .enex_functions import (
     calc_lmtd_constant_refrigerant_temp,
     calc_simple_tank_UA,
     G_FLS,
