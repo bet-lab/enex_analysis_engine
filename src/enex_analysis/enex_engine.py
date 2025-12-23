@@ -20,6 +20,7 @@ from . import calc_util as cu
 from .constants import (
     c_a, rho_a, k_a, c_w, rho_w, mu_w, k_w, sigma, k_D, k_d, ex_eff_NG, SP
 )
+
 from .enex_functions import (
     darcy_friction_factor,
     calc_h_vertical_plate,
