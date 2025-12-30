@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy import integrate
 from scipy.special import erf
-dm.use_style('dmpl_light')
+dm.style.use('scientific')
 
 #%%
 # constant

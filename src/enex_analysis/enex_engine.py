@@ -34,11 +34,6 @@ from .enex_functions import (
     calculate_GSHP_COP,
     G_FLS
 )
-from .balance_helpers import (
-    create_energy_balance,
-    create_entropy_balance,
-    create_exergy_balance
-)
 
 
 #%%
@@ -393,8 +388,8 @@ class ElectricBoiler:
         self.X_c_tot = X_c_tot
         self.X_eff = X_eff
 
-        # Create balance dictionaries using helper functions
-        self.energy_balance = create_energy_balance({
+        # Create balance dictionaries
+        self.energy_balance = {
             "hot water tank": {
                 "in": {
                     "E_heater": self.E_heater,
@@ -414,9 +409,9 @@ class ElectricBoiler:
                     "Q_w_serv": self.Q_w_serv
                 }
             }
-        })
+        }
 
-        self.entropy_balance = create_entropy_balance({
+        self.entropy_balance = {
             "hot water tank": {
                 "in": {
                     "S_heater": self.S_heater,
@@ -442,9 +437,9 @@ class ElectricBoiler:
                     "S_g_mix": self.S_g_mix
                 }
             }
-        })
+        }
 
-        self.exergy_balance = create_exergy_balance({
+        self.exergy_balance = {
             "hot water tank": {
                 "in": {
                     "E_heater": self.E_heater,
@@ -470,7 +465,7 @@ class ElectricBoiler:
                     "X_c_mix": self.X_c_mix
                 }
             }
-        })
+        }
 
 @dataclass
 class GasBoiler:
