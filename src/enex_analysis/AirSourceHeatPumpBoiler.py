@@ -52,7 +52,6 @@ class AirSourceHeatPumpBoiler:
         dV_ou_design = 2.5,   # 실외기 설계 풍량 [m³/s] (정풍량)
         dP_ou_design = 500.0, # 실외기 설계 정압 [Pa]
         A_cross_ou = 0.4,         # 실외기 단면적 [m²]
-        eta_motor_ou = 0.8,   # 실외기 모터 효율 [-] 
         eta_fan_ou   = 0.8,   # 실외기 팬 효율 [-]
 
         # 4. 탱크/제어/부하 파라미터 -----------------------------------
@@ -100,12 +99,11 @@ class AirSourceHeatPumpBoiler:
         # --- 3. 실외기 팬 파라미터 ---
         self.dV_ou_design = dV_ou_design
         self.dP_ou_design = dP_ou_design
-        self.eta_motor_ou = eta_motor_ou
         self.eta_fan_ou = eta_fan_ou
         self.A_cross_ou = A_cross_ou
         
         # 팬 설계 전력 계산 (정풍량 기준)
-        self.fan_design_power_ou = (self.dV_ou_design * self.dP_ou_design) / (self.eta_motor_ou * self.eta_fan_ou)
+        self.fan_design_power_ou = (self.dV_ou_design * self.dP_ou_design) / (self.eta_fan_ou)
         
         # VSD Curve 계수 VSD(Variable Speed Drive)
         self.vsd_coeffs_ou = vsd_coeffs_ou
@@ -584,17 +582,17 @@ class AirSourceHeatPumpBoiler:
                     # perf가 None이면 수렴 실패로 간주하여 큰 제약 조건 위반 값 반환
                     # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                     if perf is None or not isinstance(perf, dict):
-                        return 1e5
+                        return 1e6
                     
                     # 필요한 키가 없거나 값이 nan이면 큰 제약 조건 위반 값 반환
                     if "Q_LMTD_cond" not in perf or np.isnan(perf["Q_LMTD_cond"]):
-                        return 1e5
+                        return 1e6
                     
                     # 제약 조건: Q_LMTD_cond - Q_cond_load >= 0 (Q_LMTD_cond >= Q_cond_load, 목표 부하보다 크거나 같으면 만족)
                     return perf["Q_LMTD_cond"] - Q_cond_load
                 except Exception as e:
                     # 예외 발생 시 큰 제약 조건 위반 값 반환
-                    return 1e5
+                    return 1e6
 
             def _evap_LMTD_constraint(x):
                 """
@@ -612,18 +610,18 @@ class AirSourceHeatPumpBoiler:
                     # perf가 None이면 수렴 실패로 간주하여 큰 제약 조건 위반 값 반환
                     # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                     if perf is None or not isinstance(perf, dict):
-                        return 1e5
+                        return 1e6
                     
                     # 필요한 키가 없거나 값이 nan이면 큰 제약 조건 위반 값 반환
                     if ("Q_LMTD_evap" not in perf or "Q_ref_evap" not in perf or
                         np.isnan(perf["Q_LMTD_evap"]) or np.isnan(perf["Q_ref_evap"])):
-                        return 1e5
+                        return 1e6
                     
                     # 제약 조건: Q_LMTD_evap - Q_ref_evap = 0 (0이면 만족)
                     return perf["Q_LMTD_evap"] - perf['Q_ref_evap']
                 except Exception as e:
                     # 예외 발생 시 큰 제약 조건 위반 값 반환
-                    return 1e5
+                    return 1e6
                 
             const_funcs = [
                 {'type': 'eq', 'fun': _cond_LMTD_constraint},  # Q_LMTD_cond >= Q_cond_load
@@ -646,17 +644,17 @@ class AirSourceHeatPumpBoiler:
                     # perf가 None이면 수렴 실패로 간주하여 큰 penalty 반환
                     # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                     if perf is None or not isinstance(perf, dict):
-                        return 1e5
+                        return 1e6
                     
                     # E_tot가 없거나 nan이면 큰 penalty 반환
                     if "E_tot" not in perf or np.isnan(perf["E_tot"]):
-                        return 1e5
+                        return 1e6
                     
                     # 목적 함수: E_tot 최소화
                     return perf["E_tot"]
                 except Exception as e:
                     # 예외 발생 시 큰 penalty 반환
-                    return 1e5
+                    return 1e6
             
             opt_result = minimize(
                 _objective,           # 목적 함수 (E_tot = E_cmp + E_fan_ou 최소화)
@@ -672,24 +670,26 @@ class AirSourceHeatPumpBoiler:
                 }    # 상세 출력 비활성화, 최대 반복 횟수 1000회
             )
             
-            # 최적화 성공 여부 확인
-            if opt_result.success:
-                optimal_vars = opt_result.x
+            # opt_result.x로 결과 계산 시도 (성공/실패 무관)
+            result = None
+            try:
                 result = self._calc_on_state(
-                    optimization_vars=optimal_vars,
+                    optimization_vars=opt_result.x,
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load,
                     T_oa=T_oa
                 )
-            else:
-                # 최적화 실패 시 OFF 상태 결과 사용
+            except Exception:
+                pass
+            
+            # result 검증 및 fallback
+            if result is None or not isinstance(result, dict):
                 try:
                     result = self._calc_off_state(
                         T_tank_w=T_tank_w,
                         T_oa=T_oa
                     )
-                    result['converged'] = False
-                except Exception as e:
+                except Exception:
                     result = {
                         'is_on': False,
                         'converged': False,
@@ -701,20 +701,10 @@ class AirSourceHeatPumpBoiler:
                         'T_tank_w': T_tank_w,
                         'T_oa': T_oa
                     }
-        
-        # result가 None이거나 유효하지 않은 경우 처리
-        if result is None or not isinstance(result, dict):
-            result = {
-                'is_on': False,
-                'converged': False,
-                'Q_ref_cond': 0.0,
-                'Q_ref_evap': 0.0,
-                'E_cmp': 0.0,
-                'E_fan_ou': 0.0,
-                'E_tot': 0.0,
-                'T_tank_w': T_tank_w,
-                'T_oa': T_oa
-            }
+            
+            # converged 플래그 설정
+            if result is not None and isinstance(result, dict):
+                result['converged'] = opt_result.success
         
         if return_dict:
             return result
@@ -852,17 +842,17 @@ class AirSourceHeatPumpBoiler:
                         # perf가 None이면 수렴 실패로 간주하여 큰 제약 조건 위반 값 반환
                         # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                         if perf is None or not isinstance(perf, dict):
-                            return 1e5
+                            return 1e6
                         
                         # 필요한 키가 없거나 값이 nan이면 큰 제약 조건 위반 값 반환
                         if "Q_LMTD_cond" not in perf or np.isnan(perf["Q_LMTD_cond"]):
-                            return 1e5
+                            return 1e6
                         
                         # 제약 조건: Q_LMTD_cond - Q_cond_load_n >= 0 (Q_LMTD_cond >= Q_cond_load_n, 목표 부하보다 크거나 같으면 만족)
                         return perf["Q_LMTD_cond"] - Q_cond_load_n
                     except Exception as e:
                         # 예외 발생 시 큰 제약 조건 위반 값 반환
-                        return 1e5
+                        return 1e6
 
                 def _evap_LMTD_constraint(x):
                     """
@@ -880,18 +870,18 @@ class AirSourceHeatPumpBoiler:
                         # perf가 None이면 수렴 실패로 간주하여 큰 제약 조건 위반 값 반환
                         # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                         if perf is None or not isinstance(perf, dict):
-                            return 1e5
+                            return 1e6
                         
                         # 필요한 키가 없거나 값이 nan이면 큰 제약 조건 위반 값 반환
                         if ("Q_LMTD_evap" not in perf or "Q_ref_evap" not in perf or
                             np.isnan(perf["Q_LMTD_evap"]) or np.isnan(perf["Q_ref_evap"])):
-                            return 1e5
+                            return 1e6
                         
                         # 제약 조건: Q_LMTD_evap - Q_ref_evap = 0 (0이면 만족)
                         return perf["Q_LMTD_evap"] - perf['Q_ref_evap']
                     except Exception as e:
                         # 예외 발생 시 큰 제약 조건 위반 값 반환
-                        return 1e5
+                        return 1e6
                     
                 const_funcs = [
                     {'type': 'ineq', 'fun': _cond_LMTD_constraint},
@@ -914,17 +904,17 @@ class AirSourceHeatPumpBoiler:
                         # perf가 None이면 수렴 실패로 간주하여 큰 penalty 반환
                         # 최적화 알고리즘이 다른 변수 조합을 시도하도록 함
                         if perf is None or not isinstance(perf, dict):
-                            return 1e5
+                            return 1e6
                         
                         # E_tot가 없거나 nan이면 큰 penalty 반환
                         if "E_tot" not in perf or np.isnan(perf["E_tot"]):
-                            return 1e5
+                            return 1e6
                         
                         # 목적 함수: E_tot 최소화
                         return perf["E_tot"]
                     except Exception as e:
                         # 예외 발생 시 큰 penalty 반환
-                        return 1e5  
+                        return 1e6  
                 
                 opt_result = minimize(
                     _objective   ,           # 목적 함수 (E_tot = E_cmp + E_fan_ou 최소화)
@@ -932,28 +922,29 @@ class AirSourceHeatPumpBoiler:
                     method       ='SLSQP',   # Sequential Least Squares Programming
                     bounds       = bounds,    # 변수 경계 조건
                     constraints  = const_funcs,
-                    options      = {'disp': False, 'maxiter': 100}    # 상세 출력 비활성화, 최대 반복 횟수 1000회
+                    options      = {'disp': False, 'maxiter': 100} 
                 )
                     
-                # 최적화 성공 여부 확인
-                if opt_result.success:
-                    optimal_vars = opt_result.x
+                # opt_result.x로 결과 계산 시도 (성공/실패 무관)
+                result = None
+                try:
                     result = self._calc_on_state(
-                        optimization_vars = optimal_vars,
-                        T_tank_w          = T_tank_w,
-                        Q_cond_load       = Q_cond_load_n,
-                        T_oa              = T_oa
+                        optimization_vars=opt_result.x,
+                        T_tank_w=T_tank_w,
+                        Q_cond_load=Q_cond_load_n,
+                        T_oa=T_oa
                     )
-                    
-                else:
-                    # 최적화 실패 시 OFF 상태 결과 사용
+                except Exception:
+                    pass
+                
+                # result 검증 및 fallback
+                if result is None or not isinstance(result, dict):
                     try:
                         result = self._calc_off_state(
                             T_tank_w=T_tank_w,
                             T_oa=T_oa
                         )
-                        result['converged'] = False
-                    except Exception as e:
+                    except Exception:
                         result = {
                             'is_on': False,
                             'converged': False,
@@ -965,20 +956,10 @@ class AirSourceHeatPumpBoiler:
                             'T_tank_w': T_tank_w,
                             'T_oa': T_oa
                         }
-            
-            # result가 None이거나 유효하지 않은 경우 처리
-            if result is None or not isinstance(result, dict):
-                result = {
-                    'is_on': False,
-                    'converged': False,
-                    'Q_ref_cond': 0.0,
-                    'Q_ref_evap': 0.0,
-                    'E_cmp': 0.0,
-                    'E_fan_ou': 0.0,
-                    'E_tot': 0.0,
-                    'T_tank_w': T_tank_w,
-                    'T_oa': T_oa
-                }
+                
+                # converged 플래그 설정
+                if result is not None and isinstance(result, dict):
+                    result['converged'] = opt_result.success
             
             if is_transitioning_off_to_on:
                 # OFF→ON 전환 시점: 이전 스텝의 값들을 그대로 유지하여 저장
@@ -1020,7 +1001,7 @@ class AirSourceHeatPumpBoiler:
         results_df = pd.DataFrame(results_data)
 
         if result_save_csv_path:
-            results_df.to_csv(result_save_csv_path)
+            results_df.to_csv(result_save_csv_path, index=False)
 
         return results_df
 
