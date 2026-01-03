@@ -17,6 +17,10 @@ c_w = 4186  # Water specific heat [J/kgK]
 rho_w = 1000  # Density of water [kg/m³]
 mu_w = 0.001  # Water dynamic viscosity [Pa.s]
 k_w = 0.606  # Water thermal conductivity [W/mK]
+beta = 2.07e-4  # Volumetric expansion coefficient of water [1/K] (at ~20°C)
+
+# Physical constants
+g = 9.81  # Gravitational acceleration [m/s²]
 
 # Thermodynamic constants
 sigma = 5.67 * 10**-8  # Stefan-Boltzmann constant [W/m²K⁴]

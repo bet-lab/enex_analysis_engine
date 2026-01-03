@@ -77,8 +77,10 @@ J2kWh = 1 / 3.6e6
 
 ## Power conversion
 W2kW = 1e-3
-kW2W = 1e3
 W2MW = 1e-6
+W2GW = 1e-9
+
+kW2W = 1e3
 MW2W = 1e6
 
 ## Pressure conversion
