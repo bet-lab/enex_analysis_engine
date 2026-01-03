@@ -1,13 +1,48 @@
 """
 Utility functions for energy, entropy, and exergy analysis.
 
-This module contains helper functions for calculations including:
-- Friction factor calculations
-- Heat transfer coefficient calculations
-- Curve fitting functions
-- COP calculations for heat pumps
-- G-function calculations for ground source heat pumps
-- Balance printing utilities
+This module contains helper functions organized into the following categories:
+
+1. Friction and Flow Functions
+   - darcy_friction_factor: Calculate Darcy friction factor
+   - calc_Orifice_flow_coefficient: Calculate orifice flow coefficient
+   - calc_boussinessq_mixing_flow: Calculate mixing flow based on Boussinesq approximation
+
+2. Heat Transfer Functions
+   - calc_h_vertical_plate: Natural convection heat transfer coefficient
+   - calc_UA_tank_arr: Tank heat loss UA calculation
+   - calc_lmtd_*: Log mean temperature difference calculations
+   - calc_UA_from_dV_fan: Heat transfer coefficient from fan flow rate
+
+3. Curve Fitting Functions
+   - linear_function, quadratic_function, cubic_function, quartic_function
+
+4. Exergy and Entropy Functions
+   - generate_entropy_exergy_term: Calculate entropy and exergy terms
+   - calc_exergy_flow: Calculate exergy flow rate due to material flow
+
+5. G-function Calculations (Ground Source Heat Pumps)
+   - f, chi, G_FLS: Helper functions for g-function calculation
+
+6. TDMA Solver Functions
+   - TDMA: Solve tri-diagonal matrix system
+   - _add_loop_advection_terms: Add forced convection terms to TDMA coefficients
+
+7. Heat Pump Cycle Functions
+   - calculate_ASHP_*_COP: Air source heat pump COP calculations
+   - calculate_GSHP_COP: Ground source heat pump COP calculation
+   - compute_refrigerant_thermodynamic_states: Calculate refrigerant cycle states
+   - find_ref_loop_optimal_operation: Find optimal operation point
+   - plot_cycle_diagrams: Plot P-h and T-h diagrams
+
+8. Tank Functions
+   - update_tank_temperature: Update tank temperature based on energy balance
+
+9. Schedule Functions
+   - _build_schedule_ratios: Build schedule ratio array
+
+10. Balance Printing Utilities
+    - print_balance: Print energy/entropy/exergy balance
 """
 
 import numpy as np
@@ -442,6 +477,346 @@ def air_prandtl_number(T_K):
     # Pr = mu * cp / k
     # For air: Pr ≈ 0.71 (weak temperature dependence)
     return 0.71
+
+
+# ============================================================================
+# Exergy and Entropy Functions
+# ============================================================================
+
+def generate_entropy_exergy_term(energy_term, Tsys, T0, fluid=None):
+    """
+    Calculate entropy and exergy terms based on energy term and temperatures.
+    
+    Parameters
+    ----------
+    energy_term : float
+        The energy value for which entropy and exergy are to be calculated [W]
+    Tsys : float
+        The system temperature [K]
+    T0 : float
+        The reference (environment) temperature [K]
+    fluid : optional
+        If provided, modifies the entropy calculation using a logarithmic relation
+    
+    Returns
+    -------
+    tuple
+        (entropy_term, exergy_term)
+        - entropy_term (float): The calculated entropy term [W/K]
+        - exergy_term (float): The calculated exergy term [W]
+    
+    Notes
+    -----
+    - For non-fluid systems: entropy_term = energy_term / Tsys
+    - For fluid systems: entropy_term = energy_term * ln(Tsys/T0) / (Tsys - T0)
+    - Exergy term: exergy_term = energy_term - entropy_term * T0
+    - For cool exergy (non-fluid, Tsys < T0): exergy_term sign is reversed
+    """
+    entropy_term = energy_term / Tsys
+    
+    if fluid:
+        if Tsys - T0 != 0:
+            entropy_term = energy_term * math.log(Tsys/T0) / (Tsys - T0)
+        elif Tsys - T0 == 0:
+            entropy_term = 0
+            
+    exergy_term = energy_term - entropy_term * T0
+
+    if not fluid and Tsys < T0:  # Cool exergy
+        # For fluid, exergy term is always positive due to structure {(A-B)-ln(A/B)*B}
+        # where A>0, B>0 always yields positive values
+        exergy_term = -exergy_term
+    return entropy_term, exergy_term
+
+
+def calc_exergy_flow(G, T, T0):
+    """
+    Calculate exergy flow rate due to material flow (advection).
+    
+    Formula: Xf = G * ((T - T0) - T0 * ln(T/T0))
+    
+    Parameters
+    ----------
+    G : float
+        Heat capacity flow rate = specific heat × density × volumetric flow rate [W/K]
+    T : float
+        Flow temperature [K]
+    T0 : float
+        Reference (environment) temperature (T_dead_state) [K]
+    
+    Returns
+    -------
+    float
+        Exergy flow rate [W]
+    
+    Notes
+    -----
+    This function calculates the exergy associated with a flowing stream
+    of material at temperature T relative to the reference temperature T0.
+    """
+    return G * ((T - T0) - T0 * np.log(T / T0))
+
+
+# ============================================================================
+# Flow and Mixing Functions
+# ============================================================================
+
+def calc_Orifice_flow_coefficient(D0, D1):
+    """
+    Calculate the orifice flow coefficient based on diameters.
+    
+    Flow configuration:
+    ---------------
+     ->      |
+     D0     D1 ->
+     ->      |
+    ---------------
+    
+    Parameters
+    ----------
+    D0 : float
+        Pipe diameter [m]
+    D1 : float
+        Hole diameter [m]
+    
+    Returns
+    -------
+    C_d : float
+        Orifice flow coefficient (dimensionless)
+    
+    Notes
+    -----
+    This is a simplified calculation. A more complete implementation
+    should be based on physical equations.
+    """
+    m = D1 / D0  # Opening ratio
+    return m**2
+
+
+def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
+    """
+    Calculate mixing flow rate between two adjacent nodes based on Boussinesq approximation.
+    
+    Mixing occurs only when the lower node temperature is higher than the upper node,
+    creating a gravitationally unstable condition.
+    
+    Parameters
+    ----------
+    T_upper : float
+        Upper node temperature [K]
+    T_lower : float
+        Lower node temperature [K]
+    A : float
+        Tank cross-sectional area [m²]
+    dz : float
+        Node height [m]
+    C_d : float, optional
+        Flow coefficient (empirical constant), default 0.1
+    
+    Returns
+    -------
+    dV_mix : float
+        Volumetric flow rate exchanged between nodes [m³/s]
+    
+    Notes
+    -----
+    TODO: C_d value should be calculated based on physical equations.
+    """
+    from .constants import g, beta
+    
+    if T_upper < T_lower:
+        # Upper is colder (higher density) -> unstable -> mixing occurs
+        delta_T = T_lower - T_upper
+        dV_mix = C_d * A * math.sqrt(2 * g * beta * delta_T * dz)
+        return dV_mix  # From top to bottom
+    else:
+        # Stable condition -> no mixing
+        return 0.0
+
+
+# ============================================================================
+# Tank Heat Transfer Functions
+# ============================================================================
+
+def calc_UA_tank_arr(r0, x_shell, x_ins, k_shell, k_ins, H, N, h_w, h_o):
+    """
+    Calculate overall heat-loss UA per vertical segment of a cylindrical tank.
+    
+    Heat loss occurs radially through the side and planarly through bottom/top.
+    Side applies to all nodes; bottom/top add in parallel for node 1 and N.
+    
+    Parameters
+    ----------
+    r0 : float
+        Inner radius of the tank [m]
+    x_shell : float
+        Thickness of the tank shell [m]
+    x_ins : float
+        Thickness of the insulation layer [m]
+    k_shell : float
+        Thermal conductivity of the tank shell material [W/mK]
+    k_ins : float
+        Thermal conductivity of the insulation material [W/mK]
+    H : float
+        Height of the tank [m]
+    N : int
+        Number of segments
+    h_w : float
+        Internal convective heat transfer coefficient [W/m²K]
+    h_o : float
+        External convective heat transfer coefficient [W/m²K]
+    
+    Returns
+    -------
+    UA_arr : np.ndarray
+        Array of overall heat transfer coefficients for each segment [W/K]
+    
+    Notes
+    -----
+    - Side: convection (in/out) + cylindrical conduction (shell + insulation)
+    - Bottom/Top: convection (in/out) + planar conduction (shell + insulation)
+    - Middle nodes: side only
+    - End nodes (1 and N): side || base (parallel)
+    """
+    dz = H / N
+    r1 = r0 + x_shell
+    r2 = r1 + x_ins
+
+    # --- Areas ---
+    # Side (per segment)
+    A_side_in_seg = 2.0 * math.pi * r0 * dz   # Inner wetted area (for h_w)
+    A_side_out_seg = 2.0 * math.pi * r2 * dz  # Outer area (for h_o)
+    # Bases (single discs)
+    A_base_in = math.pi * r0**2               # Internal disc area (for h_w)
+    A_base_out = math.pi * r2**2              # External disc area (for h_o)
+
+    # --- Side: convection (in/out) + cylindrical conduction (shell + insulation) ---
+    # Conduction (cylindrical) per segment
+    R_side_cond_shell = math.log(r1 / r0) / (2.0 * math.pi * k_shell * dz)
+    R_side_cond_ins = math.log(r2 / r1) / (2.0 * math.pi * k_ins * dz)
+    R_side_cond = R_side_cond_shell + R_side_cond_ins  # [K/W]
+
+    R_side_w = 1.0 / (h_w * A_side_in_seg)    # [K/W]
+    R_side_ext = 1.0 / (h_o * A_side_out_seg)  # [K/W]
+    R_side_tot = R_side_w + R_side_cond + R_side_ext  # [K/W] (series)
+
+    # --- Bottom/Top discs: convection (in/out) + planar conduction (shell + insulation) ---
+    R_base_cond_shell = x_shell / (k_shell * A_base_in)   # [K/W] (inner metal plate)
+    R_base_cond_ins = x_ins / (k_ins * A_base_out)       # [K/W] (outer insulation plate)
+    R_base_cond = R_base_cond_shell + R_base_cond_ins
+
+    R_base_w = 1.0 / (h_w * A_base_in)    # [K/W]
+    R_base_ext = 1.0 / (h_o * A_base_out)  # [K/W]
+    R_base_tot = R_base_w + R_base_cond + R_base_ext  # [K/W] (series through the base)
+
+    # --- Equivalent node-to-ambient resistances ---
+    # Middle nodes: side only
+    R_mid = R_side_tot
+
+    # Node 1 (bottom) and Node N (top): side || base
+    R_end = (R_side_tot * R_base_tot) / (R_side_tot + R_base_tot)  # [K/W] (parallel)
+
+    R_arr = np.array([R_end] + [R_mid]*(N-2) + [R_end], dtype=float)
+    UA_arr = 1.0 / R_arr  # [W/K]
+    return UA_arr
+
+
+# ============================================================================
+# TDMA Solver Functions
+# ============================================================================
+
+def TDMA(a, b, c, d):
+    """
+    Solve tri-diagonal matrix system using TDMA (Tri-Diagonal Matrix Algorithm).
+    
+    Reference: https://doi.org/10.1016/j.ijheatmasstransfer.2017.09.057 [Appendix B - Eq.(B7)]
+    
+    Parameters
+    ----------
+    a : np.ndarray
+        Lower diagonal elements (length N-1)
+    b : np.ndarray
+        Main diagonal elements (length N)
+    c : np.ndarray
+        Upper diagonal elements (length N-1)
+    d : np.ndarray
+        Right-hand side vector (length N)
+    
+    Returns
+    -------
+    np.ndarray
+        Solution vector (next time step temperatures)
+    
+    Notes
+    -----
+    If boundary conditions are not None, additional thermal resistances
+    are added to the leftmost and rightmost columns, and surface temperatures
+    are recalculated considering boundary layer thermal resistance.
+    """
+    n = len(b)
+
+    A_mat = np.zeros((n, n))
+    np.fill_diagonal(A_mat[1:], a[1:])
+    np.fill_diagonal(A_mat, b)
+    np.fill_diagonal(A_mat[:, 1:], c[:-1])
+    A_inv = np.linalg.inv(A_mat)
+
+    T_new = np.dot(A_inv, d).flatten()  # Flatten the result to 1D array
+    return T_new
+
+
+def _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in):
+    """
+    Add forced convection terms for a specified range (in_idx -> out_idx) to TDMA coefficients.
+    
+    Indices are 0-based (node 1 -> idx 0).
+    Direction: in_idx > out_idx means 'upward' (bottom→top), otherwise 'downward' (top→bottom).
+    
+    Parameters
+    ----------
+    a, b, c, d : np.ndarray
+        TDMA coefficient arrays (modified in-place)
+    in_idx : int
+        Inlet node index (0-based)
+    out_idx : int
+        Outlet node index (0-based)
+    G_loop : float
+        Heat capacity flow rate [W/K]
+    T_loop_in : float
+        Inlet stream temperature [K]
+    
+    Notes
+    -----
+    This function modifies the TDMA coefficients to account for directed advection
+    across a node range in either direction.
+    """
+    # Invalid case: ignore
+    if G_loop <= 0 or in_idx == out_idx:
+        print("Warning: negative loop flow rate or identical in/out loop nodes.")
+        return
+
+    # Inlet node (common)
+    b[in_idx] += G_loop
+    d[in_idx] += G_loop * T_loop_in  # Inlet stream temperature
+    
+    # Upward: in(N side) -> ... -> out(1 side)
+    if in_idx > out_idx:
+        # Internal nodes in path (out_idx+1 .. in_idx-1)
+        for k in range(in_idx - 1, out_idx, -1):
+            b[k] += G_loop
+            c[k] -= G_loop
+        # Outlet node (out_idx)
+        b[out_idx] += G_loop
+        c[out_idx] -= G_loop
+
+    # Downward: in(1 side) -> ... -> out(N side)
+    else:
+        for k in range(in_idx + 1, out_idx):
+            a[k] -= G_loop 
+            b[k] += G_loop
+        # Outlet node (out_idx)
+        a[out_idx] -= G_loop
+        b[out_idx] += G_loop
 
 
 def calc_simple_tank_UA(
@@ -1502,12 +1877,12 @@ def plot_cycle_diagrams(
     # 1단계: 색상 및 축 범위 설정
     # ============================================================
     # 그래프 색상 정의
-    color1 = 'dm.blue5'   # 포화 액체선
-    color2 = 'dm.red5'    # 포화 증기선
-    color3 = 'dm.black'   # 사이클 경로 마커
+    color1 = 'oc.blue5'   # 포화 액체선
+    color2 = 'oc.red5'    # 포화 증기선
+    color3 = 'black'   # 사이클 경로 마커
 
     # P-h 선도 축 범위 (압력: 로그 스케일)
-    ymin1, ymax1, yint1 = 500, 10**4, 0  # 압력 [kPa]: 500 ~ 10000
+    ymin1, ymax1, yint1 = 100, 10**4, 0  # 압력 [kPa]: 100 ~ 10000
     
     # T-h 선도 축 범위 (온도: 선형 스케일)
     ymin2, ymax2, yint2 = -20, 120, 20  # 온도 [°C]: -20 ~ 120
@@ -1540,9 +1915,9 @@ def plot_cycle_diagrams(
     # ============================================================
     # State 1-4의 압력, 엔탈피, 온도 추출
     # 단위 변환: Pa → kPa, J/kg → kJ/kg
-    p = np.array([result[f'P{i}'] for i in range(1, 5)]) * cu.Pa2kPa  # 압력 [kPa]
-    h = np.array([result[f'h{i}'] for i in range(1, 5)]) * cu.J2kJ   # 엔탈피 [kJ/kg]
-    T = np.array([result[f'T{i}'] for i in range(1, 5)])             # 온도 [°C]
+    p = np.array([result[f'P{i} [Pa]'] for i in range(1, 5)]) * cu.Pa2kPa  # 압력 [kPa]
+    h = np.array([result[f'h{i} [J/kg]'] for i in range(1, 5)]) * cu.J2kJ   # 엔탈피 [kJ/kg]
+    T = np.array([result[f'T{i} [°C]'] for i in range(1, 5)])             # 온도 [°C]
 
     # ============================================================
     # 4단계: 사이클 경로 구성 (닫힌 경로)
@@ -1570,7 +1945,7 @@ def plot_cycle_diagrams(
     # ============================================================
     # 각 서브플롯(idx=0: P-h, idx=1: T-h)의 축 라벨 및 스케일
     xlabels = ["Enthalpy [kJ/kg]", "Enthalpy [kJ/kg]"]  # 공통 X축: 엔탈피
-    ylabels = ["Pressure (log scale) [kPa]", "Temperature [°C]"]  # Y축: 압력 또는 온도
+    ylabels = ["Pressure [kPa]", "Temperature [°C]"]  # Y축: 압력 또는 온도
     yscales = ["log", "linear"]  # Y축 스케일: 로그 또는 선형
     xlims   = [(xmin, xmax), (xmin, xmax)]  # X축 범위
     ylims   = [(ymin1, ymax1), (ymin2, ymax2)]  # Y축 범위
@@ -1629,7 +2004,7 @@ def plot_cycle_diagrams(
             # --------------------------------------------
             # State 1→2→3→4→1 순서의 닫힌 경로
             # 점선(:)과 원형 마커(o)로 표시
-            axi.plot(h_cycle, cycleY_list[idx], color='dm.gray5', label='Heat pump cycle',
+            axi.plot(h_cycle, cycleY_list[idx], color='oc.gray5', label='Heat pump cycle',
                      markerfacecolor=color3, markeredgecolor=color3,
                      linewidth=LW[1], marker='o', linestyle=':', markersize=2)
 
@@ -1640,24 +2015,24 @@ def plot_cycle_diagrams(
             if show_temp_limits and (idx == 1):
                 # 저탕조 온수 온도선 (빨간색)
                 if T_tank_w is not None:
-                    ax[1].axhline(y=T_tank_w, color='dm.red4', linestyle=':', linewidth=LW[1])
+                    ax[1].axhline(y=T_tank_w, color='oc.red4', linestyle=':', linewidth=LW[1])
                     ax[1].text(xmin + 20, T_tank_w + 2,
                                f'Tank water: {T_tank_w:.1f} °C', ha='left', va='bottom', 
-                               fontsize=dm.fs(-3), color='dm.red6')
+                               fontsize=dm.fs(-3), color='oc.red6')
                 
                 # 지열교환기 유입수 온도선 (파란색)
                 if T_b_f_in is not None:
-                    ax[1].axhline(y=T_b_f_in, color='dm.blue4', linestyle=':', linewidth=LW[1])
+                    ax[1].axhline(y=T_b_f_in, color='oc.blue4', linestyle=':', linewidth=LW[1])
                     ax[1].text(xmin + 20, T_b_f_in - 2,
                                f'GHE inlet: {T_b_f_in:.1f} °C', ha='left', va='top', 
-                               fontsize=dm.fs(-3), color='dm.blue6')
+                               fontsize=dm.fs(-3), color='oc.blue6')
                 
                 # 지열교환기 유출수 온도선 (주황색)
                 if T_b_f_out is not None:
-                    ax[1].axhline(y=T_b_f_out, color='dm.orange4', linestyle=':', linewidth=LW[1])
+                    ax[1].axhline(y=T_b_f_out, color='oc.orange4', linestyle=':', linewidth=LW[1])
                     ax[1].text(xmin + 20, T_b_f_out + 2,
                                f'GHE outlet: {T_b_f_out:.1f} °C', ha='left', va='bottom', 
-                               fontsize=dm.fs(-3), color='dm.orange6')
+                               fontsize=dm.fs(-3), color='oc.orange6')
 
             # --------------------------------------------
             # 8-4: 상태점 라벨 표시
