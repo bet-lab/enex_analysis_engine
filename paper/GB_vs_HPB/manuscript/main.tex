@@ -218,7 +218,7 @@ peak 유량이 약 6 L/min, 약 200 L/day의 사용량을 가정하였다.
 service hot water temperarture($T_{\text{w,serv}}$)는 40 °C로 고정하였으며,
 외기온도(환경온도) $T_0$는 10 °C로, 상수도 온도 $T_{\text{w,sup}}$는 15 °C로 고정하였다. 
 
-\begin{figure}[htbp]
+\begin{figure}[t]
   \centering
   \includegraphics[width = 9 cm]{images/water_use_schedule_ashpb.png}
   \captionsetup{width=\textwidth}
@@ -351,12 +351,16 @@ Q_{w,\text{serv}} = c_w \rho_w \dot{V}_{w,\text{serv}} (T_{\text{w,serv}} - T_0)
 \end{equation}
 
 \subsection{Air Source Heat Pump Boiler System Modeling}
-\subsection{Air Source Heat Pump Boiler System Modeling}
-공기열원 히트펌프 보일러의 시스템 구조를 Figure~\ref{fig:hpb_diagram}에 나타냈으며, Air source heat pump boiler의 모델 정의에 사용된 symbol들을 Table~\ref{tab:hpb_symbols}에 나타냈다. 
-히트펌프 보일러는 저탕조 내 온수의 온도를 히스테리시스 제어를 통해 관리한다: 저탕조 온도가 하한 값 55 °C 이하로 떨어지면 히트펌프가 가동되어 가열을 시작하며, 상한 값 65 °C 이상에 도달하면 가열을 중단한다. 
-저탕조에서 공급되는 온수는 mixing valve로 공급되며, mixing valve에서 15 °C의 상수도와 혼합되어 40 °C의 온수를 온수 사용 스케줄(Figure~\ref{fig:hot water use schedule})에 따라 공급한다.
-이때 혼합비($\alpha$)는 다음과 같이 계산된다:
+공기열원 히트펌프 보일러의 시스템 구조를 Figure~\ref{fig:hpb_diagram}에 나타냈으며,
+Air source heat pump boiler의 모델 정의에 사용된 symbol들을 Table~\ref{tab:hpb_symbols}에 나타냈다. 
+히트펌프 보일러는 저탕조 내 온수의 온도를 히스테리시스 제어를 통해 관리한다:
+저탕조 온도가 하한 값 55 °C 이하로 떨어지면 히트펌프가 가동되어 $Q_{cond_load}$의 출력(XX kW 고정)으로
+가열을 시작하며, 상한 값 65 °C 이상에 도달할 때까지 가열한다. 
 
+저탕조에서 $T_{w,tank}$의 온도로 공급되는 온수는 mixing valve로 공급되며, mixing valve에서 15 °C의 상수도와 혼합되어
+40 °C의 온수를 온수 사용 스케줄(Figure~\ref{fig:hot water use schedule})에 따라 공급된다.
+이때 servie hot water의 사용 유량 $\dot{V}_{w,\text{serv}}$ 대비 저탕조 온수에서 믹싱밸브로 공급해야하는 유량은
+유량비($\alpha$)는 다음과 같이 계산된다:
 
 \begin{figure*}[t]
   \centering
@@ -376,19 +380,19 @@ Q_{w,\text{serv}} = c_w \rho_w \dot{V}_{w,\text{serv}} (T_{\text{w,serv}} - T_0)
 \toprule
 \textbf{Symbol} & \textbf{Description} & \textbf{Units} \\
 \midrule
-$E_{\text{cmp}}$ & Compressor power consumption & W \\
-$E_{\text{fan,ou}}$ & Outdoor unit fan power consumption & W \\
-$E_{\text{tot}}$ & Total power consumption & W \\
-$Q_{\text{cond,load}}$ & Condenser heat load (target heat transfer rate) & W \\
-$Q_{\text{ref,cond}}$ & Refrigerant condensation heat rate (thermodynamic) & W \\
-$Q_{\text{LMTD,cond}}$ & Condenser heat transfer rate (heat exchanger capacity) & W \\
-$Q_{\text{ref,evap}}$ & Refrigerant evaporation heat rate (thermodynamic) & W \\
-$Q_{\text{LMTD,evap}}$ & Evaporator heat transfer rate (heat exchanger capacity) & W \\
-$Q_{\text{tank,loss}}$ & Hot water tank heat loss & W \\
-$Q_{\text{use,loss}}$ & Heat loss due to hot water usage & W \\
+% $E_{\text{cmp}}$ & Compressor power consumption & W \\
+% $E_{\text{fan,ou}}$ & Outdoor unit fan power consumption & W \\
+% $E_{\text{tot}}$ & Total power consumption & W \\
+% $Q_{\text{cond,load}}$ & Condenser heat load (target heat transfer rate) & W \\
+% $Q_{\text{ref,cond}}$ & Refrigerant condensation heat rate (thermodynamic) & W \\
+% $Q_{\text{LMTD,cond}}$ & Condenser heat transfer rate (heat exchanger capacity) & W \\
+% $Q_{\text{ref,evap}}$ & Refrigerant evaporation heat rate (thermodynamic) & W \\
+% $Q_{\text{LMTD,evap}}$ & Evaporator heat transfer rate (heat exchanger capacity) & W \\
+% $Q_{\text{tank,loss}}$ & Hot water tank heat loss & W \\
+% $Q_{\text{use,loss}}$ & Heat loss due to hot water usage & W \\
 $T_0$ & Environmental temperature (reference temperature) & K \\
-$T_{\text{evap}}$ & Evaporation temperature & K \\
-$T_{\text{cond}}$ & Condensation temperature & K \\
+$T_{\text{ref,evap}}$ & Refrigrent evaporation temperature & K \\
+$T_{\text{ref,cond}}$ & Refrigrent condensation temperature & K \\
 $T_{\text{tank,w}}$ & Hot water tank temperature & K \\
 $T_{\text{w,sup}}$ & Supply water temperature & K \\
 $T_{\text{w,serv}}$ & Service hot water temperature & K \\
@@ -439,7 +443,7 @@ $\eta_{\text{cmp,isen}}$ & Isentropic efficiency of compressor & -- \\
 
 \begin{equation}
 \label{eq:hpb_temperatures}
-T_{\text{evap}} = T_0 - \Delta T_{\text{ref,evap}}, \quad T_{\text{cond}} = T_{\text{tank,w}} + \Delta T_{\text{ref,cond}}
+T_{\text{ref,evap}} = T_0 - \Delta T_{\text{ref,evap}}, \quad T_{\text{ref,cond}} = T_{\text{tank,w}} + \Delta T_{\text{ref,cond}}
 \end{equation}
 
 냉매 사이클의 각 상태점(State 1-4)의 물성치는 증발 온도와 응축 온도를 기반으로 계산된다. State 1은 증발기 출구(포화 증기), State 2는 압축기 출구, State 3은 응축기 출구(포화 액체), State 4는 팽창밸브 출구이다.
@@ -598,80 +602,113 @@ Q_{\text{use,loss}} = c_w \rho_w \dot{V}_{w,\text{sup,tank}} (T_{\text{tank,w}} 
 
 
 
-본 연구에서는 한국의 급탕 시스템 환경 영향을 정확히 평가하기 위해, 실제 발전 믹스 데이터를 기반으로 1차 에너지 계수(PEF)와 CO$_2$ 배출계수를 산정하였다.
+\section{Dynamic Life Cycle Assessment Framework}
+\label{sec:dynamic_lca}
 
-Table~\ref{tab:grid_mix_korea}는 2024년 기준 한국의 전력 발전원별 비중과 각 에너지원의 물리적 PEF 및 CO$_2$ 배출계수를 보여준다. 이를 근거로 한국 전력망의 가중 평균 PEF를 계산하면 다음과 같다.
+Conventional building energy assessments often use static primary energy factors (PEF) and carbon emission factors (CEF) (e.g., PEF 2.75 for electricity in South Korea). However, these static factors fail to capture the temporal variability of the power grid, especially with increasing renewable energy penetration. This study adopts a dynamic Life Cycle Assessment (LCA) framework using a bottom-up approach to precisely evaluate the environmental impact of the GB-to-ASHP conversion.
+
+\subsection{Bottom-Up Grid Factor Calculation}
+The environmental impact of electricity consumption at any given time $t$, denoted as the Grid Factor ($GF_t$), is calculated by aggregating the physical characteristics of individual generation sources. This bottom-up approach accounts for generation efficiency, upstream fuel emissions, and grid losses:
 
 \begin{equation}
-PEF_{grid} = \sum (Share_i \times PEF_i) \approx 2.41
+\label{eq:grid_factor}
+GF_{t} = \frac{\sum_{i} (Gen_{i,t} \times \alpha_{i} \times \beta_{i})}{Gen_{total,t} \times (1 - L_{grid})}
 \end{equation}
 
-계산 결과인 \textbf{2.41}은 한국의 건물 에너지 효율 등급 인증 등에서 사용되는 법적 고시값인 \textbf{2.75}보다 약 12\% 낮은 수치이다. 이러한 차이가 발생하는 주된 이유는 다음과 같다:
-\begin{enumerate}
-    \item \textbf{보수적 산정 (Conservative Estimation):} 법적 고시값은 발전소의 노후화, 송배전 손실 등을 보수적으로 고려하여 설정되는 경향이 있다.
-    \item \textbf{최신 효율 미반영:} 최근 도입된 고효율 LNG 복합화력 발전소(PEF $\approx$ 1.8)의 비중이 증가하고 재생에너지 보급이 확대되었으나, 고시값은 이러한 최신 트렌드를 즉각적으로 반영하지 못하는 시차가 존재한다.
-\end{enumerate}
+where:
+\begin{itemize}
+    \item $i$: Generation source type (Coal, LNG, Nuclear, Renewables, etc.)
+    \item $Gen_{i,t}$: Electricity generation by source $i$ at time $t$ [kWh]
+    \item $Gen_{total,t}$: Total electricity generation at time $t$ [kWh]
+    \item $\alpha_{i}$: Upstream factor accounting for pre-combustion emissions (extraction, processing, transport)
+    \item $\beta_{i}$: Generation factor proportional to fuel input or direct emissions ($1/\eta_i$, where $\eta_i$ is generation efficiency)
+    \item $L_{grid}$: Transmission and distribution (T\&D) loss factor
+\end{itemize}
 
-본 연구에서는 물리적 실체에 더 근접한 평가를 위해, Table~\ref{tab:grid_mix_korea}에 기반한 계산값(PEF 2.41)을 기준 시나리오(Base case)로 설정하고, 이후 재생에너지(Renewable) 비중을 단계적으로 증가시키는 시나리오 분석을 수행한다.
+This formulation allows for the reflection of specific operational characteristics, such as the lower efficiency of LNG plants during partial load operation and the significant upstream emissions of imported LNG.
+
+\subsection{Renormalization Algorithm for Future Scenarios}
+To model future scenarios (e.g., 2030, 2038), we employ a ``Renormalization'' algorithm. Unlike simple linear scaling, this algorithm respects the merit order effect and physical constraints of the power system.
+The algorithm proceeds in four steps:
+
+\textbf{Step 1: Net Load Calculation.}
+The net load ($Load_{net, t}$) is calculated by subtracting non-dispatchable (must-run) generation—nuclear and renewables—from the total load:
+\begin{equation}
+Load_{net, t} = Load_{t} - Gen_{Nuclear, t} - Gen_{RE, t}
+\end{equation}
+
+\textbf{Step 2: Residual Load Allocation.}
+The residual net load is allocated to dispatchable fossil fuel sources (Coal, LNG) based on their scenario-specific target shares ($r_{s}$):
+\begin{equation}
+Gen_{Fossil, t} = Load_{net, t} \times r_{Fossil, S}
+\end{equation}
+This reflects the role of fossil fuels as marginal generators balancing renewable variability.
+
+\textbf{Step 3: Efficiency Correction.}
+We adjust the thermal efficiency of fossil fuel plants to account for part-load penalties. As the capacity factor ($CF$) decreases due to renewable penetration, the corrected efficiency ($\eta_{corrected}$) is defined as:
+\begin{equation}
+\eta_{corrected} = \eta_{design} \times f_{penalty}(CF_{new})
+\end{equation}
+where $f_{penalty}$ is a quadratic function decreasing below unity when $CF_{new} < 0.5$.
+
+\textbf{Step 4: Scenario Grid Factor.}
+Finally, the grid factor for the future scenario is derived using the re-calculated generation mix and corrected efficiencies.
+
+\subsection{Analysis Scenarios and Parameters}
+This study defines scenarios based on the 11th Basic Plan for Electricity Supply and Demand (11th BP) of South Korea. The parameters for 2023-2024 are derived from recent actual power statistics, utilizing a T\&D loss factor of 3.53\% and updated emission factors.
+
+Table~\ref{tab:grid_scenarios} summarizes the generation mix for the current and future scenarios. The significant increase in renewables and nuclear power in 2030 and 2038 is expected to drastically lower the grid's carbon intensity.
 
 \begin{table}[t]
 \centering
-\caption{South Korea grid mix energy sources with generation share, primary energy factors, and CO$_2$ emission factors (2024, corrected based on actual generation).}
-\label{tab:grid_mix_korea}
+\caption{Generation mix scenarios based on actual data (2023) and the 11th Basic Plan (2030, 2038).}
+\label{tab:grid_scenarios}
 \renewcommand{\arraystretch}{1.2}
 \small
 \begin{tabularx}{\columnwidth}{l X X X}
 \toprule
-\textbf{Energy Source} & \textbf{Generationshare} & \textbf{Primary energy factor} & \textbf{CO$_2$ Emission factor} \\
- & \textbf{[TWh (\%)]} & \textbf{[--]} & \textbf{[kg CO$_2$/kWh]} \\
+\textbf{Source} & \textbf{2023 (Actual)} & \textbf{2030 (Target)} & \textbf{2038 (Target)} \\
 \midrule
-Coal & 198 (33\%) & 2.6 & 0.90 \\
-Gas & 151 (25\%) & 1.8 & 0.40 \\
-Nuclear & 189 (31\%) & 3.0 & 0.005 \\
-Oil & 7.0 (1\%) & 2.5 & 0.70 \\
-Hydro & 9.0 (1.5\%) & 1.0 & 0.01 \\
-Wind & 3.4 (0.6\%) & 1.0 & 0.01 \\
-Solar & 33.4 (5.5\%) & 1.0 & 0.04 \\
-Biomass & 11.8 (2.0\%) & 3.0 & 0.00 \\
+Nuclear & 30.7\% & 31.8\% & 35.6\% \\
+Coal & 31.4\% & 17.4\% & 10.0\% (Est.) \\
+LNG & 26.8\% & 25.1\% & 15.0\% (Est.) \\
+Renewables & 10.8\% & 21.6\% & 32.9\% \\
+Hydrogen/Other & 0.3\% & 4.1\% & 6.5\% \\
 \bottomrule
 \end{tabularx}
 \end{table}
+
+Key technical parameters for the bottom-up calculation are detailed in Table~\ref{tab:lca_params}. Note the operational efficiency of LNG combined cycle plants is set to 41.36\% (HHV), reflecting frequent start-ups and part-load operations, which is significantly lower than their design efficiency.
+
+\begin{table}[t]
+\centering
+\caption{Key parameters for Bottom-Up LCA calculation (2023-2024 Basis).}
+\label{tab:lca_params}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Note} \\
+\midrule
+\textit{Genertaion Efficiency (HHV)} & & \\
+Coal & 37.9\% & Average operational \\
+LNG Combined Cycle & 41.36\% & Operational (w/ DSS) \\
+\midrule
+\textit{Emission Factors ($CO_2eq$)} & & \\
+Grid (Consumption) & 0.4541 kg/kWh & Incl. T\&D loss (3.53\%) \\
+LNG (Combustion) & 0.206 kg/kWh & $\approx$ 56.1 t/TJ \\
+LNG (Upstream) & +20--25\% & Extraction/Transport \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
 
 가스 보일러 시스템은 저탕조 없이 직접 급탕 공급 구조로 설계되었다. 이는 현대 가스 보일러의 일반적인 운전 방식인 즉시 가열(on-demand heating) 방식을 반영한 것이다. 시스템은 연소실(combustion chamber)과 믹싱밸브(mixing valve) 두 개의 주요 서브시스템으로 구성된다. 연소실에서는 천연가스를 연소하여 급수를 설정 온도로 가열하고, 믹싱밸브에서는 combustion chamber 출수와 상수도를 혼합하여 서비스 급탕 온도로 공급한다.
 
 공기원 히트펌프 보일러 시스템은 실외기(outdoor unit), 냉매루프(refrigerant loop), 저탕조(hot water tank), 믹싱밸브로 구성된다. 본 연구에서는 냉매 상태를 최적화 알고리즘을 통해 결정하는 방법을 채택하였다. 이는 고정된 운전 조건을 가정하는 기존 연구와 차별화되는 점이다. 히트펌프 사이클의 최적 운전점은 총 전력 사용률($E_{\text{tot}} = E_{\text{cmp}} + E_{\text{fan,ou}}$)를 최소화하는 최적화 문제를 통해 결정된다.
 
 다이어그램에 표시된 변수들과 분석에 사용된 설정값은 Table~\ref{tab:system_parameters}에 정리되어 있다.
-
-\begin{table}[t]
-\centering
-\caption{Assumed parameters for gas boiler (GB) and heat pump boiler (HPB)}
-\label{tab:system_parameters}
-\renewcommand{\arraystretch}{1.2}
-\small
-\begin{tabularx}{\columnwidth}{l X c c}
-\toprule
-\textbf{Symbol [units]} & \textbf{Description} & \textbf{GB} & \textbf{HPB} \\
-\midrule
-$T_0$ [°C] & Environmental temperature & 0 & 0 \\
-$T_{\text{w,sup}}$ [°C] & Temperature of supply water & 15 & 15 \\
-$T_{\text{tank,w}}$ [°C] & Temperature of water in hot water tank & -- & 60 \\
-$T_{\text{w,serv}}$ [°C] & Temperature of service hot water & 40 & 40 \\
-$T_{\text{exh}}$ [°C] & Temperature of exhausted gas from combustion chamber & 70 & -- \\
-$T_{\text{w,comb}}$ [°C] & Combustion chamber setpoint temperature & 60 & -- \\
-$T_{\text{a,ou,in}}$ [°C] & Inlet air temperature of outdoor unit & -- & 0 \\
-$A_{\text{ext}}$ [m$^2$] & Fan discharge area of outdoor unit & -- & 0.50 \\
-$\Delta P_{\text{fan}}$ [Pa] & Pressure difference across outdoor unit & -- & 500 \\
-$UA_{\text{tank}}$ [W/K] & Overall heat transfer coefficient of tank wall & -- & 0.45 \\
-$\eta_{\text{comb}}$ [--] & Efficiency of combustion chamber & 0.9 & -- \\
-$\eta_{\text{fan}}$ [--] & Efficiency of fan & -- & 0.8 \\
-$\text{UA}_{\text{cond}}$ [W/K] & Overall heat transfer coefficient of condenser & -- & 500 \\
-$\text{UA}_{\text{evap}}$ [W/K] & Overall heat transfer coefficient of evaporator & -- & 1500 \\
-$V_{\text{disp,cmp}}$ [m$^3$] & Compressor displacement volume per rotation& -- & $5.0 \times 10^{-4}$ \\
-$\eta_{\text{cmp,isen}}$ [--] & Isentropic efficiency of compressor & -- & 0.7 \\
-\bottomrule
-\end{tabularx}
-\end{table}
 
 \begin{table}[t]
 \centering
@@ -706,8 +743,8 @@ $Q_{w,\text{serv}}$ & Service hot water heat rate & W \\
 $Q_{w,\text{sup}}$ & Supply water heat rate & W \\
 $Q_{w,\text{sup,mix}}$ & Supply water heat rate to mixing valve & W \\
 $T_0$ & Environmental temperature (reference temperature) & K \\
-$T_{\text{cond}}$ & Condensation temperature & K \\
-$T_{\text{evap}}$ & Evaporation temperature & K \\
+$T_{\text{ref,cond}}$ & Condensation temperature & K \\
+$T_{\text{ref,evap}}$ & Evaporation temperature & K \\
 $T_{\text{exh}}$ & Exhaust gas temperature & K \\
 $T_{\text{w,serv}}$ & Service hot water temperature & K \\
 $T_{\text{w,sup}}$ & Supply water temperature & K \\
@@ -727,15 +764,16 @@ $\eta_{\text{comb}}$ & Combustion efficiency & -- \\
 \end{tabularx}
 \end{table}
 
-\begin{figure*}[t]
+
+\begin{figure}[t]
   \centering
   \includegraphics[width = 17 cm]{images/hpb_temp_power_co2.png}
   \captionsetup{width=\textwidth}
   \caption{Air source heat pump boiler system daily operation results.}
   \label{fig:hpb_temp_power_co2}
-\end{figure*}
+\end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[t]
   \centering
   \includegraphics[width = \columnwidth]{images/co2_emission_timeseries.png}
   \captionsetup{width=\textwidth}
@@ -748,20 +786,6 @@ $\eta_{\text{comb}}$ & Combustion efficiency & -- \\
 
 
 % REVIEW: The observation that Adding more sensors can *degrade* performance if poorly placed is a counter-intuitive and strong finding. It strongly validates the necessity of the proposed placement algorithm. The conclusion calling for "quality over quantity" in data collection is compelling.
-
-\begin{figure*}[t]
-  \centering
-  \begin{tabular}{cc}
-    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (a) \vspace{2cm}}} &
-    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (b) \vspace{2cm}}} \\
-    (a) Temperature & (b) Humidity \\
-    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (c) \vspace{2cm}}} &
-    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (d) \vspace{2cm}}} \\
-    (c) CO2 & (d) NH3 \\
-  \end{tabular}
-  \caption{물리 센서 개수 및 배치에 따른 가상 센서 예측 RMSE 평균 (Red: 최적 배치, Gray: 그 외). (a) 온도, (b) 습도, (c) 이산화탄소, (d) 암모니아.}
-  \label{fig:perf_trends}
-\end{figure*}
 
 % REVIEW: The observation that non-optimal placement of additional sensors can degrade average performance is a key contribution. It contradicts the common assumption that "more data is better" and highlights the importance of the proposed optimization framework. Ensure this point is highlighted in the conclusion as well.
 
@@ -850,7 +874,7 @@ Interactive plot for time-series pattern exploration: An interactive HTML extens
 %% Examples 섹션은 필요시 주석 해제하여 사용하세요
 % \section{Examples}
 % \subsection{Figures}
-% \begin{figure}[htbp]
+% \begin{figure}[t]
 %   \centering
 %   \includegraphics[width=\linewidth]{figure_name} % 확장자(.eps, .pdf) 생략 가능
 %   \caption{Description of the figure.}

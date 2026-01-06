@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.8.2)  6 JAN 2026 10:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.8.2)  6 JAN 2026 20:40
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex
-(/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex
+**/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex
+(/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-07-20>
 (/usr/local/texlive/2025/texmf-dist/tex/latex/elsarticle/elsarticle.cls
@@ -77,7 +77,7 @@ File: pdftex.def 2024/04/13 v1.2c Graphics/color driver for pdftex
 \@enLab=\toks19
 \@sep=\skip51
 \@@sep=\skip52
- (./251231.spl) (/usr/local/texlive/2025/texmf-dist/tex/latex/natbib/natbib.sty
+ (./main.spl) (/usr/local/texlive/2025/texmf-dist/tex/latex/natbib/natbib.sty
 Package: natbib 2010/09/13 8.31b (PWD, AO)
 \bibhang=\skip53
 \bibsep=\skip54
@@ -85,7 +85,7 @@ LaTeX Info: Redefining \cite on input line 694.
 \c@NAT@ctr=\count291
 )
 \splwrite=\write3
-\openout3 = `251231.spl'.
+\openout3 = `main.spl'.
 
  (/usr/local/texlive/2025/texmf-dist/tex/latex/geometry/geometry.sty
 Package: geometry 2020/01/02 v5.9 Page Geometry
@@ -742,8 +742,8 @@ Package caption Info: supertabular package is loaded.
 LaTeX Font Info:    Trying to load font information for T1+txr on input line 50.
  (/usr/local/texlive/2025/texmf-dist/tex/latex/txfonts/t1txr.fd
 File: t1txr.fd 2000/12/15 v3.1
-) (./251231.aux)
-\openout1 = `251231.aux'.
+) (./main.aux)
+\openout1 = `main.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/txmi/m/it on input line 50.
 LaTeX Font Info:    Trying to load font information for OML+txmi on input line 50.
@@ -843,7 +843,7 @@ File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 LaTeX Encoding Info:    Redeclaring text command \k (encoding T1) on input line 50.
 Package hyperref Info: Link coloring OFF on input line 50.
 \@outlinefile=\write4
-\openout4 = `251231.out'.
+\openout4 = `main.out'.
 
 Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: End \AtBeginDocument code.
@@ -905,7 +905,7 @@ Underfull \vbox (badness 3407) has occurred while \output is active []
 LaTeX Warning: File `images/water_use_schedule_ashpb.png' not found on input line 223.
 
 
-/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex:223: Package pdftex.def Error: File `images/water_use_schedule_ashpb.png' not found: using draft setting.
+/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex:223: Package pdftex.def Error: File `images/water_use_schedule_ashpb.png' not found: using draft setting.
 
 See the pdftex.def package documentation for explanation.
 Type  H <return>  for immediate help.
@@ -942,7 +942,7 @@ LaTeX Warning: Reference `tab:gb_symbols' on page 1 undefined on input line 231.
 LaTeX Warning: File `images/GB_diagram.png' not found on input line 237.
 
 
-/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex:237: Package pdftex.def Error: File `images/GB_diagram.png' not found: using draft setting.
+/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex:237: Package pdftex.def Error: File `images/GB_diagram.png' not found: using draft setting.
 
 See the pdftex.def package documentation for explanation.
 Type  H <return>  for immediate help.
@@ -965,41 +965,31 @@ LaTeX Warning: Reference `eq:gb_comb_load' on page 2 undefined on input line 307
 
 
 
-LaTeX Warning: Reference `fig:hpb_diagram' on page 2 undefined on input line 355.
+LaTeX Warning: Reference `fig:hpb_diagram' on page 2 undefined on input line 354.
 
 
 LaTeX Warning: Reference `tab:hpb_symbols' on page 2 undefined on input line 355.
 
 
-LaTeX Warning: Reference `fig:hot water use schedule' on page 2 undefined on input line 357.
+LaTeX Warning: Reference `fig:hot water use schedule' on page 2 undefined on input line 361.
 
 
-LaTeX Warning: File `images/HPB_diagram.png' not found on input line 363.
+LaTeX Warning: File `images/HPB_diagram.png' not found on input line 367.
 
 
-/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex:363: Package pdftex.def Error: File `images/HPB_diagram.png' not found: using draft setting.
+/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex:367: Package pdftex.def Error: File `images/HPB_diagram.png' not found: using draft setting.
 
 See the pdftex.def package documentation for explanation.
 Type  H <return>  for immediate help.
  ...                                              
                                                   
-l.363 ...cs[width = 17 cm]{images/HPB_diagram.png}
+l.367 ...cs[width = 17 cm]{images/HPB_diagram.png}
                                                   
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
 
-Underfull \hbox (badness 3536) in paragraph at lines 409--409
-[]|\T1/txr/m/n/9 Condenser heat trans-fer rate (heat ex-
- []
-
-
-Underfull \hbox (badness 2961) in paragraph at lines 409--409
-[]|\T1/txr/m/n/9 Evaporator heat trans-fer rate (heat ex-
- []
-
-
-Underfull \hbox (badness 1259) in paragraph at lines 409--409
+Underfull \hbox (badness 1259) in paragraph at lines 413--413
 []|\T1/txr/m/n/9 Overall heat trans-fer co-ef-fi-cient of con-
  []
 
@@ -1008,163 +998,170 @@ Underfull \hbox (badness 1259) in paragraph at lines 409--409
 [2]
 
 
-Underfull \hbox (badness 1314) in paragraph at lines 475--477
+Underfull \hbox (badness 1314) in paragraph at lines 479--481
 []\LUC/nanummj/m/n/10/c7 Q\LUC/nanummj/m/n/10/cd ï\LUC/nanummj/m/n/10/ae 0\LUC/nanummj/m/n/10/c6 @ \LUC/nanummj/m/n/10/c9 ù\LUC/nanummj/m/n/10/bc ^^\\LUC/nanummj/m/n/10/ae 0\LUC/nanummj/m/n/10/c7 X \LUC/nanummj/m/n/10/c5 Ù\LUC/nanummj/m/n/10/c8 ^^D\LUC/nanummj/m/n/10/b2 Ï\LUC/nanummj/m/n/10/c7 @ \T1/txr/m/n/10 LMTD(Logarithmic Mean
  []
 
 
 
 [3]
-Underfull \hbox (badness 4429) in paragraph at lines 508--510
+Underfull \hbox (badness 4429) in paragraph at lines 512--514
 []\LUC/nanummj/m/n/10/c5 Ï\LUC/nanummj/m/n/10/ae 0\LUC/nanummj/m/n/10/c1 ^^\ $\OML/txmi/m/it/10 A[]$\LUC/nanummj/m/n/10/b2 î \LUC/nanummj/m/n/10/c2 ‰\LUC/nanummj/m/n/10/c6 x\LUC/nanummj/m/n/10/ae 0 \LUC/nanummj/m/n/10/ac ı\LUC/nanummj/m/n/10/ae 0 \LUC/nanummj/m/n/10/d1 †\LUC/nanummj/m/n/10/cd ú \LUC/nanummj/m/n/10/b2 Ë\LUC/nanummj/m/n/10/ba t\LUC/nanummj/m/n/10/c8 ^^A\T1/txr/m/n/10 [m$[]$]\LUC/nanummj/m/n/10/c7 t\LUC/nanummj/m/n/10/b2 ‰\T1/txr/m/n/10 .
  []
 
 
-Overfull \hbox (3.48895pt too wide) detected at line 514
+Overfull \hbox (3.48895pt too wide) detected at line 518
 [][][][][] \OT1/txr/m/n/10 = [][] [][] = [][] [][]
  []
 
 
-LaTeX Warning: Reference `eq:hpb_ua_evap' on page 4 undefined on input line 520.
-
-
-Package natbib Warning: Citation `ashrae2022standard' on page 4 undefined on input line 534.
+LaTeX Warning: Reference `eq:hpb_ua_evap' on page 4 undefined on input line 524.
 
 
 
 
-LaTeX Warning: Reference `tab:grid_mix_korea' on page 4 undefined on input line 603.
-
-LaTeX Font Info:    Font shape `LUC/nanummj/b/n' in size <10> not available
-(Font)              Font shape `LUC/nanummj/bx/n' tried instead on input line 611.
-
-LaTeX Warning: Reference `tab:grid_mix_korea' on page 4 undefined on input line 615.
-
-
-Overfull \hbox (15.16298pt too wide) in paragraph at lines 637--637
-[]|\T1/txr/bx/n/9 Generationshare| 
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 637--637
-[]|\T1/txr/bx/n/9 CO$[]$ Emis-
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 637--637
-[]|\T1/txr/bx/n/9 [kg
- []
-
-
-LaTeX Warning: Reference `tab:system_parameters' on page 4 undefined on input line 644.
+Package natbib Warning: Citation `ashrae2022standard' on page 4 undefined on input line 538.
 
 
 
 [4]
-Underfull \hbox (badness 10000) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Environmental tem-per-a-
+
+
+LaTeX Warning: Reference `tab:grid_scenarios' on page 5 undefined on input line 660.
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 678--678
+[]|\T1/txr/bx/n/9 2023 (Ac-
  []
 
 
-Underfull \hbox (badness 1968) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Temperature of wa-ter in
+Underfull \hbox (badness 10000) in paragraph at lines 678--678
+[]|\T1/txr/bx/n/9 2030 (Tar-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 673--673
-\T1/txr/m/n/9 gas from com-bus-tion
+Underfull \hbox (badness 10000) in paragraph at lines 678--678
+[]|\T1/txr/bx/n/9 2038 (Tar-
  []
 
 
-Underfull \hbox (badness 4328) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Inlet air tem-per-a-ture of
+LaTeX Warning: Reference `tab:lca_params' on page 5 undefined on input line 681.
+
+
+Overfull \hbox (2.17795pt too wide) in paragraph at lines 702--702
+[]|\T1/txr/m/n/9 41.36%| 
  []
 
 
-Underfull \hbox (badness 1997) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Efficiency of com-bus-tion
+Underfull \hbox (badness 10000) in paragraph at lines 702--702
+[]|\T1/txr/m/n/9 0.4541
  []
 
 
-Underfull \hbox (badness 3019) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Compressor dis-place-ment
+Overfull \hbox (3.38394pt too wide) in paragraph at lines 702--702
+\T1/txr/m/n/9 kg/kWh| 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 673--673
-[]|\T1/txr/m/n/9 Isentropic ef-fi-ciency of
+Underfull \hbox (badness 10000) in paragraph at lines 702--702
+[]|\T1/txr/m/n/9 0.206
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 727--727
+Overfull \hbox (3.38394pt too wide) in paragraph at lines 702--702
+\T1/txr/m/n/9 kg/kWh| 
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 702--702
+[]|\T1/txr/m/n/9 +20--
+ []
+
+
+LaTeX Warning: Reference `tab:system_parameters' on page 5 undefined on input line 711.
+
+
+
+[5]
+Underfull \hbox (badness 10000) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Heat trans-fer rate in con-denser
  []
 
 
-Underfull \hbox (badness 7759) in paragraph at lines 727--727
+Underfull \hbox (badness 7759) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Heat trans-fer rate in evap-o-ra-tor
  []
 
 
-Underfull \hbox (badness 3364) in paragraph at lines 727--727
+Underfull \hbox (badness 3364) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Combustion cham-ber out-let wa-ter
  []
 
 
-Underfull \hbox (badness 1708) in paragraph at lines 727--727
+Underfull \hbox (badness 1708) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Supply wa-ter heat rate to mix-ing
  []
 
 
-Underfull \hbox (badness 7981) in paragraph at lines 727--727
+Underfull \hbox (badness 7981) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Environmental tem-per-a-ture (ref-er-
  []
 
 
-Underfull \hbox (badness 1038) in paragraph at lines 727--727
+Underfull \hbox (badness 1038) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Overall heat trans-fer co-ef-fi-cient of
  []
 
 
-Underfull \hbox (badness 1038) in paragraph at lines 727--727
+Underfull \hbox (badness 1038) in paragraph at lines 764--764
 []|\T1/txr/m/n/10 Overall heat trans-fer co-ef-fi-cient of
  []
 
 
-LaTeX Warning: Float too large for page by 112.28212pt on input line 728.
+LaTeX Warning: Float too large for page by 112.28212pt on input line 765.
 
 
-LaTeX Warning: File `images/hpb_temp_power_co2.png' not found on input line 732.
+LaTeX Warning: File `images/hpb_temp_power_co2.png' not found on input line 770.
 
 
-/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex:732: Package pdftex.def Error: File `images/hpb_temp_power_co2.png' not found: using draft setting.
+/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex:770: Package pdftex.def Error: File `images/hpb_temp_power_co2.png' not found: using draft setting.
 
 See the pdftex.def package documentation for explanation.
 Type  H <return>  for immediate help.
  ...                                              
                                                   
-l.732 ...h = 17 cm]{images/hpb_temp_power_co2.png}
+l.770 ...h = 17 cm]{images/hpb_temp_power_co2.png}
                                                   
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
 
-LaTeX Warning: File `images/co2_emission_timeseries.png' not found on input line 740.
+Overfull \hbox (231.69684pt too wide) in paragraph at lines 770--772
+ [][] 
+ []
 
 
-/home/habin/Codes/enex_analysis_engine/paper/GB_vs_HPB/manuscript/251231.tex:740: Package pdftex.def Error: File `images/co2_emission_timeseries.png' not found: using draft setting.
+Overfull \hbox (135.0pt too wide) in paragraph at lines 772--772
+[] [] 
+ []
+
+
+LaTeX Warning: File `images/co2_emission_timeseries.png' not found on input line 778.
+
+
+/home/habin/Codes/En_system_Ex_analysis/paper/GB_vs_HPB/manuscript/main.tex:778: Package pdftex.def Error: File `images/co2_emission_timeseries.png' not found: using draft setting.
 
 See the pdftex.def package documentation for explanation.
 Type  H <return>  for immediate help.
  ...                                              
                                                   
-l.740 ...idth]{images/co2_emission_timeseries.png}
+l.778 ...idth]{images/co2_emission_timeseries.png}
                                                   
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
 
-Overfull \hbox (135.0pt too wide) in paragraph at lines 742--742
+Overfull \hbox (135.0pt too wide) in paragraph at lines 780--780
 [] [] 
  []
 
@@ -1175,18 +1172,11 @@ Package natbib Warning: There were undefined citations.
 
 
 
-[5]
+[6] [7]
 
 
 
-[6] [7] [8]
-
-
-
-[9
-
-
-] (./251231.aux)
+[8] (./main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-07-20>
@@ -1199,27 +1189,27 @@ LaTeX Warning: There were undefined references.
 LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
 
 
-Package rerunfilecheck Warning: File `251231.out' has changed.
+Package rerunfilecheck Warning: File `main.out' has changed.
 (rerunfilecheck)                Rerun to get outlines right
 (rerunfilecheck)                or use package `bookmark'.
 
-Package rerunfilecheck Info: Checksums for `251231.out':
+Package rerunfilecheck Info: Checksums for `main.out':
 (rerunfilecheck)             Before: <no file>
-(rerunfilecheck)             After:  DAA7C0C04217F143F536E43DAB813C01;2255.
+(rerunfilecheck)             After:  2FAB857D03D44A4A82B80F1D979EB6BA;2979.
  ) 
 Here is how much of TeX's memory you used:
- 14672 strings out of 467801
- 229410 string characters out of 5431897
- 662393 words of memory out of 5000000
- 42950 multiletter control sequences out of 15000+600000
- 701980 words of font info for 195 fonts, out of 8000000 for 9000
+ 14658 strings out of 467801
+ 229126 string characters out of 5431897
+ 658385 words of memory out of 5000000
+ 42940 multiletter control sequences out of 15000+600000
+ 701939 words of font info for 188 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 72i,13n,79p,694b,496s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbbb.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbbc.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbc0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbc2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbc6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbc7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbc8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbcd.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjbd6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmac.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmad.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmae.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb3.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb4.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmba.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbb.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbc.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbd.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbe.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbf.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcc.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcd.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmce.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcf.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd3.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd4.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxb.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxmi.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxr.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/txex.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/txsy.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on 251231.pdf (9 pages, 2247274 bytes).
+ 72i,13n,79p,693b,494s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmac.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmad.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmae.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb3.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb4.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmb9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmba.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbb.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbc.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbd.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbe.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmbf.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmc9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcc.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcd.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmce.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmcf.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd0.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd1.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd2.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd3.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd4.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/nanumtype1/nanummjmd7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtcxr.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxb.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxi.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxmi.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/rtxr.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/txex.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/txfonts/txsy.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on main.pdf (8 pages, 1997225 bytes).
 PDF statistics:
- 402 PDF objects out of 1000 (max. 8388607)
- 276 compressed objects within 3 object streams
- 67 named destinations out of 1000 (max. 500000)
+ 367 PDF objects out of 1000 (max. 8388607)
+ 256 compressed objects within 3 object streams
+ 70 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

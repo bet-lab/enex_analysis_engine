@@ -1294,11 +1294,13 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
         Schedule list. Each item is (start_str, end_str, ratio) format.
         - start_str, end_str: "H:M" or "H" format string (e.g., "6:00", "23:30", "24:00", etc.).
         - ratio: Usage ratio (float) for that interval. Clipped to 0.0 ~ 1.0 range.
+    peak_load_m3s : float
+        Peak load flow rate [m³/s].
     
     Returns
     -------
     float
-        Total water use [L/min]
+        Total daily water use [L]
 
     Examples
     --------
@@ -1310,6 +1312,7 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
     - schedule must be list of tuple, each item is (start_str, end_str, ratio) format.
     '''
     peak_load_lpm = peak_load_m3s * cu.m32L / cu.s2m
+    print(f'Peak load: {peak_load_lpm} L/min')
     total_use = 0
     print(f"{'Start':>6} ~ {'End':>6} | {'Ratio':>5} | {'Liters':>6}")
     print("-" * 35)
