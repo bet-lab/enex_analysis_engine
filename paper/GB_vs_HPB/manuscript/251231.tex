@@ -1,0 +1,862 @@
+% \documentclass[preprint,12pt,authoryear]{elsarticle}
+%% Use the option review to obtain double line spacing
+%% \documentclass[authoryear,preprint,review,12pt]{elsarticle}
+
+%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
+%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
+%% for a journal layout:
+%% \documentclass[final,1p,times,authoryear]{elsarticle}
+% \documentclass[final,1p,times,twocolumn,authoryear]{elsarticle}
+% \documentclass[final,3p,times,authoryear]{elsarticle}
+%% \documentclass[final,3p,times,twocolumn,authoryear]{elsarticle}
+%% \documentclass[final,5p,times,authoryear]{elsarticle}
+\documentclass[final,5p,times,twocolumn,authoryear]{elsarticle}
+%% For including figures, graphicx.sty has been loaded in
+%% elsarticle.cls. If you prefer to use the old commands
+%% please give \usepackage{epsfig}
+
+%% The amssymb package provides various useful mathematical symbols
+\usepackage{amssymb}
+%% The amsmath package provides various useful equation environments.
+\usepackage{amsmath}
+%% The amsthm package provides extended theorem environments
+%% \usepackage{amsthm}
+
+%% The lineno packages adds line numbers. 
+\usepackage{lineno}
+% Start line numbering with
+%% \begin{linenumbers}, end it with \end{linenumbers}. Or switch it on
+%% for the whole article with \linenumbers.
+
+
+\usepackage{tabularx}
+\usepackage{kotex}
+\usepackage{booktabs}
+\usepackage{supertabular}
+\usepackage{afterpage}
+\usepackage{graphicx}
+\graphicspath{{./images/}}
+% hyperlink related 
+\usepackage{url}       % URL 줄바꿈을 더 깔끔하게 처리
+\usepackage{hyperref}  % 클릭 가능한 링크 생성
+
+
+% 캡션 정렬.
+\usepackage{caption}
+\captionsetup[figure]{labelsep=period}
+
+\journal{Applied Energy}
+
+\begin{document}
+
+\begin{frontmatter}
+
+
+
+
+%% Title, authors and addresses
+
+%% use the tnoteref command within \title for footnotes;
+%% use the tnotetext command for theassociated footnote;
+%% use the fnref command within \author or \affiliation for footnotes;
+%% use the fntext command for theassociated footnote;
+%% use the corref command within \author for corresponding author footnotes;
+%% use the cortext command for theassociated footnote;
+%% use the ead command for the email address,
+%% and the form \ead[url] for the home page:
+
+%% \title{Title\tnoteref{label1}}
+%% \tnotetext[label1]{}
+%% \author{Name\corref{cor1}\fnref{label2}}
+%% \ead{email address}
+%% \ead[url]{home page}
+%% \fntext[label2]{}
+%% \cortext[cor1]{}
+%% \affiliation{organization={},
+%%            addressline={}, 
+%%            city={},
+%%            postcode={}, 
+%%            state={},
+%%            country={}}
+%% \fntext[label3]{}
+
+
+\title{Title} %% Article title
+
+%% 추가 후보 
+% Contextually Extended iTransformer for Robust Virtual Sensing with Missing and Variable Sensors
+
+% Contextually Extended iTransformer for Virtual Sensing of Indoor Air Quality in Livestock Buildings
+
+
+
+%% 저자 및 소속 설정
+\author[a]{Habin Jo}
+
+\author[b]{Masanori Shukuya}
+
+\author[a,c]{Wonjun Choi}
+\ead{wonjun.choi@jnu.ac.kr} %% 마지막 저자의 이메일
+
+%% 하단 주석 설정
+\cortext[cor1]{Corresponding author}
+
+%% 소속 정보 (이전과 동일)
+\affiliation[a]{
+    organization={Department of Architecture and Civil Engineer},
+    addressline={77 Yongbong-ro, Buk-gu},
+    city={Gwangju},
+    postcode={61186},
+    country={South Korea}
+}
+
+\affiliation[b]{organization={Department of Restoration Ecology and Built Environment, Tokyo City University},
+            addressline={Address B},
+            city={Yokohama},
+            postcode={67890},
+            country={Japan}}
+
+\affiliation[c]{organization={Department of Architecture and Civil Engineering, Chonnam National University}, 
+            addressline={77 Yongbong-ro, Buk-gu}, 
+            city={Gwangju}, 
+            postcode={61186},
+            country={South Korea}}
+
+\begin{abstract}
+%% Text of abstract
+abstract 
+for real 
+
+\end{abstract}
+
+%%Graphical abstract
+% \begin{graphicalabstract}
+%\includegraphics{grabs}
+% \end{graphicalabstract}
+
+%%Research highlights
+% \begin{highlights}
+% \item Research highlight 1
+% \item Research highlight 2
+% \end{highlights}
+
+%% Keywords
+\begin{keyword}
+
+Virtual sensor \sep Deep learning \sep Transformer \sep Smart farm \sep  Spatio-temporal interpolation \sep Interpretable AI 
+
+%% keywords here, in the form: keyword \sep keyword
+
+%% PACS codes here, in the form: \PACS code \sep code
+
+%% MSC codes here, in the form: \MSC code \sep code
+%% or \MSC[2008] code \sep code (2000 is the default)
+
+\end{keyword}
+
+\end{frontmatter}
+
+
+
+%% Add \usepackage{lineno} before \begin{document} and uncomment 
+%% following line to enable line numbers
+%% \linenumbers
+
+
+
+
+\renewcommand{\figurename}{Fig.} % 메인 텍스트용 figure 표시 설정
+
+%%%%%%%%%%%%%%%%%%%%% MAIN TEXT 
+%% Use \section commands to start a section
+% \begin{linenumbers}
+% \modulolinenumbers[2] % 5, 10, 15... 행에만 번호 표시
+
+\section{Introduction}
+\label{sec:intro}
+
+%% Labels are used to cross-reference an item using \ref command.
+
+전 세계적으로 건물 부문은 에너지 사용의 약 32\%, CO$_2$ 배출의 34\%를 차지하며,
+기후 변화 대응을 위한 핵심 감축 대상으로 지목되고 있다 \cite{unep2024global}.
+이에 따라 화석 연료 기반의 난방 및 급탕 시스템을 전기에너지 기반으로 전환하는
+`건물 전전화(Building Electrification)'가 주요 정책 및 기술적 솔루션으로 부상하고 있다 \cite{irena2020renewable}.
+
+특히, 건물 단열 성능 규제의 강화로 냉난방 부하가 감소한 반면, 급탕 에너지 수요는 일정하게 유지되어
+전체 건물 에너지 사용에서 15--40\% 수준의 중대한 비중을 차지한다 \cite{ref3, ref4}.
+이러한 급탕 부문의 효율화와 건물 전전화의 트랜드는 전통적인 가스 보일러(GB)를
+고효율 히트펌프 보일러(HPB)로 대체하는 것이 가장 유력한 대안으로 여겨진다 \cite{ref3, ref5}.
+
+히트펌프 보일러는 사용 단계에서 높은 효율(시스템 출력/투입전력)을 보이지만, 히트펌프 보일러에 투입되는 전력을 공급하는 그리드의 전력 발전 믹스에 따라,
+전력의 CO$_2$ 배출 계수와  Primary energy factor가 크게 달라진다. 
+이는 히트펌프 보일러의 도입을 통해 탄소 배출과 1차 에너지 사용을 효과적으로 저감하기 위해서는
+히트펌프 보일러의 기기의 효율(COP)를 높이는 것 뿐만 아니라, 재생에너지에 기반한 전력 발전의 비중을 높여 전력 사용에 의한
+Primary energy use와 CO$_2$ 배출 계수를 낮추는 것이 선행되어야 한다.\cite{irena2020renewable}.
+
+특히, 한국의 경우 급탕 설비의 약 XX\%가 가스 보일러를 사용하고 있기 때문에\cite{},
+히트펌프 보일러 도입을 통한 실질적인 에너지 절감과 온실가스 감축 효과를
+미래 전력 발전 믹스의 변화에 따른 영향을 평가하는 것이 중요하다.  
+
+본 연구의 목적은 한국의 재생에너지 발전 비중 변화를 고려하여 가스 보일러와 히트펌프 보일러의
+1차 에너지 사용 및 CO$_2$ 배출 저감 효과를 정량적으로 평가하는 것이다.
+본 연구의 결과는 향후 전력 그리드의 발전 수준에 따라 히트펌프 보일러의
+적정 도입 시기 및 확대 방안을 결정하는 데 기여할 것으로 기대된다
+
+
+
+
+\section{System Setting}
+\label{sec:system}
+
+\subsection{Water use schedule and operation condition}
+
+본 연구에서는 Gas boiler (GB)와 Air source heat pump boiler(ASHPB) 두 가지 급탕 시스템을
+동일한 급탕 사용 스케줄과 외기 온도 조건에서 비교 분석하였다.
+본 연구에서 사용한 최종 사용 온수의 공급 스케줄을 Figure~\ref{fig:hot water use schedule}에 나타냈다.
+아침과 저녁 시간에 주된 급탕 사용이 발생하는 주거용 온수 사용 스케줄의 특징을 반영하였으며,
+peak 유량이 약 6 L/min, 약 200 L/day의 사용량을 가정하였다.
+service hot water temperarture($T_{\text{w,serv}}$)는 40 °C로 고정하였으며,
+외기온도(환경온도) $T_0$는 10 °C로, 상수도 온도 $T_{\text{w,sup}}$는 15 °C로 고정하였다. 
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width = 9 cm]{images/water_use_schedule_ashpb.png}
+  \captionsetup{width=\textwidth}
+  \caption{Daily water use schedule for the study}
+  \label{fig:hot water use schedule}
+\end{figure}
+
+\subsection{Gas boiler system modeling}
+가스 보일러 다이어그램을 Figure~\ref{fig:gb_diagram}에 나타냈으며, Gas boiler의 모델 정의에 사용된
+symbol들을 Table~\ref{tab:gb_symbols}에 나타냈다.
+가스 보일러는 각각 combustion chamber와 mixing valve 서브시스템으로 구성된다.
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=10 cm]{images/GB_diagram.png}
+  \captionsetup{width=\textwidth}
+  \caption{Gas boiler system diagram.}
+  \label{fig:gb_diagram}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{Symbols used in gas boiler modeling}
+\label{tab:gb_symbols}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Symbol} & \textbf{Description} & \textbf{Units} \\
+\midrule
+$E_{\text{NG}}$ & Natural gas energy input & W \\
+$Q_{w,\text{sup}}$ & Supply water heat rate & W \\
+$Q_{w,\text{comb}}$ & Combustion chamber outlet water heat rate & W \\
+$Q_{w,\text{serv}}$ & Service hot water heat rate & W \\
+$Q_{w,\text{sup,mix}}$ & Supply water heat rate to mixing valve & W \\
+$Q_{\text{exh}}$ & Exhaust gas heat loss & W \\
+$T_0$ & Environmental temperature (reference temperature) & K \\
+$T_{\text{w,sup}}$ & Supply water temperature & K \\
+$T_{\text{w,comb}}$ & Boiler outlet water temperature (combustion chamber setpoint) & K \\
+$T_{\text{w,serv}}$ & Service hot water temperature & K \\
+$T_{\text{exh}}$ & Exhaust gas temperature & K \\
+$\dot{V}_{w,\text{sup,comb}}$ & Supply water volumetric flow rate to combustion chamber & m$^3$/s \\
+$\dot{V}_{w,\text{sup,mix}}$ & Supply water volumetric flow rate to mixing valve & m$^3$/s \\
+$\dot{V}_{w,\text{serv}}$ & Service hot water volumetric flow rate & m$^3$/s \\
+$\eta_{\text{comb}}$ & Combustion efficiency & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% 이때 혼합비($\alpha$)는 다음과 같이 계산된다:
+
+% \begin{equation}
+% \label{eq:gb_mixing_ratio}
+% \alpha = \frac{T_{\text{w,serv}} - T_{\text{w,sup}}}{T_{\text{w,comb}} - T_{\text{w,sup}}}
+% \end{equation}
+
+% 여기서 $\alpha$는 최종 service hot water의 공급 유량 대비 combustion chamber의 출수 유량 비율로
+% 유량 관계는 $\dot{V}_{w,\text{sup,comb}} = \alpha \dot{V}_{w,\text{serv}}$ 및 
+% $\dot{V}_{w,\text{sup,mix}} = (1 - \alpha) \dot{V}_{w,\text{serv}}$로 표현된다.
+
+
+가스 보일러(Figure~\ref{fig:gb_diagram})는, Combustion chamber로 유입된 상수도를 $T_{\text{w,sup}}$에서 $T_{\text{w,comb}}$로
+가열해 mixing valve로 공급하며, mixing valve에서 상수도와 혼합되어
+온수 사용 스케줄(Figure~\ref{fig:hot water use schedule})에 따라
+service hot water를 $T_{\text{w,serv}}$의 온도로 공급한다.
+이때, 상수도 온도 $T_{\text{w,sup}}$는 15 °C로, combustion chamber 출수 온도 $T_{\text{w,comb}}$는 60 °C,
+service hot water 온도 $T_{\text{w,serv}}$는 40 °C로 고정하였다.
+따라서, 연소실로 공급되는 유량($\dot{V}_{w,\text{sup,comb}}$)과 믹싱밸브로 직접 공급되는 상수도 유량($\dot{V}_{w,\text{sup,mix}}$)이
+온도 관계를 만족하는 비율로 혼합되어 최종 서비스 급탕 유량($\dot{V}_{w,\text{serv}}$)과 목표 온도($T_{\text{w,serv}}$)를 만족하도록 공급된다.
+
+Combustion chamber에서는 천연가스($E_{\text{NG}}$)가 연소되어 급수($\dot{V}_{w,\text{sup,comb}}$)를
+설정 온도($T_{\text{w,comb}}$)까지 가열한다. 이때 연소 효율($\eta_{\text{comb}}$)을 고려한 에너지 밸런스는 아래와 같다:
+
+\begin{equation}
+\label{eq:gb_energy_comb}
+E_{\text{NG}} = \frac{Q_{\text{comb,load}}}{\eta_{\text{comb}}}
+\end{equation}
+
+\begin{equation}
+\label{eq:gb_energy_balance_comb}
+E_{\text{NG}} + Q_{w,\text{sup}} = Q_{w,\text{comb}} + Q_{\text{exh}}
+\end{equation}
+
+여기서 $Q_{\text{comb,load}}$는 Combustion chamber에 공급되는 상수도가 최종 설정 온도($T_{\text{w,comb}}$)로 가열되기 위해
+필요한 열에너지율이며, 식~\eqref{eq:gb_comb_load}과 같이 계산된다.
+
+
+\begin{equation}
+\label{eq:gb_comb_load}
+Q_{\text{comb,load}} = c_w \rho_w \dot{V}_{w,\text{sup,comb}} (T_{\text{w,comb}} - T_{\text{w,sup}})
+\end{equation}
+
+급수 열량($Q_{w,\text{sup}}$), combustion chamber 출수 열량($Q_{w,\text{comb}}$),
+배기가스 열량($Q_{\text{exh}}$)은 각각 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:gb_qw_sup}
+Q_{w,\text{sup}} = c_w \rho_w \dot{V}_{w,\text{sup,comb}} (T_{\text{w,sup}} - T_0)
+\end{equation}
+
+\begin{equation}
+\label{eq:gb_qw_comb}
+Q_{w,\text{comb}} = c_w \rho_w \dot{V}_{w,\text{sup,comb}} (T_{\text{w,comb}} - T_0)
+\end{equation}
+
+\begin{equation}
+\label{eq:gb_qexh}
+Q_{\text{exh}} = (1 - \eta_{\text{comb}}) E_{\text{NG}}
+\end{equation}
+
+
+믹싱밸브에서는 combustion chamber 출수($T_{\text{w,comb}}$)와 상수도($T_{\text{w,sup}}$)를 혼합하여 서비스 급탕 온도($T_{\text{w,serv}}$)로 공급한다. 에너지 밸런스는 다음과 같이 표현된다:
+
+\begin{equation}
+\label{eq:gb_energy_mix}
+Q_{w,\text{comb}} + Q_{w,\text{sup,mix}} = Q_{w,\text{serv}}
+\end{equation}
+
+믹싱밸브로 직접 공급되는 상수도 열량과 서비스 급탕 열량은 각각:
+
+\begin{equation}
+\label{eq:gb_qw_sup_mix}
+Q_{w,\text{sup,mix}} = c_w \rho_w \dot{V}_{w,\text{sup,mix}} (T_{\text{w,sup}} - T_0)
+\end{equation}
+
+\begin{equation}
+\label{eq:gb_qw_serv}
+Q_{w,\text{serv}} = c_w \rho_w \dot{V}_{w,\text{serv}} (T_{\text{w,serv}} - T_0)
+\end{equation}
+
+\subsection{Air Source Heat Pump Boiler System Modeling}
+\subsection{Air Source Heat Pump Boiler System Modeling}
+공기열원 히트펌프 보일러의 시스템 구조를 Figure~\ref{fig:hpb_diagram}에 나타냈으며, Air source heat pump boiler의 모델 정의에 사용된 symbol들을 Table~\ref{tab:hpb_symbols}에 나타냈다. 
+히트펌프 보일러는 저탕조 내 온수의 온도를 히스테리시스 제어를 통해 관리한다: 저탕조 온도가 하한 값 55 °C 이하로 떨어지면 히트펌프가 가동되어 가열을 시작하며, 상한 값 65 °C 이상에 도달하면 가열을 중단한다. 
+저탕조에서 공급되는 온수는 mixing valve로 공급되며, mixing valve에서 15 °C의 상수도와 혼합되어 40 °C의 온수를 온수 사용 스케줄(Figure~\ref{fig:hot water use schedule})에 따라 공급한다.
+이때 혼합비($\alpha$)는 다음과 같이 계산된다:
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width = 17 cm]{images/HPB_diagram.png}
+  \captionsetup{width=\textwidth}
+  \caption{Air source heat pump boiler system diagram.}
+  \label{fig:hpb_diagram}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{Symbols used in air source heat pump boiler modeling}
+\label{tab:hpb_symbols}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Symbol} & \textbf{Description} & \textbf{Units} \\
+\midrule
+$E_{\text{cmp}}$ & Compressor power consumption & W \\
+$E_{\text{fan,ou}}$ & Outdoor unit fan power consumption & W \\
+$E_{\text{tot}}$ & Total power consumption & W \\
+$Q_{\text{cond,load}}$ & Condenser heat load (target heat transfer rate) & W \\
+$Q_{\text{ref,cond}}$ & Refrigerant condensation heat rate (thermodynamic) & W \\
+$Q_{\text{LMTD,cond}}$ & Condenser heat transfer rate (heat exchanger capacity) & W \\
+$Q_{\text{ref,evap}}$ & Refrigerant evaporation heat rate (thermodynamic) & W \\
+$Q_{\text{LMTD,evap}}$ & Evaporator heat transfer rate (heat exchanger capacity) & W \\
+$Q_{\text{tank,loss}}$ & Hot water tank heat loss & W \\
+$Q_{\text{use,loss}}$ & Heat loss due to hot water usage & W \\
+$T_0$ & Environmental temperature (reference temperature) & K \\
+$T_{\text{evap}}$ & Evaporation temperature & K \\
+$T_{\text{cond}}$ & Condensation temperature & K \\
+$T_{\text{tank,w}}$ & Hot water tank temperature & K \\
+$T_{\text{w,sup}}$ & Supply water temperature & K \\
+$T_{\text{w,serv}}$ & Service hot water temperature & K \\
+$T_{\text{air,ou,in}}$ & Inlet air temperature of outdoor unit & K \\
+$T_{\text{air,ou,out}}$ & Outlet air temperature of outdoor unit & K \\
+$\dot{m}_{\text{ref}}$ & Refrigerant mass flow rate & kg/s \\
+$\dot{V}_{\text{fan,ou}}$ & Outdoor unit fan volumetric flow rate & m$^3$/s \\
+$\dot{V}_{\text{fan,ou,design}}$ & Outdoor unit fan design volumetric flow rate & m$^3$/s \\
+$\text{UA}_{\text{cond}}$ & Overall heat transfer coefficient of condenser & W/K \\
+$\text{UA}_{\text{evap}}$ & Overall heat transfer coefficient of evaporator & W/K \\
+$\text{LMTD}_{\text{cond}}$ & Log-mean temperature difference in condenser & K \\
+$\text{LMTD}_{\text{evap}}$ & Log-mean temperature difference in evaporator & K \\
+$\Delta T_{\text{ref,cond}}$ & Temperature difference between refrigerant and hot water tank & K \\
+$\Delta T_{\text{ref,evap}}$ & Temperature difference between refrigerant and outdoor air & K \\
+$\eta_{\text{fan,ou,design}}$ & Outdoor unit fan design efficiency & -- \\
+$\eta_{\text{cmp,isen}}$ & Isentropic efficiency of compressor & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{equation}
+\label{eq:hpb_mixing_ratio}
+\alpha = \frac{T_{\text{w,serv}} - T_{\text{w,sup}}}{T_{\text{tank,w}} - T_{\text{w,sup}}}
+\end{equation}
+
+여기서 $\alpha$는 최종 service hot water의 공급 유량 대비 저탕조에서 공급되는 온수 유량 비율로, 유량 관계는 $\dot{V}_{w,\text{sup,tank}} = \alpha \dot{V}_{w,\text{serv}}$ 및 $\dot{V}_{w,\text{sup,mix}} = (1 - \alpha) \dot{V}_{w,\text{serv}}$로 표현된다.
+
+공기원 히트펌프 보일러 시스템은 실외기(outdoor unit), 냉매루프(refrigerant loop), 저탕조(hot water tank), 믹싱밸브로 구성된다. 본 연구에서는 냉매 상태를 최적화 알고리즘을 통해 결정하는 방법을 채택하였다.
+
+\subsubsection{Optimization Problem}
+
+히트펌프 사이클의 최적 운전점은 총 전력 사용률을 최소화하는 최적화 문제를 통해 결정된다:
+
+\begin{equation}
+\label{eq:hpb_optimization}
+\begin{aligned}
+\min_{\Delta T_{\text{ref,cond}}, \Delta T_{\text{ref,evap}}} \quad & E_{\text{tot}} = E_{\text{cmp}} + E_{\text{fan,ou}} \\
+\text{subject to} \quad & Q_{\text{cond,load}} \leq Q_{\text{LMTD,cond}} \leq Q_{\text{cond,load}} \cdot (1 + \epsilon) \\
+& Q_{\text{ref,evap}} \leq Q_{\text{LMTD,evap}} \leq Q_{\text{ref,evap}} \cdot (1 + \epsilon)
+\end{aligned}
+\end{equation}
+
+여기서 $E_{\text{tot}}$는 총 전력 사용률[W], $E_{\text{cmp}}$는 압축기 전력[W], $E_{\text{fan,ou}}$는 실외기 팬 전력[W]이다. 최적화 변수는 $\Delta T_{\text{ref,cond}}$ (냉매-저탕조 온도차[K])와 $\Delta T_{\text{ref,evap}}$ (냉매-실외 공기 온도차[K])이며, $\epsilon$은 허용 오차(본 연구에서는 1\%)이다. 제약 조건은 목표 열부하($Q_{\text{cond,load}}$)와 열역학적 열량($Q_{\text{ref,evap}}$)이 각각 열교환기의 열전달 능력($Q_{\text{LMTD,cond}}$, $Q_{\text{LMTD,evap}}$)과 일치하도록 설정된다.
+
+\subsubsection{Refrigerant Cycle States}
+
+증발 온도와 응축 온도는 최적화 변수로부터 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:hpb_temperatures}
+T_{\text{evap}} = T_0 - \Delta T_{\text{ref,evap}}, \quad T_{\text{cond}} = T_{\text{tank,w}} + \Delta T_{\text{ref,cond}}
+\end{equation}
+
+냉매 사이클의 각 상태점(State 1-4)의 물성치는 증발 온도와 응축 온도를 기반으로 계산된다. State 1은 증발기 출구(포화 증기), State 2는 압축기 출구, State 3은 응축기 출구(포화 액체), State 4는 팽창밸브 출구이다.
+
+냉매 유량($\dot{m}_{\text{ref}}$)은 목표 열 교환율을 만족하도록 계산된다:
+
+\begin{equation}
+\label{eq:hpb_refrigerant_flow}
+\dot{m}_{\text{ref}} = \frac{Q_{\text{cond,load}}}{h_2 - h_3}
+\end{equation}
+
+냉매 사이클의 열역학적 열량은 냉매 유량과 엔탈피 차이를 통해 계산된다. 응축기에서 냉매가 방출하는 열역학적 열량($Q_{\text{ref,cond}}$), 증발기에서 냉매가 흡수하는 열역학적 열량($Q_{\text{ref,evap}}$), 압축기 소비 전력($E_{\text{cmp}}$)은 각각 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:hpb_q_ref_cond}
+Q_{\text{ref,cond}} = \dot{m}_{\text{ref}} (h_2 - h_3)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_q_ref_evap}
+Q_{\text{ref,evap}} = \dot{m}_{\text{ref}} (h_1 - h_4)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_e_cmp}
+E_{\text{cmp}} = \dot{m}_{\text{ref}} (h_2 - h_1)
+\end{equation}
+
+여기서 $Q_{\text{ref,cond}}$는 냉매 사이클의 열역학적 관점에서 응축 과정에서 방출되는 열량이며, 냉매의 엔탈피 변화에 기반하여 계산된다. 이는 열교환기의 물리적 제약을 고려하지 않은 이론적 열량이다.
+
+\subsubsection{Heat Exchanger Performance}
+
+응축기와 증발기의 열전달은 LMTD(Logarithmic Mean Temperature Difference) 방법으로 계산된다.
+열교환기의 실제 열전달량은 열전달 계수와 온도 구배를 고려하여 결정되며, 이는 냉매 사이클의 열역학적 열량과 구별된다.
+
+응축기의 LMTD는:
+
+\begin{equation}
+\label{eq:hpb_lmtd_cond}
+\text{LMTD}_{\text{cond}} = \frac{T_2 - T_3}{\ln\left(\frac{T_2 - T_{\text{tank,w}}}{T_3 - T_{\text{tank,w}}}\right)}
+\end{equation}
+
+응축기의 열전달 능력(heat transfer capacity)은 열전달 계수와 LMTD의 곱으로 계산된다:
+
+\begin{equation}
+\label{eq:hpb_q_lmtd_cond}
+Q_{\text{LMTD,cond}} = \text{UA}_{\text{cond}} \cdot \text{LMTD}_{\text{cond}}
+\end{equation}
+
+여기서 $Q_{\text{LMTD,cond}}$는 응축기 열교환기의 물리적 제약을 고려한 실제 전달 가능한 열량이며, 열전달 계수($\text{UA}_{\text{cond}}$)와 온도 구배(LMTD)에 의해 결정된다. 최적화 과정에서는 냉매 사이클의 열역학적 열량($Q_{\text{ref,cond}}$)과 열교환기의 열전달 능력($Q_{\text{LMTD,cond}}$)이 일치하도록 제약 조건이 설정된다.
+
+증발기의 경우, 실외 공기와 냉매 간의 열교환을 고려하여 계산된다. 증발기에서 냉매는 상변화 과정에서 일정한 평균 온도($T_{\text{ref,evap,avg}} = (T_4 + T_1)/2$)를 유지하며, 실외 공기는 입구 온도($T_{\text{air,ou,in}} = T_0$)에서 출구 온도($T_{\text{air,ou,out}}$)로 변화한다. 증발기의 LMTD는 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:hpb_lmtd_evap}
+\text{LMTD}_{\text{evap}} = \frac{T_{\text{air,ou,out}} - T_{\text{air,ou,in}}}{\ln\left(\frac{T_{\text{ref,evap,avg}} - T_{\text{air,ou,in}}}{T_{\text{ref,evap,avg}} - T_{\text{air,ou,out}}}\right)}
+\end{equation}
+
+증발기 열전달 계수($\text{UA}_{\text{evap}}$)는 공기 유속에 따라 동적으로 변화하며, Dittus-Boelter 관계를 기반으로 계산된다. 공기 유속($v$)은 풍량과 단면적의 비로 계산되며:
+
+\begin{equation}
+\label{eq:hpb_air_velocity}
+v = \frac{\dot{V}_{\text{fan,ou}}}{A_{\text{cross,ou}}}
+\end{equation}
+
+여기서 $A_{\text{cross,ou}}$는 실외기 공기 토출 단면적[m$^2$]이다. Dittus-Boelter 관계에 따라 열전달 계수는 유속의 0.8제곱에 비례하므로,
+증발기 열전달 계수는 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:hpb_ua_evap}
+\text{UA}_{\text{evap}} = \text{UA}_{\text{evap,design}} \left(\frac{v}{v_{\text{design}}}\right)^{0.8} = \text{UA}_{\text{evap,design}} \left(\frac{\dot{V}_{\text{fan,ou}}}{\dot{V}_{\text{fan,ou,design}}}\right)^{0.8}
+\end{equation}
+
+여기서 $\text{UA}_{\text{evap,design}}$는 설계 풍량($\dot{V}_{\text{fan,ou,design}}$)에서의 설계 열전달 계수[W/K]이며,
+$v_{\text{design}}$는 설계 유속[m/s]이다.
+냉매 사이클의 열역학적 열량($Q_{\text{ref,evap}}$)을 만족하기 위해 필요한
+팬 풍량($\dot{V}_{\text{fan,ou}}$)은 수치적 해법(bisection method)을 통해 결정된다.
+각 반복 단계에서 풍량 추정값에 대해 식~\eqref{eq:hpb_ua_evap}를 사용하여 $\text{UA}_{\text{evap}}$를 계산하고,
+이를 바탕으로 LMTD와 열전달량($Q_{\text{LMTD,evap}}$)을 계산하여 목표 열량($Q_{\text{ref,evap}}$)과의 차이를 최소화하는 풍량을 찾는다.
+증발기의 열전달 능력은 다음과 같이 계산된다:
+
+\begin{equation}
+\label{eq:hpb_q_lmtd_evap}
+Q_{\text{LMTD,evap}} = \text{UA}_{\text{evap}} \cdot \text{LMTD}_{\text{evap}}
+\end{equation}
+
+여기서 $Q_{\text{LMTD,evap}}$는 증발기 열교환기의 물리적 제약을 고려한 실제 전달 가능한 열량이며, 냉매 사이클의 열역학적 열량($Q_{\text{ref,evap}}$)과 일치하도록 팬 풍량이 조절된다.
+
+\subsubsection{Outdoor Unit Fan Power}
+
+실외기 팬 전력은 ASHRAE Standard 90.1의 VSD(Variable Speed Drive) 곡선 모델을 기반으로 계산된다
+\cite{ashrae2022standard}. 
+
+풍량 비율(flow fraction) $f_{\text{flow}}$는 다음과 같이 정의된다:
+
+\begin{equation}
+\label{eq:hpb_fan_flow_fraction}
+f_{\text{flow}} = \frac{\dot{V}_{\text{fan,ou}}}{\dot{V}_{\text{fan,ou,design}}}
+\end{equation}
+
+여기서 $\dot{V}_{\text{fan,ou,design}}$는 실외기 팬의 설계 풍량[m$^3$/s]으로 본 연구에서는, 4 m$^3$/s로 설정했다.
+Part-load ratio (PLR)는 다음과 같은 3차 다항식으로 계산된다:
+
+\begin{equation}
+\label{eq:hpb_fan_plr}
+\text{PLR} = c_1
++ c_2 \cdot f_{\text{flow}}
++ c_3 \cdot f_{\text{flow}}^2
++ c_4 \cdot f_{\text{flow}}^3
++ c_5 \cdot f_{\text{flow}}^4
+\end{equation}
+
+여기서 VSD 곡선 계수는 ASHRAE Standard 90.1의 표준값을 사용하며,
+$c_1 = 0.0013$, $c_2 = 0.1470$, $c_3 = 0.9506$, $c_4 = -0.0998$, $c_5 = 0.0$이다.
+
+실외기 팬 전력은 fan의 PLR과 설계 전력($E_{\text{fan,ou,design}}$)을 곱하여 계산된다:
+
+\begin{equation}
+\label{eq:hpb_e_fan}
+E_{\text{fan,ou}} = E_{\text{fan,ou,design}} \times \text{PLR}
+\end{equation}
+
+Outdoor unit fan의 설계 전력 $E_{\text{fan,ou,design}}$은 설계 풍량과 설계 정압
+$\Delta P_{\text{fan,ou,design}}$, 그리고 설계 효율 $\eta_{\text{fan,ou,design}}$을
+기반으로 계산된 설계 전력[W]이며, 다음과 같이 표현된다:
+
+\begin{equation}
+\label{eq:hpb_fan_design_power}
+E_{\text{fan,ou,design}} = \frac{\dot{V}_{\text{fan,ou,design}} \times \Delta P_{\text{fan,ou,design}}}{\eta_{\text{fan,ou,design}}}
+\end{equation}
+
+\subsubsection{Hot Water Tank Energy Balance}
+
+저탕조의 에너지 밸런스는 다음과 같이 표현된다:
+
+\begin{equation}
+\label{eq:hpb_tank_energy}
+C_{\text{tank}} \frac{{\rm d}T_{\text{tank,w}}}{{\rm d}t} = Q_{\text{ref,cond}} - Q_{\text{tank,loss}} - Q_{\text{use,loss}}
+\end{equation}
+
+탱크 열손실($Q_{\text{tank,loss}}$)과 사용 열손실($Q_{\text{use,loss}}$)은 각각:
+
+\begin{equation}
+\label{eq:hpb_q_tank_loss}
+Q_{\text{tank,loss}} = \text{UA}_{\text{tank}} (T_{\text{tank,w}} - T_0)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_q_use_loss}
+Q_{\text{use,loss}} = c_w \rho_w \dot{V}_{w,\text{sup,tank}} (T_{\text{tank,w}} - T_{\text{w,sup}})
+\end{equation}
+
+여기서 $\dot{V}_{w,\text{sup,tank}} = \alpha \dot{V}_{w,\text{serv}}$이며, $\alpha$는 믹싱밸브의 혼합비로 가스 보일러와 동일한 방식으로 계산된다.
+
+
+
+
+
+본 연구에서는 한국의 급탕 시스템 환경 영향을 정확히 평가하기 위해, 실제 발전 믹스 데이터를 기반으로 1차 에너지 계수(PEF)와 CO$_2$ 배출계수를 산정하였다.
+
+Table~\ref{tab:grid_mix_korea}는 2024년 기준 한국의 전력 발전원별 비중과 각 에너지원의 물리적 PEF 및 CO$_2$ 배출계수를 보여준다. 이를 근거로 한국 전력망의 가중 평균 PEF를 계산하면 다음과 같다.
+
+\begin{equation}
+PEF_{grid} = \sum (Share_i \times PEF_i) \approx 2.41
+\end{equation}
+
+계산 결과인 \textbf{2.41}은 한국의 건물 에너지 효율 등급 인증 등에서 사용되는 법적 고시값인 \textbf{2.75}보다 약 12\% 낮은 수치이다. 이러한 차이가 발생하는 주된 이유는 다음과 같다:
+\begin{enumerate}
+    \item \textbf{보수적 산정 (Conservative Estimation):} 법적 고시값은 발전소의 노후화, 송배전 손실 등을 보수적으로 고려하여 설정되는 경향이 있다.
+    \item \textbf{최신 효율 미반영:} 최근 도입된 고효율 LNG 복합화력 발전소(PEF $\approx$ 1.8)의 비중이 증가하고 재생에너지 보급이 확대되었으나, 고시값은 이러한 최신 트렌드를 즉각적으로 반영하지 못하는 시차가 존재한다.
+\end{enumerate}
+
+본 연구에서는 물리적 실체에 더 근접한 평가를 위해, Table~\ref{tab:grid_mix_korea}에 기반한 계산값(PEF 2.41)을 기준 시나리오(Base case)로 설정하고, 이후 재생에너지(Renewable) 비중을 단계적으로 증가시키는 시나리오 분석을 수행한다.
+
+\begin{table}[t]
+\centering
+\caption{South Korea grid mix energy sources with generation share, primary energy factors, and CO$_2$ emission factors (2024, corrected based on actual generation).}
+\label{tab:grid_mix_korea}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X X X}
+\toprule
+\textbf{Energy Source} & \textbf{Generationshare} & \textbf{Primary energy factor} & \textbf{CO$_2$ Emission factor} \\
+ & \textbf{[TWh (\%)]} & \textbf{[--]} & \textbf{[kg CO$_2$/kWh]} \\
+\midrule
+Coal & 198 (33\%) & 2.6 & 0.90 \\
+Gas & 151 (25\%) & 1.8 & 0.40 \\
+Nuclear & 189 (31\%) & 3.0 & 0.005 \\
+Oil & 7.0 (1\%) & 2.5 & 0.70 \\
+Hydro & 9.0 (1.5\%) & 1.0 & 0.01 \\
+Wind & 3.4 (0.6\%) & 1.0 & 0.01 \\
+Solar & 33.4 (5.5\%) & 1.0 & 0.04 \\
+Biomass & 11.8 (2.0\%) & 3.0 & 0.00 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+가스 보일러 시스템은 저탕조 없이 직접 급탕 공급 구조로 설계되었다. 이는 현대 가스 보일러의 일반적인 운전 방식인 즉시 가열(on-demand heating) 방식을 반영한 것이다. 시스템은 연소실(combustion chamber)과 믹싱밸브(mixing valve) 두 개의 주요 서브시스템으로 구성된다. 연소실에서는 천연가스를 연소하여 급수를 설정 온도로 가열하고, 믹싱밸브에서는 combustion chamber 출수와 상수도를 혼합하여 서비스 급탕 온도로 공급한다.
+
+공기원 히트펌프 보일러 시스템은 실외기(outdoor unit), 냉매루프(refrigerant loop), 저탕조(hot water tank), 믹싱밸브로 구성된다. 본 연구에서는 냉매 상태를 최적화 알고리즘을 통해 결정하는 방법을 채택하였다. 이는 고정된 운전 조건을 가정하는 기존 연구와 차별화되는 점이다. 히트펌프 사이클의 최적 운전점은 총 전력 사용률($E_{\text{tot}} = E_{\text{cmp}} + E_{\text{fan,ou}}$)를 최소화하는 최적화 문제를 통해 결정된다.
+
+다이어그램에 표시된 변수들과 분석에 사용된 설정값은 Table~\ref{tab:system_parameters}에 정리되어 있다.
+
+\begin{table}[t]
+\centering
+\caption{Assumed parameters for gas boiler (GB) and heat pump boiler (HPB)}
+\label{tab:system_parameters}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X c c}
+\toprule
+\textbf{Symbol [units]} & \textbf{Description} & \textbf{GB} & \textbf{HPB} \\
+\midrule
+$T_0$ [°C] & Environmental temperature & 0 & 0 \\
+$T_{\text{w,sup}}$ [°C] & Temperature of supply water & 15 & 15 \\
+$T_{\text{tank,w}}$ [°C] & Temperature of water in hot water tank & -- & 60 \\
+$T_{\text{w,serv}}$ [°C] & Temperature of service hot water & 40 & 40 \\
+$T_{\text{exh}}$ [°C] & Temperature of exhausted gas from combustion chamber & 70 & -- \\
+$T_{\text{w,comb}}$ [°C] & Combustion chamber setpoint temperature & 60 & -- \\
+$T_{\text{a,ou,in}}$ [°C] & Inlet air temperature of outdoor unit & -- & 0 \\
+$A_{\text{ext}}$ [m$^2$] & Fan discharge area of outdoor unit & -- & 0.50 \\
+$\Delta P_{\text{fan}}$ [Pa] & Pressure difference across outdoor unit & -- & 500 \\
+$UA_{\text{tank}}$ [W/K] & Overall heat transfer coefficient of tank wall & -- & 0.45 \\
+$\eta_{\text{comb}}$ [--] & Efficiency of combustion chamber & 0.9 & -- \\
+$\eta_{\text{fan}}$ [--] & Efficiency of fan & -- & 0.8 \\
+$\text{UA}_{\text{cond}}$ [W/K] & Overall heat transfer coefficient of condenser & -- & 500 \\
+$\text{UA}_{\text{evap}}$ [W/K] & Overall heat transfer coefficient of evaporator & -- & 1500 \\
+$V_{\text{disp,cmp}}$ [m$^3$] & Compressor displacement volume per rotation& -- & $5.0 \times 10^{-4}$ \\
+$\eta_{\text{cmp,isen}}$ [--] & Isentropic efficiency of compressor & -- & 0.7 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Nomenclature}
+\label{tab:nomenclature}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Symbol} & \textbf{Description} & \textbf{Units} \\
+\midrule
+$C_{\text{tank}}$ & Thermal capacity of hot water tank & J/K \\
+$E_{\text{cmp}}$ & Compressor power consumption & W \\
+$E_{\text{fan,ou}}$ & outdoor unit fan power consumption & W \\
+$E_{\text{NG}}$ & Natural gas energy input & W \\
+$E_{\text{tot}}$ & Total power consumption & W \\
+$h_0$ & Enthalpy at reference state & J/kg \\
+$h_2$ & Enthalpy at compressor outlet & J/kg \\
+$h_3$ & Enthalpy at condenser outlet & J/kg \\
+$h_i$ & Enthalpy at state point $i$ & J/kg \\
+$\dot{m}_{\text{ref}}$ & Refrigerant mass flow rate & kg/s \\
+$Q_{\text{comb,load}}$ & Required heat load based on boiler flow rate & W \\
+$Q_{\text{cond,load}}$ & Condenser heat load & W \\
+$Q_{\text{exh}}$ & Exhaust gas heat loss & W \\
+$Q_{\text{LMTD,cond}}$ & Heat transfer rate in condenser (LMTD method) & W \\
+$Q_{\text{LMTD,evap}}$ & Heat transfer rate in evaporator (LMTD method) & W \\
+$Q_{\text{ref,cond}}$ & Refrigerant condensation heat transfer rate & W \\
+$Q_{\text{ref,evap}}$ & Refrigerant evaporation heat transfer rate & W \\
+$Q_{\text{tank,loss}}$ & Hot water tank heat loss & W \\
+$Q_{\text{use,loss}}$ & Heat loss due to hot water usage & W \\
+$Q_{w,\text{comb,out}}$ & Combustion chamber outlet water heat rate & W \\
+$Q_{w,\text{serv}}$ & Service hot water heat rate & W \\
+$Q_{w,\text{sup}}$ & Supply water heat rate & W \\
+$Q_{w,\text{sup,mix}}$ & Supply water heat rate to mixing valve & W \\
+$T_0$ & Environmental temperature (reference temperature) & K \\
+$T_{\text{cond}}$ & Condensation temperature & K \\
+$T_{\text{evap}}$ & Evaporation temperature & K \\
+$T_{\text{exh}}$ & Exhaust gas temperature & K \\
+$T_{\text{w,serv}}$ & Service hot water temperature & K \\
+$T_{\text{w,sup}}$ & Supply water temperature & K \\
+$T_{\text{tank,w}}$ & Hot water tank temperature & K \\
+$T_{\text{w,comb}}$ & Boiler outlet water temperature & K \\
+$\text{UA}_{\text{cond}}$ & Overall heat transfer coefficient of condenser & W/K \\
+$\text{UA}_{\text{evap}}$ & Overall heat transfer coefficient of evaporator & W/K \\
+$\dot{V}_{w,\text{sup,comb}}$ & Supply water volumetric flow rate to combustion chamber & m$^3$/s \\
+\vspace{0.1cm} \\
+\multicolumn{3}{@{}l}{\textit{Greek Symbols}} \\
+$\alpha$ & Mixing ratio & -- \\
+$\Delta T_{\text{ref,cond}}$ & Temperature difference between refrigerant and hot water tank & K \\
+$\Delta T_{\text{ref,evap}}$ & Temperature difference between refrigerant and outdoor air & K \\
+$\epsilon$ & Tolerance (allowable error) & -- \\
+$\eta_{\text{comb}}$ & Combustion efficiency & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width = 17 cm]{images/hpb_temp_power_co2.png}
+  \captionsetup{width=\textwidth}
+  \caption{Air source heat pump boiler system daily operation results.}
+  \label{fig:hpb_temp_power_co2}
+\end{figure*}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width = \columnwidth]{images/co2_emission_timeseries.png}
+  \captionsetup{width=\textwidth}
+  \caption{Air source heat pump boiler system daily operation results.}
+  \label{fig:gb_hpb_co2}
+\end{figure}
+
+\end{document}
+
+
+
+% REVIEW: The observation that Adding more sensors can *degrade* performance if poorly placed is a counter-intuitive and strong finding. It strongly validates the necessity of the proposed placement algorithm. The conclusion calling for "quality over quantity" in data collection is compelling.
+
+\begin{figure*}[t]
+  \centering
+  \begin{tabular}{cc}
+    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (a) \vspace{2cm}}} &
+    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (b) \vspace{2cm}}} \\
+    (a) Temperature & (b) Humidity \\
+    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (c) \vspace{2cm}}} &
+    \fbox{\parbox{0.9\columnwidth}{\centering \vspace{2cm} PLACEHOLDER (d) \vspace{2cm}}} \\
+    (c) CO2 & (d) NH3 \\
+  \end{tabular}
+  \caption{물리 센서 개수 및 배치에 따른 가상 센서 예측 RMSE 평균 (Red: 최적 배치, Gray: 그 외). (a) 온도, (b) 습도, (c) 이산화탄소, (d) 암모니아.}
+  \label{fig:perf_trends}
+\end{figure*}
+
+% REVIEW: The observation that non-optimal placement of additional sensors can degrade average performance is a key contribution. It contradicts the common assumption that "more data is better" and highlights the importance of the proposed optimization framework. Ensure this point is highlighted in the conclusion as well.
+
+
+
+%% Use \section commands to start a section
+\section{Conclusions}
+
+
+%% Use \subsection commands to start a subsection.
+\subsection{aaaa}
+
+
+
+% \end{linenumbers}
+
+\section*{Acknowledgments}
+This work was supported by the National Research Foundation of Korea (NRF) grant (No. RS-2023-00277318 and RS-2025-00512551) funded by the Korean government (Ministry of Science and ICT).
+
+
+상호 참조하기 -> Fig. \ref{fig:fig1}
+%% The Appendices part is started with the command \appendix;
+%% appendix sections are then done as normal sections
+\appendix
+\renewcommand{\figurename}{Fig} % "Figure"를 "Fig"로 변경
+\renewcommand{\thefigure}{\Alph{section}\arabic{figure}} % "Appendix B" 대신 "B"만 가져옴
+\renewcommand{\thetable}{\Alph{section}\arabic{table}} % 표 번호도 동일하게 적용
+
+%% Appnedix A
+\section{Appendix A. aaaa}
+\label{appendA}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+
+Appendix text.
+
+
+%% Appendix B 
+\section{Appendix B. bbbbb}
+\label{appendB}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+Appendix B text 
+
+\begin{figure}[htbp]%% placement specifier
+%% Use \includegraphics command to insert graphic files. Place graphics files in 
+%% working directory.
+\centering%% For centre alignment of image.
+\includegraphics[width=\columnwidth]{pptl-diagram.png}
+%% Use \caption command for figure caption and label.
+\caption{{컬럼 너비 피겨 (옵션 \texttt{width=\textbackslash columnwidth} 사용)}}
+\label{fig:appendix-fig1}
+%% https://en.wikibooks.org/wiki/LaTeX/Importing_Graphics#Importing_external_graphics
+\end{figure}
+
+
+%% Supplementary material 섹션
+\section*{Supplementary material}
+Interactive plot for time-series pattern exploration: An interactive HTML extension of Fig. \ref{fig:humidity_same_type}(a) is provided with two key features
+
+%% Code and data availability 섹션
+\section*{Code and data availability}
+
+
+
+%% If you have bib database file and want bibtex to generate the
+%% bibitems, please use
+%%
+
+% \bibliographystyle{elsarticle-num} 
+\bibliographystyle{elsarticle-harv} 
+\bibliography{references}
+
+%%  \bibliography{<your bibdatabase>}
+
+%% else use the following coding to input the bibitems directly in the
+%% TeX file.
+
+%% Refer following link for more details about bibliography and citations.
+%% https://en.wikibooks.org/wiki/LaTeX/Bibliography_Management
+
+
+
+%% Examples 섹션은 필요시 주석 해제하여 사용하세요
+% \section{Examples}
+% \subsection{Figures}
+% \begin{figure}[htbp]
+%   \centering
+%   \includegraphics[width=\linewidth]{figure_name} % 확장자(.eps, .pdf) 생략 가능
+%   \caption{Description of the figure.}
+%   \label{fig:my_figure}
+% \end{figure}
+
+
+
+\end{document}
