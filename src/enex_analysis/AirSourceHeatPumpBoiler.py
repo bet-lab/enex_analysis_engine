@@ -502,13 +502,13 @@ class AirSourceHeatPumpBoiler:
         
         return result
     
-    def _calc_off_state(self, T_tank_w, T0):
+    def _calc_off_state(self, T_tank_w, T0, prev_result=None):
         """
         OFF 상태 결과 포맷팅 함수.
         
         히트펌프가 OFF 상태일 때 사용되는 결과 딕셔너리를 생성합니다.
-        모든 열량 및 전력 값은 0으로 설정하고, P-h 선도 플로팅을 위한
-        기본 사이클 상태값은 포화점 기준으로 계산합니다.
+        모든 열량 및 전력 값은 0으로 설정하고, 냉매 상태값(온도, 압력, 엔탈피, 엔트로피, 엑서지)은
+        이전 타임스텝의 값을 사용합니다. 이전 값이 없으면 포화점 기준으로 계산합니다.
         
         호출 관계:
         - 호출자: find_ref_loop_optimal_operation (cycle_performance.py)
@@ -518,29 +518,31 @@ class AirSourceHeatPumpBoiler:
         1. ON 상태 템플릿 생성 (Q_cond_load=0으로 계산)
         2. 모든 숫자 값을 0으로 설정
         3. OFF 상태 플래그 및 필수 값 설정
-        4. P-h 선도 플로팅용 포화점 계산
+        4. 이전 타임스텝의 냉매 상태값 사용 (있는 경우)
+        5. 이전 값이 없으면 P-h 선도 플로팅용 포화점 계산
         
         Args:
             T_tank_w (float): 저탕조 온도 [°C]
                 현재 타임스텝의 저탕조 온도
             
-            Q_cond_load (float, optional): 저탕조 목표 열 교환율 [W]
-                기본값: None (사용되지 않음, 항상 0.0으로 처리)
-            
             T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
                 엑서지 계산의 기준점으로 사용되는 외기 온도
+            
+            prev_result (dict, optional): 이전 타임스텝의 결과 딕셔너리
+                이전 타임스텝의 냉매 상태값을 포함하는 딕셔너리
+                None이면 포화점 기준으로 계산하거나 0으로 설정
         
         Returns:
             dict: OFF 상태 결과 딕셔너리
                 - 모든 열량 및 전력 값: 0.0
                 - is_on: False
-                - P1-4, h1-4, s1-4: 포화점 기준 계산값 (P-h 선도용)
+                - P1-4, h1-4, s1-4, T1-4, x1-4: 이전 타임스텝 값 또는 포화점 기준 계산값
                 - 기타 상태값: 현재 시스템 상태 유지
         
         Notes:
-            - P-h 선도 플로팅을 위해 기본 사이클 상태값을 계산합니다
-            - 증발기 측은 실외 공기 온도 기준 포화 증기
-            - 응축기 측은 저탕조 온도 기준 포화 액체
+            - 이전 타임스텝 값이 있으면 그 값을 사용합니다
+            - 이전 값이 없으면 포화점 기준으로 계산합니다 (P-h 선도용)
+            - 첫 번째 타임스텝이 OFF일 때는 냉매 상태값을 0으로 설정합니다
         """
         # 1단계: ON 상태 템플릿 생성
         
@@ -574,16 +576,56 @@ class AirSourceHeatPumpBoiler:
             # 믹싱 밸브로 저탕조 온수와 상수도를 믹싱
             T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_sup_w_K
             T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+        
+        # 필요한 키 목록 정의
+        required_keys = [
+            'T1 [°C]', 'T2 [°C]', 'T3 [°C]', 'T4 [°C]',
+            'P1 [Pa]', 'P2 [Pa]', 'P3 [Pa]', 'P4 [Pa]',
+            'h1 [J/kg]', 'h2 [J/kg]', 'h3 [J/kg]', 'h4 [J/kg]',
+            's1 [J/(kg·K)]', 's2 [J/(kg·K)]', 's3 [J/(kg·K)]', 's4 [J/(kg·K)]',
+            'x1 [J/kg]', 'x2 [J/kg]', 'x3 [J/kg]', 'x4 [J/kg]'
+        ]
+        
+        # 이전 결과에서 값 추출 (있는 경우)
+        if prev_result is not None and all(key in prev_result for key in required_keys):
+            # 이전 타임스텝의 냉매 상태값 사용
+            refrigerant_state_values = {
+                'T1 [°C]': prev_result['T1 [°C]'],
+                'T2 [°C]': prev_result['T2 [°C]'],
+                'T3 [°C]': prev_result['T3 [°C]'],
+                'T4 [°C]': prev_result['T4 [°C]'],
+                'P1 [Pa]': prev_result['P1 [Pa]'],
+                'P2 [Pa]': prev_result['P2 [Pa]'],
+                'P3 [Pa]': prev_result['P3 [Pa]'],
+                'P4 [Pa]': prev_result['P4 [Pa]'],
+                'h1 [J/kg]': prev_result['h1 [J/kg]'],
+                'h2 [J/kg]': prev_result['h2 [J/kg]'],
+                'h3 [J/kg]': prev_result['h3 [J/kg]'],
+                'h4 [J/kg]': prev_result['h4 [J/kg]'],
+                's1 [J/(kg·K)]': prev_result['s1 [J/(kg·K)]'],
+                's2 [J/(kg·K)]': prev_result['s2 [J/(kg·K)]'],
+                's3 [J/(kg·K)]': prev_result['s3 [J/(kg·K)]'],
+                's4 [J/(kg·K)]': prev_result['s4 [J/(kg·K)]'],
+                'x1 [J/kg]': prev_result['x1 [J/kg]'],
+                'x2 [J/kg]': prev_result['x2 [J/kg]'],
+                'x3 [J/kg]': prev_result['x3 [J/kg]'],
+                'x4 [J/kg]': prev_result['x4 [J/kg]'],
+            }
+        else:
+            # 이전 값이 없으면 nan으로 설정 (첫 번째 타임스텝이 OFF인 경우)
+            import numpy as np
+            refrigerant_state_values = {key: np.nan for key in required_keys}
+            
+            # P-h 선도 플로팅을 위한 포화점 계산 (참고용, 실제로는 0이 사용됨)
+            # 증발기 측 포화 증기 (State 1, 4)
+            P1_off = CP.PropsSI('P', 'T', T0_K, 'Q', 1, self.ref)
+            h1_off = CP.PropsSI('H', 'P', P1_off, 'Q', 1, self.ref)
+            s1_off = CP.PropsSI('S', 'P', P1_off, 'Q', 1, self.ref)
 
-        # 증발기 측 포화 증기 (State 1, 4)
-        P1_off = CP.PropsSI('P', 'T', T0_K, 'Q', 1, self.ref)
-        h1_off = CP.PropsSI('H', 'P', P1_off, 'Q', 1, self.ref)
-        s1_off = CP.PropsSI('S', 'P', P1_off, 'Q', 1, self.ref)
-
-        # 응축기 측 포화 액체 (State 2, 3)
-        P3_off = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
-        h3_off = CP.PropsSI('H', 'P', P3_off, 'Q', 0, self.ref)
-        s3_off = CP.PropsSI('S', 'P', P3_off, 'Q', 0, self.ref)
+            # 응축기 측 포화 액체 (State 2, 3)
+            P3_off = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
+            h3_off = CP.PropsSI('H', 'P', P3_off, 'Q', 0, self.ref)
+            s3_off = CP.PropsSI('S', 'P', P3_off, 'Q', 0, self.ref)
 
         result.update({
             'is_on': False,
@@ -599,6 +641,9 @@ class AirSourceHeatPumpBoiler:
             'T_serv_w [°C]': T_serv_w_actual,
             'T_sup_w [°C]': self.T_sup_w,
         })
+        
+        # 냉매 상태값 업데이트 (이전 값 또는 0)
+        result.update(refrigerant_state_values)
 
         return result
     
@@ -1031,6 +1076,7 @@ class AirSourceHeatPumpBoiler:
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
 
         is_on_prev = False
+        prev_result = None  # 이전 타임스텝 결과 저장용
         for n in tqdm(range(tN), desc="ASHPB Simulating"):
             
             step_results = {}
@@ -1062,7 +1108,8 @@ class AirSourceHeatPumpBoiler:
                 
                 result = self._calc_off_state(
                     T_tank_w=T_tank_w,
-                    T0=T0
+                    T0=T0,
+                    prev_result=prev_result  # 이전 결과 전달
                 )
             else:
                 # 최적화 과정 진행
@@ -1090,7 +1137,8 @@ class AirSourceHeatPumpBoiler:
                     try:
                         result = self._calc_off_state(
                             T_tank_w=T_tank_w,
-                            T0=T0
+                            T0=T0,
+                            prev_result=prev_result  # 이전 결과 전달
                         )
                     except Exception:
                         result = {
@@ -1139,9 +1187,14 @@ class AirSourceHeatPumpBoiler:
                     show=False,
                     show_temp_limits=True,
                     save_path=snapshot_save_path+f'/{n:04d}.png',
-                    T_tank_w=T_tank_w,
+                    temp_limits=[('Tank water', T_tank_w)],
                     # T0=T0,  # 엑서지 분석 기준 온도(=외기온도) 전달
                 )
+            
+            # 결과 저장 후 prev_result 업데이트 (다음 타임스텝에서 사용)
+            if result is not None and isinstance(result, dict):
+                prev_result = result.copy()
+            
             results_data.append(step_results)
             
         results_df = pd.DataFrame(results_data)

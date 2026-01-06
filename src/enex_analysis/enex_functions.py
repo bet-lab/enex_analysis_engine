@@ -1284,6 +1284,54 @@ def _build_schedule_ratios(entries, t_array):
 
     return np.clip(sched, 0.0, 1.0)
 
+def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
+    '''
+    Calculate total water use from schedule.
+
+    Parameters
+    ----------
+    schedule : list of tuple
+        Schedule list. Each item is (start_str, end_str, ratio) format.
+        - start_str, end_str: "H:M" or "H" format string (e.g., "6:00", "23:30", "24:00", etc.).
+        - ratio: Usage ratio (float) for that interval. Clipped to 0.0 ~ 1.0 range.
+    
+    Returns
+    -------
+    float
+        Total water use [L/min]
+
+    Examples
+    --------
+    schedule = [("6:00","7:00",0.5), ("6:30","8:00",0.8)]
+    -> Interval 6:30~7:00 has max(0.5,0.8)=0.8 applied.
+
+    Notes
+    -----
+    - schedule must be list of tuple, each item is (start_str, end_str, ratio) format.
+    '''
+    peak_load_lpm = peak_load_m3s * cu.m32L / cu.s2m
+    total_use = 0
+    print(f"{'Start':>6} ~ {'End':>6} | {'Ratio':>5} | {'Liters':>6}")
+    print("-" * 35)
+    
+    for start, end, ratio in schedule:
+        # 시간 차이 계산 (간단히 HH:MM 파싱)
+        h1, m1 = map(int, start.split(':'))
+        h2, m2 = map(int, end.split(':'))
+        duration_min = (h2*cu.h2m + m2) - (h1*cu.h2m + m1)
+        
+        # 24:00 처리 (다음날 0시)
+        if duration_min < 0: duration_min += 24*cu.h2m 
+
+        liters = ratio * peak_load_lpm * duration_min
+        total_use += liters
+        
+        # 주요 구간만 출력
+        print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters:>6.1f} L")
+            
+    print("-" * 35)
+    print(f"Total daily water use: {total_use:.2f} Liters")
+    return total_use
 
 # ============================================================================
 # 히트펌프 사이클 성능 계산 및 최적 운전점 탐색 함수들
@@ -1798,9 +1846,7 @@ def plot_cycle_diagrams(
     time_step_annotation=None,
     save_path=None,
     show_temp_limits=False,
-    T_tank_w=None,
-    T_b_f_in=None,
-    T_b_f_out=None,
+    temp_limits=None,
     face_color='#F9F8F6',
 ):
     """
@@ -1811,7 +1857,7 @@ def plot_cycle_diagrams(
     - T-h 선도 (Temperature-Enthalpy): 온도 대 엔탈피
     
     호출 관계:
-    - 호출자: GroundSourceHeatPumpBoiler.run_simulation (save_ph_diagram=True일 때)
+    - 호출자: GroundSourceHeatPumpBoiler.analyze_dynamic, AirSourceHeatPumpBoiler.analyze_dynamic
     - 사용 데이터: compute_refrigerant_thermodynamic_states 결과
     
     플로팅 단계:
@@ -1827,10 +1873,10 @@ def plot_cycle_diagrams(
     
     Args:
         result (dict): 사이클 성능 결과 딕셔너리
-            - P1, P2, P3, P4 (float): 압력 [Pa]
-            - h1, h2, h3, h4 (float): 엔탈피 [J/kg]
-            - T1, T2, T3, T4 (float): 온도 [°C]
-                주의: result 딕셔너리에는 'T1', 'T2' 등이 °C 단위로 저장되어야 함
+            - P1 [Pa], P2 [Pa], P3 [Pa], P4 [Pa]: 압력 [Pa]
+            - h1 [J/kg], h2 [J/kg], h3 [J/kg], h4 [J/kg]: 엔탈피 [J/kg]
+            - T1 [°C], T2 [°C], T3 [°C], T4 [°C]: 온도 [°C]
+                주의: result 딕셔너리에는 단위가 포함된 키를 사용해야 함
         
         refrigerant (str): 냉매 이름 (CoolProp 형식, 예: 'R410A')
         
@@ -1843,16 +1889,25 @@ def plot_cycle_diagrams(
             제공되면 이미지 파일로 저장 (PNG, DPI 400)
         
         show_temp_limits (bool, optional): 온도 제한선 표시 여부 (기본값: False)
-            True일 때 T-h 선도에 저탕조 및 지열교환기 온도선 표시
+            True일 때 T-h 선도에 온도 제한선 표시
         
-        T_tank_w (float, optional): 저탕조 온도 [°C]
-            show_temp_limits=True일 때 사용
-        
-        T_b_f_in (float, optional): 지열교환기 유입수 온도 [°C]
-            show_temp_limits=True일 때 사용
-        
-        T_b_f_out (float, optional): 지열교환기 유출수 온도 [°C]
-            show_temp_limits=True일 때 사용
+        temp_limits (list, optional): 온도 제한선 목록 (권장 방식)
+            각 항목은 다음 중 하나의 형태:
+            - 튜플: (name, value) 또는 (name, value, color) 또는 (name, value, color, label)
+            - 딕셔너리: {'name': str, 'value': float, 'color': str (optional), 'label': str (optional)}
+            예:
+                temp_limits=[
+                    ('Tank water', 50.0, 'oc.red4', 'Tank water: 50.0 °C'),
+                    ('GHE inlet', 10.0, 'oc.blue4', 'GHE inlet: 10.0 °C'),
+                    ('GHE outlet', 8.0, 'oc.orange4', 'GHE outlet: 8.0 °C'),
+                ]
+            또는:
+                temp_limits=[
+                    {'name': 'Tank water', 'value': 50.0, 'color': 'oc.red4', 'label': 'Tank water: 50.0 °C'},
+                    {'name': 'GHE inlet', 'value': 10.0, 'color': 'oc.blue4', 'label': 'GHE inlet: 10.0 °C'},
+                ]
+            color이 제공되지 않으면 기본 색상 팔레트에서 자동 할당
+            label이 제공되지 않으면 '{name}: {value:.1f} °C' 형식으로 자동 생성
         
         face_color (str, optional): 그래프 배경색 (기본값: '#F9F8F6')
     
@@ -1866,6 +1921,7 @@ def plot_cycle_diagrams(
         - P-h 선도는 압력 축이 로그 스케일
         - 사이클 경로는 점선으로 표시되고 각 상태점에 마커 표시
         - 동일 좌표의 상태점은 "1,2" 형태로 그룹 표시
+        - temp_limits가 제공되면 T_tank_w, T_b_f_in, T_b_f_out 파라미터는 무시됨
     """
     # ============================================================
     # 0단계: 의존성 확인
@@ -1899,7 +1955,7 @@ def plot_cycle_diagrams(
 
     # 포화선 계산을 위한 온도 범위 설정
     # 최소 온도부터 임계 온도까지 200개 포인트
-    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 200)
+    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 600)
     
     # 각 온도에서 포화 액체 및 포화 증기 엔탈피 계산
     # 단위 변환: J/kg → kJ/kg
@@ -2013,32 +2069,44 @@ def plot_cycle_diagrams(
             # --------------------------------------------
             # T-h 선도(idx=1)에만 온도 제한선 표시
             if show_temp_limits and (idx == 1):
-                # 저탕조 온수 온도선 (빨간색)
-                if T_tank_w is not None:
-                    ax[1].axhline(y=T_tank_w, color='oc.red4', linestyle=':', linewidth=LW[1])
-                    ax[1].text(xmin + 20, T_tank_w + 2,
-                               f'Tank water: {T_tank_w:.1f} °C', ha='left', va='bottom', 
-                               fontsize=dm.fs(-3), color='oc.red6')
+                # 기본 색상 팔레트 (color가 제공되지 않을 때 사용)
+                colors_default = ['oc.red', 'oc.blue', 'oc.orange', 'oc.green', 'oc.purple', 'oc.yellow']
+                line_colors_default = [colors_default[i] + '4' for i in range(len(colors_default))]
+                text_colors_default = [colors_default[i] + '6' for i in range(len(colors_default))]
                 
-                # 지열교환기 유입수 온도선 (파란색)
-                if T_b_f_in is not None:
-                    ax[1].axhline(y=T_b_f_in, color='oc.blue4', linestyle=':', linewidth=LW[1])
-                    ax[1].text(xmin + 20, T_b_f_in - 2,
-                               f'GHE inlet: {T_b_f_in:.1f} °C', ha='left', va='top', 
-                               fontsize=dm.fs(-3), color='oc.blue6')
-                
-                # 지열교환기 유출수 온도선 (주황색)
-                if T_b_f_out is not None:
-                    ax[1].axhline(y=T_b_f_out, color='oc.orange4', linestyle=':', linewidth=LW[1])
-                    ax[1].text(xmin + 20, T_b_f_out + 2,
-                               f'GHE outlet: {T_b_f_out:.1f} °C', ha='left', va='bottom', 
-                               fontsize=dm.fs(-3), color='oc.orange6')
+                # temp_limits가 제공되면 사용, 아니면 하위 호환을 위해 기존 파라미터 사용
+                if temp_limits is not None:
+                    # temp_limits 리스트 처리
+                    for i, item in enumerate(temp_limits):
+                        # 딕셔너리 형태인지 튜플 형태인지 확인
+                        if isinstance(item, dict):
+                            name = item.get('name', f'Limit {i+1}')
+                            value = item.get('value')
+                            color = item.get('color', line_colors_default[i % len(line_colors_default)])
+                            label = item.get('label', f'{name}: {value:.1f} °C')
+                        elif isinstance(item, (tuple, list)):
+                            # 튜플 형태: (name, value) 또는 (name, value, color) 또는 (name, value, color, label)
+                            if len(item) >= 2:
+                                name = item[0]
+                                value = item[1]
+                                color = item[2] if len(item) >= 3 else line_colors_default[i % len(line_colors_default)]
+                                label = item[3] if len(item) >= 4 else f'{name}: {value:.1f} °C'
+                            else:
+                                continue  # 잘못된 형식이면 건너뛰기
+                        else:
+                            continue  # 지원하지 않는 형식이면 건너뛰기
+                        
+                        if value is not None:
+                            text_color = text_colors_default[i % len(text_colors_default)] if color == line_colors_default[i % len(line_colors_default)] else color
+                            ax[1].axhline(y=value, color=color, linestyle=':', linewidth=LW[1])
+                            # 텍스트 위치: 값이 높으면 위로, 낮으면 아래로
+                            text_y_offset = 2 if i % 2 == 0 else -2
+                            va = 'bottom' if i % 2 == 0 else 'top'
+                            ax[1].text(xmin + 20, value + text_y_offset,
+                                       label, ha='left', va=va, 
+                                       fontsize=dm.fs(-3), color=text_color)
 
-            # --------------------------------------------
             # 8-4: 상태점 라벨 표시
-            # --------------------------------------------
-            # 동일 좌표의 상태점을 그룹핑하여 "1,2" 형태로 표시
-            # x축: 엔탈피(h), y축: 압력(p) 또는 온도(T)
             xdata = h  # 모든 서브플롯에서 X축은 엔탈피
             ydata = p if idx == 0 else T  # Y축은 서브플롯에 따라 다름
 
@@ -2057,10 +2125,6 @@ def plot_cycle_diagrams(
                              ha='center', va='bottom',
                              fontsize=dm.fs(-1.5))
 
-            # --------------------------------------------
-            # 8-5: 축 설정 및 범례 추가
-            # --------------------------------------------
-            # 축 라벨 설정
             axi.set_xlabel(xlabels[idx], fontsize=dm.fs(0), labelpad=6)
             axi.set_ylabel(ylabels[idx], fontsize=dm.fs(0), labelpad=6)
             
@@ -2076,11 +2140,7 @@ def plot_cycle_diagrams(
             
             # 범례 추가
             axi.legend(**legend_kw)
-    
-    # ============================================================
-    # 9단계: 타임스텝 주석 및 레이아웃 조정
-    # ============================================================
-    # 타임스텝 주석이 제공된 경우 우측 상단에 표시
+            
     if time_step_annotation is not None:
         fig.text(0.97, 0.92, 
                  time_step_annotation,
@@ -2094,22 +2154,14 @@ def plot_cycle_diagrams(
         # 주석 없는 경우 전체 영역 사용
         dm.simple_layout(fig, margins=(0.05, 0.05, 0.05, 0.05), bbox=(0, 1, 0, 1), verbose=False)
     
-    # ============================================================
-    # 10단계: 그래프 저장 및 표시
-    # ============================================================
-    # 이미지 파일로 저장 (선택적)
     if save_path is not None:
-        # 서브플롯 배경을 투명하게 설정
         for axi in axes.flatten():
             axi.patch.set_alpha(0.0)
-        # 고해상도 이미지로 저장 (DPI 400)
         plt.savefig(save_path, dpi=400, facecolor=face_color)
     
-    # 화면에 표시 (선택적)
     if show:
         dm.save_and_show(fig)
     
-    # 메모리 해제
     plt.close()
 
 
