@@ -1052,23 +1052,6 @@ class AirSourceHeatPumpBoiler:
             pd.DataFrame: 시뮬레이션 타임스텝별 결과 데이터
         """
         
-        # --- 0. 실행 조건 판단 ---
-        
-        if simulation_period_sec % dt_s != 0:
-            raise ValueError("simulation_period_sec must be divisible by dt_s")
-        
-        if self.T_tank_w_setpoint < self.T_tank_w_lower_bound:
-            raise ValueError("T_tank_w_setpoint must be greater than T_tank_w_lower_bound")
-        
-        if self.heater_capacity < 0:
-            raise ValueError("heater_capacity must be greater than 0")
-        
-        if self.dV_w_serv_m3s < 0:
-            raise ValueError("dV_w_serv_m3s must be greater than 0")
-        
-        if schedule_entries == []:
-            raise ValueError("schedule_entries must be provided")
-        
         time = np.arange(0, simulation_period_sec, dt_s)
         tN = len(time)
         T0_schedule = np.array(T0_schedule)
@@ -1170,9 +1153,14 @@ class AirSourceHeatPumpBoiler:
                 if result is not None and isinstance(result, dict):
                     result['converged'] = opt_result.success
             
-            # UV 램프 상태 계산
+            # UV 램프 활성화 여부 확인
+            is_uv_lamp_enabled = (self.num_switching_per_3hour > 0 and self.lamp_power_watts > 0)
+            
+            # UV 램프 상태 계산 (활성화된 경우에만)
             is_uv_lamp_on = False
-            if self.num_switching_per_3hour > 0:
+            E_uv_lamp = 0.0
+            
+            if is_uv_lamp_enabled:
                 # 현재 시간을 3시간 주기로 나눈 나머지
                 time_in_period = time[n] % self.period_3hour_sec
                 
@@ -1195,9 +1183,9 @@ class AirSourceHeatPumpBoiler:
                     if start_time <= time_in_period < end_time:
                         is_uv_lamp_on = True
                         break
-            
-            # UV 램프 전력 계산
-            E_uv_lamp = self.lamp_power_watts if is_uv_lamp_on else 0.0
+                
+                # UV 램프 전력 계산
+                E_uv_lamp = self.lamp_power_watts if is_uv_lamp_on else 0.0
             
             if is_transitioning_off_to_on:
                 # OFF→ON 전환 시점: 실제 계산된 ON 상태 값 저장
@@ -1210,23 +1198,29 @@ class AirSourceHeatPumpBoiler:
                 step_results['is_on'] = is_on
                 step_results['is_transitioning'] = False
             
-            # UV 램프 상태 및 전력 추가
-            step_results['is_uv_lamp_on'] = is_uv_lamp_on
-            step_results['E_uv_lamp [W]'] = E_uv_lamp
-            
-            # E_tot에 UV 램프 전력 포함
-            if 'E_tot [W]' in step_results:
-                step_results['E_tot [W]'] = step_results['E_tot [W]'] + E_uv_lamp
-            else:
-                # E_tot가 없는 경우 (fallback 등) 기본 전력 합계 계산
-                E_cmp = step_results.get('E_cmp [W]', 0.0)
-                E_fan_ou = step_results.get('E_fan_ou [W]', 0.0)
-                step_results['E_tot [W]'] = E_cmp + E_fan_ou + E_uv_lamp
+            # UV 램프 상태 및 전력 추가 (활성화된 경우에만)
+            if is_uv_lamp_enabled:
+                step_results['is_uv_lamp_on'] = is_uv_lamp_on
+                step_results['E_uv_lamp [W]'] = E_uv_lamp
+                
+                # E_tot에 UV 램프 전력 포함
+                if 'E_tot [W]' in step_results:
+                    step_results['E_tot [W]'] = step_results['E_tot [W]'] + E_uv_lamp
+                else:
+                    # E_tot가 없는 경우 (fallback 등) 기본 전력 합계 계산
+                    E_cmp = step_results.get('E_cmp [W]', 0.0)
+                    E_fan_ou = step_results.get('E_fan_ou [W]', 0.0)
+                    step_results['E_tot [W]'] = E_cmp + E_fan_ou + E_uv_lamp
             
             if n < tN - 1:
+                # 탱크 온도 계산: UV 램프가 활성화된 경우에만 전력 포함
+                Q_tank_in = result.get('Q_ref_cond [W]', 0.0)
+                if is_uv_lamp_enabled:
+                    Q_tank_in += E_uv_lamp
+                
                 T_tank_w_K = update_tank_temperature(
                     T_tank_w_K = T_tank_w_K,
-                    Q_tank_in  = result.get('Q_ref_cond [W]', 0.0) + result.get('E_uv_lamp [W]', 0.0),
+                    Q_tank_in  = Q_tank_in,
                     total_loss = Q_tank_loss + Q_use_loss,
                     C_tank     = self.C_tank,
                     dt         = self.dt
