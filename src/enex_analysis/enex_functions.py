@@ -46,12 +46,15 @@ This module contains helper functions organized into the following categories:
 """
 
 import numpy as np
+import pandas as pd
+from datetime import datetime
 import math
 from scipy.optimize import curve_fit, root_scalar, minimize
 from scipy import integrate
 from scipy.special import erf
 import CoolProp.CoolProp as CP
 import matplotlib.pyplot as plt
+
 try:
     import dartwork_mpl as dm
 except ImportError:
@@ -1284,6 +1287,161 @@ def _build_schedule_ratios(entries, t_array):
 
     return np.clip(sched, 0.0, 1.0)
 
+def calculate_uv_exposure_time(radius_cm, lamp_power_watts, uvc_output_watts, lamp_arc_length_cm, 
+                               target_dose_mj_cm2=186, absorption_coeff=0.16):
+    """
+    ADA453967.pdf 문서의 Radial Model을 기반으로 UV 램프의 필요 가동 시간을 계산하는 함수
+    https://apps.dtic.mil/sti/tr/pdf/ADA453967.pdf
+    
+    UV lamp catalog
+    https://www.assets.signify.com/is/content/Signify/Assets/philips-lighting/global/catalogue-uv-c-disinfection-nov2025.pdf
+    
+    I(r) = (P_L / (2 * pi * r)) * exp(-ae * r)
+    Time = Target Dose / I(r)
+
+    Parameters:
+    - radius_cm (float): 저탕조의 반지름 (cm) - 램프에서 가장 먼 벽까지의 거리
+    - lamp_power_watts (float): 램프의 소비 전력 [W]
+    - uvc_output_watts (float): 램프의 순수 UV-C 출력 [W]
+    - lamp_arc_length_cm (float): 램프의 발광부 길이 [cm]
+    - target_dose_mj_cm2 (float, optional): 목표 살균 선량 [mJ/cm²]. 
+      기본값 186은 EPA의 4-log 바이러스 살균 기준.
+    - absorption_coeff (float, optional): 물의 자연대수 흡수 계수 ae [1/cm].
+      기본값 0.16은 탁도 0.25 NTU 수준의 맑은 물 기준.
+
+    Returns:
+    - dict: {'seconds': 초 단위 시간, 'minutes': 분 단위 시간, 'intensity': 벽면 UV 강도}
+    """
+    
+    # 1. 선형 출력 밀도 P_L (Power emitted per unit arc length) 계산 [단위: mW/cm]
+    # 입력된 Watts를 mW로 변환 후 길이로 나눔
+    p_l_mw_cm = (uvc_output_watts * 1000) / lamp_arc_length_cm
+    
+    # 2. 탱크 벽면(거리 r)에서의 UV 강도 I(r) 계산 [단위: mW/cm²]
+    # 공식: I(r) = (P_L / 2πr) * e^(-ae * r) [cite: 1479]
+    intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(-absorption_coeff * radius_cm)
+    
+    # 3. 필요 노출 시간(Time) 계산 [단위: 초]
+    # 공식: Time = Dose / Intensity [cite: 1470]
+    if intensity_mw_cm2 <= 0:
+        return None # 계산 불가 (거리가 너무 멀거나 흡수율이 너무 높음)
+        
+    required_time_seconds = target_dose_mj_cm2 / intensity_mw_cm2
+    required_time_minutes = required_time_seconds / 60
+    
+    return {
+        "lamp_power_watts": lamp_power_watts,
+        "uv_output_watts": uvc_output_watts,
+        "intensity_at_wall_mw_cm2": round(intensity_mw_cm2, 4),
+        "required_time_seconds": round(required_time_seconds, 2),
+        "required_time_minutes": round(required_time_minutes, 2)
+    }
+
+
+def process_dhw_schedule_from_Annex_42(df_input):
+    """
+    Annex 42 급탕 스케줄 엑셀에서 로드한 DHW 데이터프레임을 받아 연간 평균화 및 노말라이즈된 스케줄을 반환하는 함수
+    
+    Args:
+        df_input (pd.DataFrame): pd.read_excel로 읽은 원본 데이터프레임
+        
+    Returns:
+        list: [("시작시간", "종료시간", fraction), ...] 형태의 리스트
+    """
+    
+    # 1. 헤더 위치 찾기 및 데이터프레임 재설정
+    # 이미 컬럼명이 올바르게 설정된 경우
+    expected_cols = {'Date', 'Hour', 'Minute'}
+    if expected_cols.issubset(df_input.columns):
+        df = df_input.copy()
+    else:
+        # 상단 설명글 등으로 인해 헤더가 데이터 영역에 있는 경우 탐색
+        header_idx = None
+        for i in range(min(20, len(df_input))):  # 상위 20행 내에서 탐색
+            # 행의 값들을 문자열로 변환하여 헤더 키워드 확인
+            row_values = [str(val).strip() for val in df_input.iloc[i].values]
+            if 'Date' in row_values and 'Hour' in row_values and 'Minute' in row_values:
+                header_idx = i
+                break
+        
+        if header_idx is not None:
+            # 찾은 헤더 행을 기준으로 데이터프레임 다시 생성
+            df = df_input.iloc[header_idx + 1:].copy()
+            df.columns = df_input.iloc[header_idx]
+        else:
+            # 헤더를 못 찾은 경우 원본 그대로 사용 (에러 발생 가능성 있음)
+            df = df_input.copy()
+
+    # 2. 데이터 전처리 (숫자형 변환 및 결측치 제거)
+    # 월별 컬럼 식별
+    month_cols = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    target_cols = ['Hour', 'Minute'] + [c for c in month_cols if c in df.columns]
+    
+    # 숫자형으로 변환 (오류 발생 시 NaN 처리)
+    for col in target_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # 시간 정보가 없는 행(빈 행 등) 제거
+    df = df.dropna(subset=['Hour', 'Minute'])
+    
+    # 3. 데이터 집계 (Aggregation)
+    # 월별 컬럼(Jan~Dec)을 행(row)으로 녹여서(melt) 전체 평균을 구하기 쉽게 변환
+    available_months = [c for c in month_cols if c in df.columns]
+    df_melted = df.melt(id_vars=['Hour', 'Minute'], value_vars=available_months, value_name='Flow')
+    
+    # 시간대(Hour, Minute)별로 그룹화하여 연간 평균 유량 계산
+    profile = df_melted.groupby(['Hour', 'Minute'])['Flow'].mean().reset_index()
+    
+    # 시간 순서대로 정렬 (절대 시간 계산: (Hour-1)*60 + Minute)
+    # 데이터 상 Hour=1, Minute=5는 00:05분을 의미한다고 가정 (일반적인 Annex 데이터 포맷)
+    profile['AbsTime'] = (profile['Hour'] - 1) * 60 + profile['Minute']
+    profile = profile.sort_values(by='AbsTime')
+
+    # 4. 노말라이즈 (Normalization)
+    # 연간 평균 프로필 중 최대 유량 찾기
+    max_flow = profile['Flow'].max()
+    
+    if max_flow > 0:
+        profile['Fraction'] = profile['Flow'] / max_flow
+    else:
+        profile['Fraction'] = 0.0
+        
+    # 5. 결과 리스트 생성
+    schedule = []
+    
+    # 시간 간격(Interval) 자동 감지 (예: 1분, 5분, 15분)
+    times = profile['AbsTime'].values
+    if len(times) > 1:
+        # 첫 번째 시간과 두 번째 시간의 차이를 간격으로 사용
+        interval = times[1] - times[0]
+    else:
+        interval = 60 # 기본값
+        
+    for _, row in profile.iterrows():
+        abs_time_end = int(row['AbsTime'])
+        fraction = row['Fraction']
+        
+        # 시작 시간과 종료 시간 계산 (분 단위)
+        # 데이터의 시간은 해당 간격의 '끝'을 의미하거나 '시작'을 의미할 수 있으나,
+        # 보통 누적 데이터는 끝 시간을 기록함. 여기서는 (End - interval) ~ End 로 계산
+        start_mins = abs_time_end - interval
+        end_mins = abs_time_end
+        
+        # 분을 "H:MM" 문자열로 변환하는 헬퍼 함수
+        def mins_to_str(m):
+            m = m % 1440 # 24시간(1440분) 기준으로 순환
+            hh = int(m // 60)
+            mm = int(m % 60)
+            return f"{hh}:{mm:02d}"
+            
+        start_str = mins_to_str(start_mins)
+        end_str = mins_to_str(end_mins)
+        
+        # 튜플 형태로 추가 
+        schedule.append((start_str, end_str, fraction))
+        
+    return schedule
+
 def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
     '''
     Calculate total water use from schedule.
@@ -1336,10 +1494,80 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
     print(f"Total daily water use: {total_use:.2f} Liters")
     return total_use
 
-# ============================================================================
-# 히트펌프 사이클 성능 계산 및 최적 운전점 탐색 함수들
-# (cycle_performance.py에서 이동)
-# ============================================================================
+def calculate_mains_temp_custom(csv_file_path: str, target_date_str: str) -> float:
+    """
+    기상자료개방포털(https://data.kma.go.kr/data/grnd/selectAsosRltmList.do?pgmNo=36)의
+    월간 평균온도 데이터(CSV)와 날짜를 입력받아, EnergyPlus 알고리즘으로 상수도 온도를 계산합니다.
+
+    [적용된 공식 및 계수]
+    1. Offset = 6 F (섭씨 차이로 자동 변환하여 적용)
+    2. Ratio  = 0.4 + 0.01 * (연평균기온_F - 44)
+    3. Lag    = 35 - 1.0 * (연평균기온_F - 44)
+    * 공식 내 '44'는 화씨 기준이므로 연평균 기온을 화씨로 변환하여 계산합니다.
+
+    Parameters:
+    -----------
+    csv_file_path : str
+        '평균기온(°C)' 컬럼이 포함된 CSV 파일 경로.
+    target_date_str : str
+        계산할 날짜 (형식: 'YYYY-MM-DD').
+
+    Returns:
+    --------
+    float
+        계산된 상수도 온도 (°C)
+    """
+    
+    # 1. CSV 데이터 로드 및 전처리
+    try:
+        df = pd.read_csv(csv_file_path, encoding='cp949')
+    except UnicodeDecodeError:
+        df = pd.read_csv(csv_file_path, encoding='utf-8')
+    
+    df.columns = df.columns.str.strip()
+    target_col = '평균기온(°C)'
+    
+    if target_col not in df.columns:
+        raise ValueError(f"CSV 파일에 '{target_col}' 컬럼이 존재하지 않습니다.")
+    
+    # 2. 기상 통계 추출 (섭씨 기준)
+    t_avg_annual_c = df[target_col].mean()       # 연평균 기온 (C)
+    t_max_monthly_c = df[target_col].max()       # 월최대 기온 (C)
+    t_min_monthly_c = df[target_col].min()       # 월최소 기온 (C)
+    t_diff_max_c = t_max_monthly_c - t_min_monthly_c # 최대 온도차 (C)
+    
+    # 3. 파라미터 계산을 위한 단위 변환 (섭씨 -> 화씨)
+    t_avg_annual_f = cu.C2F(t_avg_annual_c)
+    
+    # 4. 사용자 지정 파라미터 계산
+    
+    # (1) Offset: 6 F -> 섭씨 차이로 변환
+    # 온도 값 변환이 아니라 '차이(Delta)' 변환이므로 cu.F2C를 사용하여 변환합니다.
+    # 온도 차이 변환: cu.F2C(32 + offset_f) - cu.F2C(32) = offset_f * (5/9)
+    offset_f = 6.0
+    offset_c = cu.F2C(offset_f)
+    
+    # (2) Ratio: 0.4 + 0.01 * (T_avg_F - 44)
+    ratio = 0.4 + 0.01 * (t_avg_annual_f - 44)
+    
+    # (3) Lag: 35 - 1.0 * (T_avg_F - 44)
+    lag_days = 35 - 1.0 * (t_avg_annual_f - 44)
+    
+    # 5. 날짜 처리 (Day of Year)
+    target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
+    day_of_year = target_date.timetuple().tm_yday
+    
+    # 6. 최종 공식 적용 (섭씨 기준)
+    # T_mains = (T_avg + Offset) + Ratio * (T_diff / 2) * sin(...)
+    
+    # 각도 계산 (Degree -> Radian 변환)
+    # 0.986은 360도 / 365일
+    degrees = 0.986 * (day_of_year - 15 - lag_days) - 90
+    radians = np.radians(degrees)
+    
+    t_mains_c = (t_avg_annual_c + offset_c) + ratio * (t_diff_max_c / 2) * np.sin(radians)
+    
+    return round(t_mains_c, 2)
 
 def compute_refrigerant_thermodynamic_states(
     T_evap_K,  # 증발 온도 [K]
