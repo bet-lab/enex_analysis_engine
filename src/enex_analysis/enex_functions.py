@@ -1377,7 +1377,7 @@ def get_uv_params_from_turbidity(turbidity_ntu):
         'reference_exposure_time_sec': row[4]
     }
 
-def calc_uv_exposure_time(radius_cm, lamp_power_W, uvc_output_W, lamp_arc_length_cm, 
+def calc_uv_exposure_time(radius_cm, uvc_output_W, lamp_arc_length_cm, 
                                target_dose_mj_cm2=186, turbidity_ntu=0.25, absorption_coeff=None):
     """
     ADA453967.pdf 문서의 Radial Model을 기반으로 UV 램프의 필요 가동 시간을 계산하는 함수
@@ -1394,8 +1394,6 @@ def calc_uv_exposure_time(radius_cm, lamp_power_W, uvc_output_W, lamp_arc_length
     -----------
     radius_cm : float
         저탕조의 반지름 (cm) - 램프에서 가장 먼 벽까지의 거리
-    lamp_power_W : float
-        램프의 소비 전력 [W]
     uvc_output_W : float
         램프의 순수 UV-C 출력 [W]
     lamp_arc_length_cm : float

@@ -20,6 +20,7 @@ dependencies = [
     "salib>=1.5.1",
     "scipy>=1.15.2",
     "tqdm>=4.67.1",
+    "xlrd>=2.0.2",
 ]
 
 [build-system]

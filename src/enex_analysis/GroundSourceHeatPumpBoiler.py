@@ -965,42 +965,58 @@ class GroundSourceHeatPumpBoiler:
                     result['converged'] = opt_result.success
             
             if is_transitioning_off_to_on:
-                # OFF→ON 전환 시점: 실제 계산된 ON 상태 값 저장
+                # OFF→ON 전환 시점: 점진적 전환을 위해 이전 스텝의 지중 온도 값 사용
+                # result는 ON 상태로 계산되었지만, 지중 온도는 점진적으로 업데이트
                 step_results.update(result)
                 step_results['is_on'] = is_on
                 # 전환 시점임을 표시하는 플래그 추가
                 step_results['is_transitioning'] = True
+                
+                # 전환 시점에서는 이전 스텝의 지중 온도 값 유지 (점진적 전환)
+                step_results['T_b [°C]'] = self.T_b  # 이전 스텝 값
+                step_results['T_b_f [°C]'] = self.T_b_f
+                step_results['T_b_f_in [°C]'] = self.T_b_f_in
+                step_results['T_b_f_out [°C]'] = self.T_b_f_out
+                step_results['Q_b [W]'] = 0.0  # 전환 시점에서는 0으로 시작
             else:
                 step_results.update(result)
                 step_results['is_on'] = is_on
                 step_results['is_transitioning'] = False
 
             # 지중 온도 업데이트
-            Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('is_on') else 0.0
-            
-            if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
-                Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
-                Q_b_unit_old = Q_b_unit # 업데이트
+            if is_transitioning_off_to_on:
+                # 전환 시점: 점진적 전환을 위해 Q_b_unit을 0으로 시작
+                Q_b_unit = 0.0
+                # 펄스 계산 건너뛰기 (전환 시점에서는 펄스 없음)
+                # Q_b_unit_old를 0으로 업데이트하여 다음 스텝에서 정상 계산 시작
+                Q_b_unit_old = 0.0
+            else:
+                # 일반 시점: 정상 계산
+                Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('is_on') else 0.0
+                
+                if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
+                    Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
+                    Q_b_unit_old = Q_b_unit # 업데이트
         
-            pulses_idx = np.flatnonzero(Q_b_unit_pulse[:n+1])
-            dQ = Q_b_unit_pulse[pulses_idx]
-            tau = self.time[n] - self.time[pulses_idx]
-            
-            # g-function 계산은 여전히 루프가 필요
-            g_n = np.array([G_FLS(t, self.k_s, self.alp_s, self.r_b, self.H_b) for t in tau])
-            dT_b = np.dot(dQ, g_n)
-            
-            self.T_b = self.Ts - dT_b
-            self.T_b_f = self.T_b - Q_b_unit * self.R_b
-            self.Q_b = Q_b_unit * self.H_b
-            self.T_b_f_in  = self.T_b_f - self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
-            self.T_b_f_out = self.T_b_f + self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
-            self.T_b_f_in_K  = cu.C2K(self.T_b_f_in)
-            self.T_b_f_out_K = cu.C2K(self.T_b_f_out)
-            
-            # 업데이트된 지중 온도 관련 값들을 step_results에 반영
-            # (전환 시점이 아닐 때만 반영 - 전환 시점은 이전 스텝 값을 유지해야 함)
+            # 펄스 계산 (전환 시점이 아닐 때만)
             if not is_transitioning_off_to_on:
+                pulses_idx = np.flatnonzero(Q_b_unit_pulse[:n+1])
+                dQ = Q_b_unit_pulse[pulses_idx]
+                tau = self.time[n] - self.time[pulses_idx]
+                
+                # g-function 계산은 여전히 루프가 필요
+                g_n = np.array([G_FLS(t, self.k_s, self.alp_s, self.r_b, self.H_b) for t in tau])
+                dT_b = np.dot(dQ, g_n)
+                
+                self.T_b = self.Ts - dT_b
+                self.T_b_f = self.T_b - Q_b_unit * self.R_b
+                self.Q_b = Q_b_unit * self.H_b
+                self.T_b_f_in  = self.T_b_f - self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
+                self.T_b_f_out = self.T_b_f + self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
+                self.T_b_f_in_K  = cu.C2K(self.T_b_f_in)
+                self.T_b_f_out_K = cu.C2K(self.T_b_f_out)
+                
+                # step_results에 반영
                 step_results['T_b [°C]'] = self.T_b
                 step_results['T_b_f [°C]'] = self.T_b_f
                 step_results['T_b_f_in [°C]'] = self.T_b_f_in
