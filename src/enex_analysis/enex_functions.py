@@ -1210,7 +1210,7 @@ def _build_schedule_ratios(entries, t_array):
         Intervals are treated as half-open [start, end).
 
     t_array : numpy.ndarray
-        Timestep array in seconds (e.g., np.arange(0, sim_seconds, dt)). Each element
+        Timestep array in seconds (e.g., np.arange(0, sim_sec, dt)). Each element
         is mapped to time within the same day using modulo operation with 24*cu.h2s.
 
     Returns
@@ -1287,8 +1287,98 @@ def _build_schedule_ratios(entries, t_array):
 
     return np.clip(sched, 0.0, 1.0)
 
-def calculate_uv_exposure_time(radius_cm, lamp_power_watts, uvc_output_watts, lamp_arc_length_cm, 
-                               target_dose_mj_cm2=186, absorption_coeff=0.16):
+def get_uv_params_from_turbidity(turbidity_ntu):
+    """
+    Turbidity 값에 따라 UV 파라미터를 반환하는 함수
+    
+    테이블 데이터 기반 (Table 1. Effect of Turbidity on UVT, UV Absorbance, UV Intensity, and Exposure Time)
+    공식: ae = 2.303 × A254 (ae는 자연대수 흡수 계수, A254는 UV Absorbance)
+    
+    Parameters:
+    -----------
+    turbidity_ntu : float
+        탁도 값 [NTU]
+    
+    Returns:
+    --------
+    dict
+        {
+            'uv_absorbance': float,  # UV Absorbance (A254)
+            'uv_transmittance_percent': float,  # % UVT
+            'reference_intensity_mw_cm2': float,  # UV Intensity (mW/cm²)
+            'reference_exposure_time_sec': float  # Exposure time for 5 mJ/cm² dose (s)
+        }
+    """
+    # 테이블 데이터: [Turbidity (NTU), % UVT, UV Absorbance (A254), UV Intensity (mW/cm²), Exposure time (s)]
+    turbidity_table = [
+        [0.25, 86, 0.07, 0.40, 12.4],
+        [5.0, 78, 0.11, 0.39, 12.8],
+        [10.0, 71, 0.15, 0.36, 13.9],
+        [20.1, 59, 0.23, 0.33, 15.0]
+    ]
+    
+    # 테이블에서 가장 가까운 값 찾기 또는 보간
+    turbidity_values = [row[0] for row in turbidity_table]
+    
+    # 입력값이 테이블 범위를 벗어나는 경우 처리
+    if turbidity_ntu <= turbidity_values[0]:
+        # 최소값 이하: 첫 번째 행 사용
+        row = turbidity_table[0]
+        return {
+            'uv_absorbance': row[2],
+            'uv_transmittance_percent': row[1],
+            'reference_intensity_mw_cm2': row[3],
+            'reference_exposure_time_sec': row[4]
+        }
+    elif turbidity_ntu >= turbidity_values[-1]:
+        # 최대값 이상: 마지막 행 사용
+        row = turbidity_table[-1]
+        return {
+            'uv_absorbance': row[2],
+            'uv_transmittance_percent': row[1],
+            'reference_intensity_mw_cm2': row[3],
+            'reference_exposure_time_sec': row[4]
+        }
+    else:
+        # 선형 보간
+        for i in range(len(turbidity_values) - 1):
+            if turbidity_values[i] <= turbidity_ntu < turbidity_values[i + 1]:
+                # 두 점 사이에서 보간
+                t1, t2 = turbidity_values[i], turbidity_values[i + 1]
+                row1, row2 = turbidity_table[i], turbidity_table[i + 1]
+                
+                # 보간 비율
+                ratio = (turbidity_ntu - t1) / (t2 - t1)
+                
+                return {
+                    'uv_absorbance': row1[2] + ratio * (row2[2] - row1[2]),
+                    'uv_transmittance_percent': row1[1] + ratio * (row2[1] - row1[1]),
+                    'reference_intensity_mw_cm2': row1[3] + ratio * (row2[3] - row1[3]),
+                    'reference_exposure_time_sec': row1[4] + ratio * (row2[4] - row1[4])
+                }
+        
+        # 정확히 일치하는 경우
+        for i, t_val in enumerate(turbidity_values):
+            if abs(turbidity_ntu - t_val) < 1e-6:
+                row = turbidity_table[i]
+                return {
+                    'uv_absorbance': row[2],
+                    'uv_transmittance_percent': row[1],
+                    'reference_intensity_mw_cm2': row[3],
+                    'reference_exposure_time_sec': row[4]
+                }
+    
+    # 기본값 반환 (발생하지 않아야 함)
+    row = turbidity_table[0]
+    return {
+        'uv_absorbance': row[2],
+        'uv_transmittance_percent': row[1],
+        'reference_intensity_mw_cm2': row[3],
+        'reference_exposure_time_sec': row[4]
+    }
+
+def calc_uv_exposure_time(radius_cm, lamp_power_W, uvc_output_W, lamp_arc_length_cm, 
+                               target_dose_mj_cm2=186, turbidity_ntu=0.25, absorption_coeff=None):
     """
     ADA453967.pdf 문서의 Radial Model을 기반으로 UV 램프의 필요 가동 시간을 계산하는 함수
     https://apps.dtic.mil/sti/tr/pdf/ADA453967.pdf
@@ -1298,24 +1388,52 @@ def calculate_uv_exposure_time(radius_cm, lamp_power_watts, uvc_output_watts, la
     
     I(r) = (P_L / (2 * pi * r)) * exp(-ae * r)
     Time = Target Dose / I(r)
+    ae = 2.303 × A254 (ae는 자연대수 흡수 계수, A254는 UV Absorbance)
 
     Parameters:
-    - radius_cm (float): 저탕조의 반지름 (cm) - 램프에서 가장 먼 벽까지의 거리
-    - lamp_power_watts (float): 램프의 소비 전력 [W]
-    - uvc_output_watts (float): 램프의 순수 UV-C 출력 [W]
-    - lamp_arc_length_cm (float): 램프의 발광부 길이 [cm]
-    - target_dose_mj_cm2 (float, optional): 목표 살균 선량 [mJ/cm²]. 
-      기본값 186은 EPA의 4-log 바이러스 살균 기준.
-    - absorption_coeff (float, optional): 물의 자연대수 흡수 계수 ae [1/cm].
-      기본값 0.16은 탁도 0.25 NTU 수준의 맑은 물 기준.
+    -----------
+    radius_cm : float
+        저탕조의 반지름 (cm) - 램프에서 가장 먼 벽까지의 거리
+    lamp_power_W : float
+        램프의 소비 전력 [W]
+    uvc_output_W : float
+        램프의 순수 UV-C 출력 [W]
+    lamp_arc_length_cm : float
+        램프의 발광부 길이 [cm]
+    target_dose_mj_cm2 : float, optional
+        목표 살균 선량 [mJ/cm²]. 기본값 186은 EPA의 4-log 바이러스 살균 기준.
+    turbidity_ntu : float, optional
+        탁도 값 [NTU]. 제공되면 테이블 데이터를 기반으로 UV Absorbance를 조회하고
+        absorption_coeff를 자동 계산합니다. 기본값 0.25 NTU 수준의 맑은 물 기준.
+    absorption_coeff : float, optional
+        물의 자연대수 흡수 계수 ae [1/cm]. turbidity_ntu가 제공되지 않을 때만 사용됩니다.
+        기본값 0.16은 탁도 0.25 NTU 수준의 맑은 물 기준.
 
     Returns:
-    - dict: {'seconds': 초 단위 시간, 'minutes': 분 단위 시간, 'intensity': 벽면 UV 강도}
+    --------
+    required_time_min : float
+        필요 1회 노출 시간 [분]
     """
+    
+    # absorption_coeff 결정: turbidity가 제공되면 자동 계산, 아니면 직접 입력값 또는 기본값 사용
+    uv_params = None
+    uv_absorbance = None
+    reference_exposure_time = None
+    
+    if turbidity_ntu is not None:
+        # Turbidity 기반으로 파라미터 조회
+        uv_params = get_uv_params_from_turbidity(turbidity_ntu)
+        uv_absorbance = uv_params['uv_absorbance']
+        # 공식: ae = 2.303 × A254
+        absorption_coeff = 2.303 * uv_absorbance
+        reference_exposure_time = uv_params['reference_exposure_time_sec']
+    elif absorption_coeff is None:
+        # 기본값 사용
+        absorption_coeff = 0.16
     
     # 1. 선형 출력 밀도 P_L (Power emitted per unit arc length) 계산 [단위: mW/cm]
     # 입력된 Watts를 mW로 변환 후 길이로 나눔
-    p_l_mw_cm = (uvc_output_watts * 1000) / lamp_arc_length_cm
+    p_l_mw_cm = (uvc_output_W * 1000) / lamp_arc_length_cm
     
     # 2. 탱크 벽면(거리 r)에서의 UV 강도 I(r) 계산 [단위: mW/cm²]
     # 공식: I(r) = (P_L / 2πr) * e^(-ae * r) [cite: 1479]
@@ -1326,16 +1444,29 @@ def calculate_uv_exposure_time(radius_cm, lamp_power_watts, uvc_output_watts, la
     if intensity_mw_cm2 <= 0:
         return None # 계산 불가 (거리가 너무 멀거나 흡수율이 너무 높음)
         
-    required_time_seconds = target_dose_mj_cm2 / intensity_mw_cm2
-    required_time_minutes = required_time_seconds / 60
+    required_time_sec = target_dose_mj_cm2 / intensity_mw_cm2 # 단위 제곱 cm에 1초에 목표 5 mJ이 노출되기 위한 최소시간 기준
+    required_time_min = required_time_sec / 60
     
-    return {
-        "lamp_power_watts": lamp_power_watts,
-        "uv_output_watts": uvc_output_watts,
-        "intensity_at_wall_mw_cm2": round(intensity_mw_cm2, 4),
-        "required_time_seconds": round(required_time_seconds, 2),
-        "required_time_minutes": round(required_time_minutes, 2)
-    }
+    # 4. 요구 기준 만족 여부 판단 (turbidity가 제공된 경우에만)
+    meets_requirement = None
+    if turbidity_ntu is not None and reference_exposure_time is not None:
+        # 계산된 시간이 테이블 기준 시간 이하이면 만족
+        # 참고: 테이블의 기준은 5 mJ/cm² dose이지만, 여기서는 target_dose_mj_cm2를 사용
+        # 5 mJ/cm² 기준으로 정규화하여 비교
+        if target_dose_mj_cm2 == 5.0:
+            meets_requirement = required_time_sec <= reference_exposure_time
+        else:
+            # 다른 dose에 대해서는 비례적으로 계산
+            normalized_time = required_time_sec * (5.0 / target_dose_mj_cm2)
+            meets_requirement = normalized_time <= reference_exposure_time
+
+    # 모델 적용 가능 여부 프린트
+    if meets_requirement is not None:
+        print(f"[UV LAMP CHECK] 현재 입력 조건(uv lamp model, turbidity={turbidity_ntu}, dose={target_dose_mj_cm2})에서 적용 가능: {meets_requirement}")
+    else:
+        print("[UV LAMP CHECK] 탁도 정보 없거나 비교 불가 - 모델 적합 여부 판단 불가")
+
+    return required_time_min
 
 
 def process_dhw_schedule_from_Annex_42(df_input):
