@@ -73,6 +73,11 @@ class AirSourceHeatPumpBoiler:
         k_ins    = 0.03,  # [W/mK] 단열재 열전도도
         h_o      = 15,    # [W/m²K] 외부 대류 열전달계수
         
+        # 5. UV 램프 파라미터 -----------------------------------------
+        lamp_power_watts = 36.0, # [W] 램프 소비 전력
+        uv_lamp_exposure_duration_min = 10.0, # [min] 1회 UV램프 노출 기준시간
+        num_switching_per_3hour = 1, # [개] 3시간 당 on 횟수
+        
         # Reference:ASHRAE Standard 90.1 - 2022 (325 page)
         vsd_coeffs_ou = {
             'c1': 0.0013,
@@ -131,6 +136,14 @@ class AirSourceHeatPumpBoiler:
         
         self.T_sup_w_K = cu.C2K(T_sup_w)
         self.T_serv_w_K = cu.C2K(T_serv_w)
+        
+        # --- 5. UV 램프 파라미터 ---
+        self.lamp_power_watts = lamp_power_watts
+        self.uv_lamp_exposure_duration_min = uv_lamp_exposure_duration_min
+        self.num_switching_per_3hour = num_switching_per_3hour
+        # UV 램프 관련 계산 상수
+        self.period_3hour_sec = 3 * cu.h2s  # 3시간을 초 단위로 변환
+        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s  # 분을 초로 변환
         
         self.Q_cond_load_threshold = 500.0
 
@@ -784,7 +797,7 @@ class AirSourceHeatPumpBoiler:
                     return -1e6
                 
                 # 제약 조건: Q_LMTD_evap - Q_ref_evap*(1-tolerance) >= 0
-                return perf["Q_LMTD_evap [W]"] - perf['Q_ref_evap [W]'] * (1 - tolerance)
+                return perf["Q_LMTD_evap [W]"] - perf['Q_ref_evap [W]']
             except Exception as e:
                 return -1e6
         
@@ -1157,6 +1170,35 @@ class AirSourceHeatPumpBoiler:
                 if result is not None and isinstance(result, dict):
                     result['converged'] = opt_result.success
             
+            # UV 램프 상태 계산
+            is_uv_lamp_on = False
+            if self.num_switching_per_3hour > 0:
+                # 현재 시간을 3시간 주기로 나눈 나머지
+                time_in_period = time[n] % self.period_3hour_sec
+                
+                # 각 ON 구간 사이의 간격 계산
+                # 총 ON 시간 = num_switching_per_3hour * exposure_duration_sec
+                total_on_time = self.num_switching_per_3hour * self.uv_lamp_exposure_duration_sec
+                # 총 OFF 시간 = period - total_on_time
+                total_off_time = self.period_3hour_sec - total_on_time
+                # 각 ON 구간 사이의 간격 (첫 ON 구간 전, 각 ON 구간 사이, 마지막 ON 구간 후를 균등 분배)
+                # 간격 개수 = num_switching_per_3hour + 1
+                interval_between_switches = total_off_time / (self.num_switching_per_3hour + 1)
+                
+                # 각 ON 구간의 시작 시간 계산 및 현재 시간이 ON 구간에 포함되는지 확인
+                for i in range(self.num_switching_per_3hour):
+                    # 각 ON 구간의 시작 시간
+                    # 첫 번째 간격 + (이전 ON 구간들의 시간 + 이전 간격들)
+                    start_time = interval_between_switches * (i + 1) + i * self.uv_lamp_exposure_duration_sec
+                    end_time = start_time + self.uv_lamp_exposure_duration_sec
+                    
+                    if start_time <= time_in_period < end_time:
+                        is_uv_lamp_on = True
+                        break
+            
+            # UV 램프 전력 계산
+            E_uv_lamp = self.lamp_power_watts if is_uv_lamp_on else 0.0
+            
             if is_transitioning_off_to_on:
                 # OFF→ON 전환 시점: 실제 계산된 ON 상태 값 저장
                 step_results.update(result)
@@ -1168,10 +1210,23 @@ class AirSourceHeatPumpBoiler:
                 step_results['is_on'] = is_on
                 step_results['is_transitioning'] = False
             
+            # UV 램프 상태 및 전력 추가
+            step_results['is_uv_lamp_on'] = is_uv_lamp_on
+            step_results['E_uv_lamp [W]'] = E_uv_lamp
+            
+            # E_tot에 UV 램프 전력 포함
+            if 'E_tot [W]' in step_results:
+                step_results['E_tot [W]'] = step_results['E_tot [W]'] + E_uv_lamp
+            else:
+                # E_tot가 없는 경우 (fallback 등) 기본 전력 합계 계산
+                E_cmp = step_results.get('E_cmp [W]', 0.0)
+                E_fan_ou = step_results.get('E_fan_ou [W]', 0.0)
+                step_results['E_tot [W]'] = E_cmp + E_fan_ou + E_uv_lamp
+            
             if n < tN - 1:
                 T_tank_w_K = update_tank_temperature(
                     T_tank_w_K = T_tank_w_K,
-                    Q_tank_in  = result.get('Q_ref_cond [W]', 0.0),
+                    Q_tank_in  = result.get('Q_ref_cond [W]', 0.0) + result.get('E_uv_lamp [W]', 0.0),
                     total_loss = Q_tank_loss + Q_use_loss,
                     C_tank     = self.C_tank,
                     dt         = self.dt
