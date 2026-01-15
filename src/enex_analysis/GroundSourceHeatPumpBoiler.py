@@ -993,10 +993,10 @@ class GroundSourceHeatPumpBoiler:
             else:
                 # 일반 시점: 정상 계산
                 Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('is_on') else 0.0
-                
-                if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
-                    Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
-                    Q_b_unit_old = Q_b_unit # 업데이트
+            
+            if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
+                Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
+                Q_b_unit_old = Q_b_unit # 업데이트
         
             # 펄스 계산 (전환 시점이 아닐 때만)
             if not is_transitioning_off_to_on:
@@ -1015,7 +1015,7 @@ class GroundSourceHeatPumpBoiler:
                 self.T_b_f_out = self.T_b_f + self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
                 self.T_b_f_in_K  = cu.C2K(self.T_b_f_in)
                 self.T_b_f_out_K = cu.C2K(self.T_b_f_out)
-                
+            
                 # step_results에 반영
                 step_results['T_b [°C]'] = self.T_b
                 step_results['T_b_f [°C]'] = self.T_b_f

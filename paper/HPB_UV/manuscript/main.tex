@@ -1,0 +1,517 @@
+\documentclass[letterpaper,10pt]{article}
+
+% Page geometry
+\usepackage[top=0.95in,bottom=0.65in,left=0.8in,right=0.8in,columnsep=0.5in]{geometry}
+
+% Page style - no page numbers
+\pagestyle{empty}
+
+% Font settings - Times New Roman
+\usepackage{mathptmx}
+\usepackage[T1]{fontenc}
+% Microtype for better character spacing and overflow prevention
+\usepackage[protrusion=true,expansion=true]{microtype}
+
+% Spacing - single line spacing
+\setlength{\baselineskip}{1.0\baselineskip}
+
+% Paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+% Text alignment tolerance settings to prevent column overflow
+\tolerance=1000
+\emergencystretch=3em
+\hfuzz=0.3pt
+% Indent subsequent paragraphs (not first after heading)
+\makeatletter
+\renewcommand{\@afterheading}{%
+  \global\@nobreaktrue
+  \everypar{%
+    \if@nobreak
+      \global\@nobreakfalse
+      \clubpenalty\@M
+      \setlength{\parindent}{0pt}%
+    \else
+      \clubpenalty\@clubpenalty
+      \setlength{\parindent}{0.2in}%
+    \fi
+  }%
+}
+\makeatother
+
+% Section headings using titlesec
+\usepackage{titlesec}
+\titleformat{\section}
+  {\fontsize{12pt}{12pt}\selectfont\bfseries}
+  {\thesection}
+  {0.5em}
+  {}
+  [\vspace{0pt}]
+
+\titlespacing{\section}{0pt}{16pt}{8pt}
+
+\titleformat{\subsection}
+  {\fontsize{10pt}{10pt}\selectfont\bfseries}
+  {\thesubsection}
+  {0.5em}
+  {}
+  [\vspace{8pt}]
+
+\titlespacing{\subsection}{0pt}{16pt}{8pt}
+
+\titleformat{\subsubsection}
+  {\fontsize{10pt}{10pt}\selectfont\itshape}
+  {\thesubsubsection}
+  {0.5em}
+  {}
+  [\vspace{0pt}]
+
+\titlespacing{\subsubsection}{0pt}{16pt}{8pt}
+
+% Math packages
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Table packages
+\usepackage{tabularx}
+\usepackage{booktabs}
+
+% Graphics
+\usepackage{graphicx}
+\graphicspath{{./images/}}
+
+% Caption settings
+\usepackage{caption}
+% Define 9pt font size explicitly for captions
+\DeclareCaptionFont{ninept}{\fontsize{9pt}{9pt}\selectfont}
+\captionsetup[figure]{
+  font=ninept,
+  labelsep=period,
+  justification=raggedright,
+  singlelinecheck=false
+}
+\captionsetup[table]{
+  font=ninept,
+  labelsep=period,
+  justification=centering,
+  singlelinecheck=false
+}
+\renewcommand{\figurename}{Fig.}
+
+% Hyperlinks
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% Korean support (if needed)
+\usepackage{kotex}
+
+% Other packages
+\usepackage{float}
+\usepackage{afterpage}
+\usepackage{changepage}
+\usepackage{ragged2e}  % For \justifying command
+
+% Citation style - use unsrt with sequential numbering [1], [2], etc.
+% Using natbib with numbers option for [1], [2] format
+\usepackage[numbers,sort&compress]{natbib}
+
+\begin{document}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+
+% Title block
+\vspace*{60pt}
+\noindent{\fontsize{16pt}{16pt}\selectfont\bfseries Energy and Exergy Performance of Low-Temperature Thermal Storage with UV Disinfection in Air-Source Heat Pump Boiler Systems\par}
+\vspace{18pt}
+
+% Authors
+\noindent{\fontsize{10pt}{10pt}\selectfont
+\textit{Habin} Jo$^{1}$, \textit{Masanori} Shukuya$^{2}$, and \textit{Wonjun} Choi$^{1,3*}$\par}
+
+% Affiliations
+\vspace{6pt}
+\noindent{\fontsize{9pt}{9pt}\selectfont
+$^{1}$Department of Architecture and Civil Engineer, 77 Yongbong-ro, Buk-gu, Gwangju 61186, South Korea\par
+\noindent$^{2}$Department of Restoration Ecology and Built Environment, Tokyo City University, Yokohama 67890, Japan\par
+\noindent$^{3}$Department of Architecture and Civil Engineering, Chonnam National University, 77 Yongbong-ro, Buk-gu, Gwangju 61186, South Korea\par}
+
+% Abstract section
+\vspace{24pt}
+\begin{adjustwidth}{0.7in}{0.7in}
+{\fontsize{9pt}{9pt}\selectfont\justifying
+\noindent{\fontsize{9pt}{9pt}\selectfont\bfseries Abstract.} Conventional air-source heat pump boilers (ASHPs) require high-temperature thermal storage (60 °C or above) to prevent Legionella growth, which degrades system performance by increasing condensation temperature and reducing coefficient of performance (COP). This study proposes a UV disinfection module as an alternative to thermal disinfection, enabling low-temperature operation (50--55 °C) while maintaining microbial safety. While previous research has primarily focused on energy analysis and static performance evaluation, a knowledge gap exists regarding exergy-based assessment of UV disinfection strategies in dynamic operating conditions. This study addresses this gap by developing a dynamic simulation model to compare two operational strategies: (1) thermal disinfection with 60--65 °C storage (reference case) and (2) UV disinfection with 50--55 °C storage (proposed case). The model incorporates UV lamp scheduling, power use, and exergy analysis to evaluate system-level exergy efficiency. Results demonstrate that despite additional UV lamp power use, the proposed strategy improves overall system exergy efficiency due to reduced condensation temperature, lower compression ratio, and decreased tank heat losses. This research provides a quantitative framework for evaluating alternative disinfection strategies in heat pump systems and demonstrates the potential for exergy-based optimization in building energy systems.\par}
+
+\vspace{8pt}
+\noindent{\fontsize{9pt}{9pt}\selectfont\bfseries Keywords.} {\fontsize{9pt}{9pt}\selectfont Air-source heat pump boiler, UV disinfection, Low-temperature thermal storage, Exergy efficiency, Legionella prevention\par}
+\end{adjustwidth}
+
+\vspace{22pt}
+\end{@twocolumnfalse}
+]
+
+% Corresponding author footnote (left-aligned, no indentation)
+\makeatletter
+\renewcommand{\@makefntext}[1]{\noindent#1}
+\makeatother
+\let\thefootnote\relax\footnotetext{$^{*}$Corresponding author: wonjun.choi@jnu.ac.kr}
+
+\section{Introduction}
+\label{sec:intro}
+
+The building sector accounts for approximately 32\% of global energy use and 34\% of CO$_2$ emissions, making it a critical target for climate change mitigation \cite{unep2024global}. Building electrification, the transition from fossil fuel-based heating and hot water systems to electricity-based systems, has emerged as a key policy and technological solution \cite{irena2020renewable}. While improved building insulation has reduced space heating loads, domestic hot water (DHW) energy demand remains constant, accounting for 15--40\% of total building energy use \cite{fuentes2018review_dhw}. This trend toward DHW efficiency and building electrification makes air-source heat pump boilers (ASHPs) a promising solution for domestic hot water systems \cite{staffell2012review_ashp}.
+
+However, ASHPs face a fundamental thermodynamic challenge in maintaining microbial safety. To prevent \textit{Legionella pneumophila} growth, international standards such as ASHRAE 188 and WHO guidelines require hot water storage temperatures of 60 °C or above \cite{ashrae188_2021, who2022guidelines}. This high-temperature requirement creates a thermodynamic inefficiency that degrades system performance. Elevated condensation temperatures increase the compression ratio, requiring more compressor work. Higher tank temperatures also increase heat losses to the environment. The increased compression work required to achieve higher condensation temperatures reduces the coefficient of performance (COP), creating a conflict where microbial safety requirements directly oppose optimal heat pump operation.
+
+While previous studies have examined UV disinfection effectiveness for microbial control \cite{epa2006uv} and heat pump efficiency improvements through various operational strategies, existing research has primarily focused on energy analysis from a static performance perspective. However, analysis of the dynamic performance differences resulting from UV disinfection strategies remains limited. Moreover, exergy-based assessment of how UV application affects system performance has not been reported. This creates a knowledge gap regarding the quantitative evaluation of UV disinfection strategies from an exergy perspective under dynamic operating conditions.
+
+To enable low-temperature thermal storage (50--55 °C) while maintaining microbial safety, UV disinfection offers a promising alternative to thermal disinfection \cite{epa2006uv}. By replacing thermal disinfection with UV disinfection, the storage temperature can be reduced, potentially improving both energy and exergy efficiency. However, the thermodynamic validity of this approach requires rigorous quantitative analysis from an exergy perspective. Dynamic analysis is essential because hot water demand, outdoor temperature, and system operation vary temporally, affecting the exergy performance throughout the day. Static analysis cannot capture these time-dependent variations in system behavior and exergy efficiency.
+
+To our knowledge, this study presents the first comprehensive exergy-based analysis that quantifies the dynamic performance of UV disinfection strategies in ASHP systems. The objective of this research is to quantitatively evaluate the energy savings and exergy efficiency changes resulting from UV module integration under dynamic operating conditions. Through dynamic simulation, we compare two operational strategies: (1) thermal disinfection with 60--65 °C storage (reference case) and (2) UV disinfection with 50--55 °C storage (proposed case). The analysis evaluates system-level exergy efficiency and provides insights into overall system exergy performance. This research provides a quantitative framework for evaluating alternative disinfection strategies in heat pump systems and demonstrates the potential for exergy-based optimization in building energy systems.
+
+\section{System modeling}
+\label{sec:system}
+
+\subsection{Water Use Schedule and Operation Conditions}
+
+This study analyzes an air-source heat pump boiler (ASHPB) system under identical water use schedules and outdoor temperature conditions. The daily water use schedule is shown in Figure~\ref{fig:hot water use schedule}. The temporal distribution follows the standard profile for January 1st defined in the IEA EBC Annex 42 report \cite{knight2007annex42}, preserving the relative hourly proportions. To reflect the boundary conditions of Korean residential buildings during winter, the total daily consumption was normalized to 270 L/day based on the empirical findings of Lee and Yim \cite{lee2021energy}, who reported an average domestic hot water flow of 269.4 L/day during winter months. The schedule reflects a residential pattern with distinct morning and evening peaks. The service hot water temperature $T_{\text{w,serv}}$ is fixed at 40 °C, the outdoor (environmental) temperature $T_0$ is fixed at 10 °C, and the supply water temperature $T_{\text{w,sup}}$ is fixed at 10 °C.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{images/water_use_schedule.png}
+  \captionsetup{width=\columnwidth}
+  \caption{Daily water use schedule (Temporal pattern adapted from IEA Annex 42 \cite{knight2007annex42}, normalized to 270 L/day based on Korean winter average \cite{lee2021energy}).}
+  \label{fig:hot water use schedule}
+\end{figure}
+
+The outdoor temperature data used in this study is shown in Figure~\ref{fig:outdoor_temp}. The hourly outdoor temperature profile for January 1st, 2025 was obtained from the Korea Meteorological Administration (KMA) Weather Data Open Portal \cite{kma2025weather}, representing actual meteorological conditions observed in Seoul, South Korea.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{images/outdoor_temp.png}
+  \captionsetup{width=\columnwidth}
+  \caption{Hourly outdoor temperature profile for January 1st, 2025 (Seoul, South Korea) from KMA Weather Data Open Portal \cite{kma2025weather}.}
+  \label{fig:outdoor_temp}
+\end{figure}
+
+\subsection{Air source heat pump boiler system modeling}
+
+The system structure of the air-source heat pump boiler is shown in Figure~\ref{fig:hpb_diagram}, and the symbols used in the model definition are listed in Table~\ref{tab:hpb_symbols}. The heat pump boiler manages the hot water tank temperature through hysteresis control. Two operational cases are compared in this study:
+
+\subsection{Control logic}
+
+\textbf{Case 1 (Reference -- Thermal Disinfection):} The tank setpoint temperature is $T_{\text{w,tank,set}} = 65$~°C with hysteresis control: lower bound $T_{\text{w,tank,lower}} = 60$~°C and upper bound $T_{\text{w,tank,upper}} = 65$~°C. The heat pump operates when the tank temperature drops below the lower bound and continues until reaching the upper bound. UV lamp is not used ($E_{\text{UV}} = 0$).
+
+\textbf{Case 2 (Proposed -- UV Disinfection):} The tank setpoint temperature is reduced to $T_{\text{w,tank,set}} = 55$~°C with hysteresis control: lower bound $T_{\text{w,tank,lower}} = 50$~°C and upper bound $T_{\text{w,tank,upper}} = 55$~°C. UV lamp operates periodically to maintain microbial safety at the lower storage temperature.
+
+
+Hot water from the tank at temperature $T_{\text{w,tank}}$ is supplied to the mixing valve, where it is mixed with 10 °C supply water to provide 40 °C service hot water according to the water use schedule (Figure~\ref{fig:hot water use schedule}). The mixing ratio ($\alpha$), defined as the ratio of tank water flow rate to total service hot water flow rate, is calculated as:
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{images/HPB_diagram.png}
+  \captionsetup{width=\textwidth}
+  \caption{Air source heat pump boiler system diagram.}
+  \label{fig:hpb_diagram}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{Symbols used in air source heat pump boiler modeling}
+\label{tab:hpb_symbols}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Symbol} & \textbf{Description} & \textbf{Units} \\
+\midrule
+$T_0$ & Environmental temperature (reference temperature) & K \\
+$T_{\text{ref,evap}}$ & Refrigerant evaporation temperature & K \\
+$T_{\text{ref,cond}}$ & Refrigerant condensation temperature & K \\
+$T_{\text{w,tank}}$ & Hot water tank temperature & K \\
+$T_{\text{w,sup}}$ & Supply water temperature & K \\
+$T_{\text{w,serv}}$ & Service hot water temperature & K \\
+$T_{\text{a,ou,in}}$ & Inlet air temperature of outdoor unit & K \\
+$T_{\text{a,ou,out}}$ & Outlet air temperature of outdoor unit & K \\
+$\dot{m}_{\text{ref}}$ & Refrigerant mass flow rate & kg/s \\
+$\dot{V}_{\text{fan,ou}}$ & Outdoor unit fan volumetric flow rate & m$^3$/s \\
+$\dot{V}_{\text{fan,ou,design}}$ & Outdoor unit fan design volumetric flow rate & m$^3$/s \\
+$\text{UA}_{\text{cond}}$ & Overall heat transfer coefficient of condenser & W/K \\
+$\text{UA}_{\text{evap}}$ & Overall heat transfer coefficient of evaporator & W/K \\
+$\text{LMTD}_{\text{cond}}$ & Log-mean temperature difference in condenser & K \\
+$\text{LMTD}_{\text{evap}}$ & Log-mean temperature difference in evaporator & K \\
+$\Delta T_{\text{ref,cond}}$ & Temperature difference between refrigerant and hot water tank & K \\
+$\Delta T_{\text{ref,evap}}$ & Temperature difference between refrigerant and outdoor air & K \\
+$\eta_{\text{fan,ou,design}}$ & Outdoor unit fan design efficiency & -- \\
+$\eta_{\text{cmp,isen}}$ & Isentropic efficiency of compressor & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{equation}
+\label{eq:hpb_mixing_ratio}
+\alpha = \frac{T_{\text{w,serv}} - T_{\text{w,sup}}}{T_{\text{w,tank}} - T_{\text{w,sup}}}
+\end{equation}
+
+where $\alpha$ is the ratio of tank water flow rate to total service hot water flow rate. The flow relationships are $\dot{V}_{w,\text{sup,tank}} = \alpha \dot{V}_{w,\text{serv}}$ and $\dot{V}_{w,\text{sup,mix}} = (1 - \alpha) \dot{V}_{w,\text{serv}}$.
+
+The air-source heat pump boiler system consists of an outdoor unit, refrigerant loop, hot water tank, and mixing valve. This study adopts an optimization algorithm to determine the refrigerant state, which enables dynamic analysis with more reliable results by finding the optimal operating point at each time step based on the current conditions.
+
+\subsection{Optimization problem}
+
+The optimal operating point of the heat pump cycle is determined through an optimization problem that minimizes the total power use:
+
+\begin{equation}
+\label{eq:hpb_optimization}
+\begin{aligned}
+\min_{\Delta T_{\text{ref,cond}}, \Delta T_{\text{ref,evap}}} \quad & E_{\text{tot}} = E_{\text{cmp}} + E_{\text{fan,ou}} + E_{\text{UV}} \\
+\text{subject to} \quad & Q_{\text{cond,load}} \leq Q_{\text{LMTD,cond}} \leq Q_{\text{cond,load}} \cdot (1 + \epsilon) \\
+& Q_{\text{ref,evap}} \leq Q_{\text{LMTD,evap}} \leq Q_{\text{ref,evap}} \cdot (1 + \epsilon)
+\end{aligned}
+\end{equation}
+
+where $E_{\text{tot}}$ is the total power use [W], $E_{\text{cmp}}$ is the compressor power [W], $E_{\text{fan,ou}}$ is the outdoor unit fan power [W], and $E_{\text{UV}}$ is the UV lamp power [W] (non-zero only for Case 2). The optimization variables are $\Delta T_{\text{ref,cond}}$ (refrigerant--tank temperature difference [K]) and $\Delta T_{\text{ref,evap}}$ (refrigerant--outdoor air temperature difference [K]), and $\epsilon$ is the tolerance (1\% in this study) for ensuring that the target heat load ($Q_{\text{cond,load}}$) and thermodynamic heat rate ($Q_{\text{ref,evap}}$) match the heat exchanger capacities ($Q_{\text{LMTD,cond}}$, $Q_{\text{LMTD,evap}}$), respectively.
+
+\subsection{Refrigerant Cycle States}
+
+The evaporation and condensation temperatures are calculated from the optimization variables as follows:
+
+\begin{equation}
+\label{eq:hpb_temperatures}
+T_{\text{ref,evap}} = T_0 - \Delta T_{\text{ref,evap}}, \quad T_{\text{ref,cond}} = T_{\text{w,tank}} + \Delta T_{\text{ref,cond}}
+\end{equation}
+
+The thermodynamic properties at each state point (State 1-4) of the refrigerant cycle are calculated based on the evaporation and condensation temperatures. State 1 is the evaporator outlet (saturated vapor), State 2 is the compressor outlet, State 3 is the condenser outlet (saturated liquid), and State 4 is the expansion valve outlet.
+
+The refrigerant mass flow rate ($\dot{m}_{\text{ref}}$) is calculated to satisfy the target heat transfer rate:
+
+\begin{equation}
+\label{eq:hpb_refrigerant_flow}
+\dot{m}_{\text{ref}} = \frac{Q_{\text{cond,load}}}{h_2 - h_3}
+\end{equation}
+
+The thermodynamic heat rates of the refrigerant cycle are calculated through the refrigerant mass flow rate and enthalpy differences. The thermodynamic heat rate released by the refrigerant in the condenser ($Q_{\text{ref,cond}}$), the thermodynamic heat rate absorbed by the refrigerant in the evaporator ($Q_{\text{ref,evap}}$), and the compressor power consumption ($E_{\text{cmp}}$) are calculated as follows:
+
+\begin{equation}
+\label{eq:hpb_q_ref_cond}
+Q_{\text{ref,cond}} = \dot{m}_{\text{ref}} (h_2 - h_3)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_q_ref_evap}
+Q_{\text{ref,evap}} = \dot{m}_{\text{ref}} (h_1 - h_4)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_e_cmp}
+E_{\text{cmp}} = \dot{m}_{\text{ref}} (h_2 - h_1)
+\end{equation}
+
+where $Q_{\text{ref,cond}}$ is the heat rate released during the condensation process from a thermodynamic perspective, calculated based on the refrigerant enthalpy change. This is the theoretical heat rate without considering the physical constraints of the heat exchanger.
+
+\subsection{Heat exchanger performance}
+
+Heat transfer in the condenser and evaporator is calculated using the LMTD (Logarithmic Mean Temperature Difference) method. The overall heat transfer coefficients are set to $\text{UA}_{\text{cond}} = 1500$ W/K for the condenser and $\text{UA}_{\text{evap}} = 3000$ W/K for the evaporator. The actual heat transfer rate of the heat exchanger is determined considering the heat transfer coefficient and temperature gradient, which is distinct from the thermodynamic heat rate of the refrigerant cycle.
+
+The condenser LMTD is:
+
+\begin{equation}
+\label{eq:hpb_lmtd_cond}
+\text{LMTD}_{\text{cond}} = \frac{T_2 - T_3}{\ln\left(\frac{T_2 - T_{\text{w,tank}}}{T_3 - T_{\text{w,tank}}}\right)}
+\end{equation}
+
+The condenser heat transfer capacity is calculated as the product of the heat transfer coefficient and LMTD:
+
+\begin{equation}
+\label{eq:hpb_q_lmtd_cond}
+Q_{\text{LMTD,cond}} = \text{UA}_{\text{cond}} \cdot \text{LMTD}_{\text{cond}}
+\end{equation}
+
+where $Q_{\text{LMTD,cond}}$ is the actual heat transfer capacity of the condenser heat exchanger considering physical constraints, determined by the heat transfer coefficient ($\text{UA}_{\text{cond}}$) and temperature gradient (LMTD). In the optimization process, constraints are set so that the thermodynamic heat rate of the refrigerant cycle ($Q_{\text{ref,cond}}$) matches the heat transfer capacity of the heat exchanger ($Q_{\text{LMTD,cond}}$).
+
+For the evaporator, heat exchange between outdoor air and refrigerant is considered. In the evaporator, the refrigerant maintains a constant average temperature ($T_{\text{ref,evap,avg}} = (T_4 + T_1)/2$) during the phase change process, while the outdoor air changes from the inlet temperature ($T_{\text{a,ou,in}} = T_0$) to the outlet temperature ($T_{\text{a,ou,out}}$). The evaporator LMTD is calculated as:
+
+\begin{equation}
+\label{eq:hpb_lmtd_evap}
+\text{LMTD}_{\text{evap}} = \frac{T_{\text{a,ou,out}} - T_{\text{a,ou,in}}}{\ln\left(\frac{T_{\text{ref,evap,avg}} - T_{\text{a,ou,in}}}{T_{\text{ref,evap,avg}} - T_{\text{a,ou,out}}}\right)}
+\end{equation}
+
+The evaporator heat transfer coefficient ($\text{UA}_{\text{evap}}$) varies dynamically with air velocity and is calculated based on the Dittus-Boelter relationship. According to the Dittus-Boelter relationship, the heat transfer coefficient is proportional to the velocity to the power of 0.8, so the evaporator heat transfer coefficient is calculated as:
+
+\begin{equation}
+\label{eq:hpb_ua_evap}
+\text{UA}_{\text{evap}} = \text{UA}_{\text{evap,design}} \left(\frac{\dot{V}_{\text{fan,ou}}}{\dot{V}_{\text{fan,ou,design}}}\right)^{0.8}
+\end{equation}
+
+where $\text{UA}_{\text{evap,design}}$ is the design heat transfer coefficient [W/K] at the design flow rate ($\dot{V}_{\text{fan,ou,design}}$), and $v_{\text{design}}$ is the design velocity [m/s]. The fan flow rate ($\dot{V}_{\text{fan,ou}}$) required to satisfy the thermodynamic heat rate of the refrigerant cycle ($Q_{\text{ref,evap}}$) is determined through a numerical method (bisection method). At each iteration step, $\text{UA}_{\text{evap}}$ is calculated using Eq.~\eqref{eq:hpb_ua_evap} for the estimated flow rate, and based on this, LMTD and heat transfer rate ($Q_{\text{LMTD,evap}}$) are calculated to find the flow rate that minimizes the difference from the target heat rate ($Q_{\text{ref,evap}}$). The evaporator heat transfer capacity is calculated as:
+
+\begin{equation}
+\label{eq:hpb_q_lmtd_evap}
+Q_{\text{LMTD,evap}} = \text{UA}_{\text{evap}} \cdot \text{LMTD}_{\text{evap}}
+\end{equation}
+
+where $Q_{\text{LMTD,evap}}$ is the actual heat transfer capacity of the evaporator heat exchanger considering physical constraints, and the fan flow rate is adjusted so that it matches the thermodynamic heat rate of the refrigerant cycle ($Q_{\text{ref,evap}}$).
+
+\subsection{Outdoor unit fan power}
+
+The outdoor unit fan power is calculated based on the VSD (Variable Speed Drive) curve model compliant with ASHRAE Standard 90.1 \cite{ashrae901_2022}.
+
+The flow fraction $f_{\text{flow}}$ is defined as:
+
+\begin{equation}
+\label{eq:hpb_fan_flow_fraction}
+f_{\text{flow}} = \frac{\dot{V}_{\text{fan,ou}}}{\dot{V}_{\text{fan,ou,design}}}
+\end{equation}
+
+where $\dot{V}_{\text{fan,ou}}$ is the outdoor unit fan volumetric flow rate [m$^3$/s], and $\dot{V}_{\text{fan,ou,design}}$ is the design flow rate of the outdoor unit fan [m$^3$/s], set to 4 m$^3$/s in this study. The part-load ratio (PLR) is calculated as a cubic polynomial:
+
+\begin{equation}
+\label{eq:hpb_fan_plr}
+\text{PLR} = c_1 + c_2 \cdot f_{\text{flow}} + c_3 \cdot f_{\text{flow}}^2 + c_4 \cdot f_{\text{flow}}^3 + c_5 \cdot f_{\text{flow}}^4
+\end{equation}
+
+where the VSD curve coefficients use standard values from ASHRAE Standard 90.1 \cite{ashrae901_2022}: $c_1 = 0.0013$, $c_2 = 0.1470$, $c_3 = 0.9506$, $c_4 = -0.0998$, $c_5 = 0.0$.
+
+The outdoor unit fan power is calculated by multiplying the fan PLR by the design power ($E_{\text{fan,ou,design}}$):
+
+\begin{equation}
+\label{eq:hpb_e_fan}
+E_{\text{fan,ou}} = E_{\text{fan,ou,design}} \times \text{PLR}
+\end{equation}
+
+The design power of the outdoor unit fan $E_{\text{fan,ou,design}}$ is the design power [W] calculated based on the design flow rate, design static pressure $\Delta P_{\text{fan,ou,design}}$, and design efficiency $\eta_{\text{fan,ou,design}}$, expressed as:
+
+\begin{equation}
+\label{eq:hpb_fan_design_power}
+E_{\text{fan,ou,design}} = \frac{\dot{V}_{\text{fan,ou,design}} \times \Delta P_{\text{fan,ou,design}}}{\eta_{\text{fan,ou,design}}}
+\end{equation}
+
+\subsection{Hot water tank energy balance}
+
+The hot water tank energy balance is expressed as:
+
+\begin{equation}
+\label{eq:hpb_tank_energy}
+C_{\text{tank}} \frac{{\rm d}T_{\text{w,tank}}}{{\rm d}t} = Q_{\text{ref,cond}} + E_{\text{UV}} - Q_{\text{tank,loss}} - Q_{\text{use,loss}}
+\end{equation}
+
+For Case 2, the UV lamp power $E_{\text{UV}}$ is added to the tank energy balance, assuming 100\% conversion efficiency from electrical to thermal energy (the UV lamp heat is directly transferred to the water).
+
+The tank heat loss ($Q_{\text{tank,loss}}$) and usage heat loss ($Q_{\text{use,loss}}$) are:
+
+\begin{equation}
+\label{eq:hpb_q_tank_loss}
+Q_{\text{tank,loss}} = \text{UA}_{\text{tank}} (T_{\text{w,tank}} - T_0)
+\end{equation}
+
+\begin{equation}
+\label{eq:hpb_q_use_loss}
+Q_{\text{use,loss}} = c_w \rho_w \dot{V}_{w,\text{sup,tank}} (T_{\text{w,tank}} - T_{\text{w,sup}})
+\end{equation}
+
+where $\dot{V}_{w,\text{sup,tank}} = \alpha \dot{V}_{w,\text{serv}}$ and $\alpha$ is the mixing ratio calculated as shown in Eq.~\eqref{eq:hpb_mixing_ratio}.
+
+The coefficient of performance (COP) is calculated differently for the two cases. For Case 1 (reference), COP is defined as:
+
+\begin{equation}
+\label{eq:cop_ref_case1}
+\text{COP}_{\text{ref}} = \frac{Q_{\text{cond,load}}}{E_{\text{cmp}} + E_{\text{fan,ou}}}, \quad \text{COP}_{\text{sys}} = \frac{Q_{\text{w,serv}}}{E_{\text{cmp}} + E_{\text{fan,ou}}}
+\end{equation}
+
+For Case 2 (UV), COP includes UV lamp power in the denominator:
+
+\begin{equation}
+\label{eq:cop_ref_case2}
+\text{COP}_{\text{ref}} = \frac{Q_{\text{cond,load}}}{E_{\text{cmp}} + E_{\text{fan,ou}} + E_{\text{UV}}}, \quad \text{COP}_{\text{sys}} = \frac{Q_{\text{w,serv}}}{E_{\text{cmp}} + E_{\text{fan,ou}} + E_{\text{UV}}}
+\end{equation}
+
+where $\text{COP}_{\text{ref}}$ is the refrigerant cycle COP (condenser heat rate to power ratio) and $\text{COP}_{\text{sys}}$ is the system COP (final service hot water heat rate to total power ratio).
+
+\subsection{UV lamp control model}
+
+For Case 2, a UV lamp (specifically, a UV-C lamp emitting ultraviolet-C radiation in the 200--280 nm wavelength range) is integrated into the hot water tank to provide disinfection. The UV lamp specifications are adapted from the Signify (Philips) TUV series data \cite{signify2025catalogue}: total power $P_{\text{UV}} = 36$ W, UV-C output $P_{\text{UV-C}} = 12.2$ W, and lamp arc length $L_{\text{UV}} = 38.5$ cm. The lamp operates on a time-based schedule with a period of $t_{\text{period}} = 10800$ s (3 hours).
+
+The UV lamp activation schedule is determined based on the Radial Model (Line Source Integration) \cite{bolton2000calculation, epa2006uv} to ensure the target UV dose of 186 mJ/cm$^2$ (EPA 4-log inactivation standard) is achieved. Within each 3-hour period, the lamp operates $n_{\text{switch}}$ times, each for a duration of $t_{\text{exposure}}$ seconds. The operating and non-operating periods are evenly distributed throughout the 3-hour cycle. The lamp power use $E_{\text{UV}}(t)$ equals $P_{\text{UV}}$ during the activation periods and zero otherwise. In this study, $n_{\text{switch}} = 1$ activation per 3-hour period and $t_{\text{exposure}} = 2400$ s (40 minutes) are used based on the calculated requirement.
+
+\subsection{Exergy Efficiency}
+
+The exergy efficiency of the system is evaluated based on the exergy flow calculations implemented in the simulation model. The key exergy terms are defined as follows:
+
+The exergy transferred from the refrigerant to the hot water tank in the condenser is:
+\begin{equation}
+\label{eq:ex_ref_cond}
+X_{\text{ref,cond}} = Q_{\text{ref,cond}} \left(1 - \frac{T_0}{T_{\text{w,tank}}}\right)
+\end{equation}
+where $Q_{\text{ref,cond}}$ is the condenser heat rate [W] (Eq.~\eqref{eq:hpb_q_ref_cond}), $T_0$ is the reference temperature (environmental temperature) [K], and $T_{\text{w,tank}}$ is the hot water tank temperature [K].
+
+The total exergy input is:
+\begin{equation}
+\label{eq:ex_tot}
+X_{\text{tot}} = X_{\text{cmp}} + X_{\text{fan,ou}} + X_{\text{UV}}
+\end{equation}
+where, for electrical work inputs, the exergy equals the energy, i.e., $X_{\text{cmp}} = E_{\text{cmp}}$ (Eq.~\eqref{eq:hpb_e_cmp}), $X_{\text{fan,ou}} = E_{\text{fan,ou}}$ (Eq.~\eqref{eq:hpb_e_fan}), and $X_{\text{UV}} = E_{\text{UV}}$. Here, $E_{\text{fan,ou}}$ is the outdoor unit fan power use [W], and $E_{\text{UV}}$ is the UV lamp power use [W], which is zero for Case 1 and non-zero for Case 2.
+
+The refrigerant cycle exergy efficiency is defined as:
+\begin{equation}
+\label{eq:ex_eff_ref}
+\eta_{X,\text{eff,ref}} = \frac{X_{\text{ref,cond}}}{X_{\text{cmp}}} \times 100\%
+\end{equation}
+
+The system exergy efficiency is defined as:
+\begin{equation}
+\label{eq:ex_eff_sys}
+\eta_{X,\text{eff,sys}} = \frac{X_{\text{ref,cond}}}{X_{\text{tot}}} \times 100\%
+\end{equation}
+
+\section{Results and discussion}
+\label{sec:results}
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{images/Temp_power_energy_use.png}
+  \captionsetup{width=\textwidth}
+  \caption{Comparative operational characteristics for Case 1 (Thermal disinfection) and Case 2 (UV disinfection): Column 1 (Case 1): (a) tank temperature, outdoor temperature, and hot water flow rate time series; (b) left spine: compressor and fan power use, right spine: cumulative energy use. Column 2 (Case 2): (c) tank temperature, outdoor temperature, and hot water flow rate time series; (d) left spine: compressor, fan, and UV lamp power use, right spine: cumulative energy use.}
+  \label{fig:temp_power_energy_combined}
+\end{figure*}
+
+This section presents the comparative analysis of Case 1 (thermal disinfection) and Case 2 (UV disinfection) based on dynamic simulation results.
+
+The energy and exergy analysis compares the trade-off between heat pump efficiency gains from lower condensation temperature and the additional power use from the UV lamp.
+
+
+Figure~\ref{fig:temp_power_energy_combined}(b) and Figure~\ref{fig:temp_power_energy_combined}(d) show the power use profiles, which reveal significant differences between the two cases. Case 1 (thermal disinfection) exhibits maximum compressor power of 7.1 kW, which exceeds Case 2 (UV disinfection) by 11.3\%, with Case 2 reaching 6.3 kW. This finding indicates that the reduced condensation temperature enabled by lower storage temperatures (50--55 °C for Case 2 versus 60--65 °C for Case 1) significantly affects the compression ratio, consequently reducing the compressor work requirement. As a result, the thermodynamic lift is decreased, improving the heat pump cycle efficiency.
+
+The cumulative energy use analysis demonstrates a clear advantage for Case 2. The maximum cumulative energy use reaches 11.2 MJ for Case 2, compared to 15.9 MJ for Case 1, corresponding to a 29.6\% reduction. 
+This energy savings is achieved despite the additional power use from the UV lamp, indicating that the efficiency gains from reduced compression ratio and lower tank heat losses more than compensate for the UV lamp power requirement. The reduced compression ratio due to lowered lift decreases the compressor power consumption, while the lower operating temperature range (10 K lower for Case 2) reduces both compression work and tank heat losses to the environment.
+
+Figure~\ref{fig:temp_power_energy_combined}(a) and Figure~\ref{fig:temp_power_energy_combined}(c) illustrate the tank temperature profiles under hysteresis control, showing that Case 1 operates between 60 °C and 65 °C, while Case 2 operates between 50 °C and 55 °C. The lower operating temperature range in Case 2 contributes to the overall energy efficiency improvement through reduced compression ratio and decreased tank heat losses.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{images/HPB_UV_boxplot.png}
+  \captionsetup{width=\textwidth}
+  \caption{Statistical comparison of performance metrics: (a) Refrigerant cycle COP ($\text{COP}_{\text{ref}}$); (b) System COP ($\text{COP}_{\text{sys}}$); (c) Refrigerant cycle exergy efficiency ($\eta_{\text{x,ref}}$); (d) System exergy efficiency ($\eta_{\text{x,sys}}$). Box plots show median (center line), 25th and 75th percentiles (box edges), and outliers (points) for Case 1 (thermal disinfection) and Case 2 (UV disinfection).}
+  \label{fig:boxplot}
+\end{figure*}
+
+The statistical distribution of performance metrics reveals important trade-offs between the two cases, as shown in Figure~\ref{fig:boxplot}. Case 2 exhibits a mean refrigerant cycle COP ($\text{COP}_{\text{ref}}$) of 2.9, which exceeds Case 1 by 20.4\%, with Case 1 showing a mean of 2.4. Similarly, the system COP ($\text{COP}_{\text{sys}}$) shows Case 2 with a mean of 2.9, compared to 2.4 for Case 1, corresponding to a 19.2\% increase. The higher COP values for Case 2 are achieved because the significant reduction in compressor and fan power consumption (compressor power: 5.3--7.1 kW for Case 1 versus 4.4--6.3 kW for Case 2; fan power: 0.03--0.49 kW for Case 1 versus 0.03--0.89 kW for Case 2) more than compensates for the additional UV lamp power ($E_{\text{UV}}$) included in the denominator of the COP calculation, as defined in Equation~\ref{eq:cop_ref_case2}. This finding indicates that the efficiency gains from reduced compression ratio and lower operating temperatures enable Case 2 to achieve both higher COP and lower total daily energy consumption (29.6\% reduction), as demonstrated in Figure~\ref{fig:temp_power_energy_combined}.
+
+In contrast to the COP differences, the exergy efficiency analysis reveals smaller differences between the two cases. Case 1 shows a mean refrigerant cycle exergy efficiency ($\eta_{\text{x,ref}}$) of 41.9\%, compared to 41.4\% for Case 2, corresponding to a difference of 0.50 percentage points. The system exergy efficiency ($\eta_{\text{x,sys}}$) follows a similar pattern, with Case 1 at 41.2\% and Case 2 at 40.8\%, a difference of 0.40 percentage points. The relatively small differences in exergy efficiency suggest that while Case 2 benefits from reduced exergy consumption in the compressor and tank components due to lower operating temperatures, the additional exergy input from the UV lamp partially offsets these gains. Consequently, the exergy-based assessment shows that the thermodynamic quality of the energy conversion is nearly equivalent between the two cases, while the energy-based analysis demonstrates the net benefit of UV disinfection from a consumption perspective.
+
+\section{Conclusions}
+
+This study presents a comprehensive exergy-based analysis of UV disinfection strategies for air-source heat pump boiler systems under dynamic operating conditions, comparing thermal disinfection (Case 1: 60--65 °C storage) and UV disinfection (Case 2: 50--55 °C storage).
+
+The primary quantitative finding demonstrates that Case 2 achieves a 29.6\% reduction in total daily energy consumption, corresponding to an energy savings of 4.7 MJ per day (15.9 MJ for Case 1 versus 11.2 MJ for Case 2). The maximum compressor power decreases by 11.3\%, from 7.1 kW in Case 1 to 6.3 kW in Case 2. In contrast, Case 2 exhibits lower COP values, with mean $\text{COP}_{\text{ref}}$ of 2.4 versus 2.6 for Case 1, representing an 8.3\% reduction. The exergy efficiency analysis shows smaller differences, with Case 1 at 41.9\% and Case 2 at 41.4\% for the refrigerant cycle, corresponding to a difference of 0.5 percentage points.
+
+The physical interpretation of these findings links the energy savings to the thermodynamic cycle characteristics. The lower condensation temperature enabled by reduced storage temperature (50--55 °C for Case 2 versus 60--65 °C for Case 1) decreases the compression ratio, consequently reducing the compressor work requirement. The reduced compression ratio due to lowered lift significantly affects the heat pump efficiency, improving the cycle performance despite the additional UV lamp power. The trade-off between additional UV power and heat pump efficiency gains favors the latter, as the efficiency improvements from reduced compression ratio and lower tank heat losses more than compensate for the UV lamp power requirement.
+
+The practical implications extend to building energy system design and operation. The demonstrated energy savings of 29.6\% per day, when extrapolated annually, represent substantial operational cost reductions and environmental benefits. This strategy enables building designers and operators to balance microbial safety and energy efficiency without compromising either objective, resolving the fundamental conflict between Legionella prevention requirements and optimal heat pump operation. Future research should extend this analysis to annual operating conditions and investigate optimal UV lamp scheduling strategies for further efficiency improvements.
+
+\section*{Acknowledgments}
+
+This work was supported by the National Research Foundation of Korea (NRF) grant (No. RS-2023-00277318 and RS-2025-00512551) funded by the Korean government (Ministry of Science and ICT).
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}

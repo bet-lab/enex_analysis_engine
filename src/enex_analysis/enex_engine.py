@@ -29,9 +29,9 @@ from .enex_functions import (
     cubic_function,
     quartic_function,
     print_balance,
-    calculate_ASHP_cooling_COP,
-    calculate_ASHP_heating_COP,
-    calculate_GSHP_COP,
+    calc_ASHP_cooling_COP,
+    calc_ASHP_heating_COP,
+    calc_GSHP_COP,
     G_FLS
 )
 
@@ -567,7 +567,7 @@ class GasBoiler:
         self.Q_w_sup_mix = c_w * rho_w * self.dV_w_sup_mix * (self.T_w_sup - self.T0)
         self.Q_w_serv     = c_w * rho_w * self.dV_w_serv * (self.T_w_serv - self.T0)
 
-        # Pre-calculate Entropy values for boiler
+        # Pre-calc Entropy values for boiler
         self.S_NG         = (1 / self.T_NG) * self.E_NG
         self.S_w_sup      = c_w * rho_w * self.dV_w_sup_comb * math.log(self.T_w_sup / self.T0)
         self.S_w_comb_out = c_w * rho_w * self.dV_w_sup_comb * math.log(self.T_w_comb / self.T0)
@@ -582,7 +582,7 @@ class GasBoiler:
         self.S_w_serv = c_w * rho_w * self.dV_w_serv * math.log(self.T_w_serv / self.T0)
         self.S_g_mix = self.S_w_serv - (self.S_w_tank + self.S_w_sup_mix)
 
-        # Pre-calculate Exergy values for boiler
+        # Pre-calc Exergy values for boiler
         self.X_NG = ex_eff_NG * self.E_NG
         self.X_w_sup = c_w * rho_w * self.dV_w_sup_comb * ((self.T_w_sup - self.T0) - self.T0 * math.log(self.T_w_sup / self.T0))
         self.X_w_comb_out = c_w * rho_w * self.dV_w_sup_comb * ((self.T_w_comb - self.T0) - self.T0 * math.log(self.T_w_comb / self.T0))
@@ -1434,7 +1434,7 @@ class GroundSourceHeatPumpBoiler:
 
         for _ in range(max_iter):
             self.T_r_exch = self.T_f_in + self.dT_r_exch  # 5 K 높게 설정
-            self.COP = calculate_GSHP_COP(Tg = self.T_g,
+            self.COP = calc_GSHP_COP(Tg = self.T_g,
                                          T_cond = self.T_r_tank,
                                          T_evap = self.T_r_exch,
                                          theta_hat = 0.3)
@@ -1635,7 +1635,7 @@ class AirSourceHeatPump_cooling:
         self.T_a_ext_in  = self.T0 # external unit air inlet temperature [K]
 
         # others
-        self.COP     = calculate_ASHP_cooling_COP(self.T_a_int_out, self.T_a_ext_in, self.Q_r_int, self.Q_r_max, self.COP_ref) # COP [-]
+        self.COP     = calc_ASHP_cooling_COP(self.T_a_int_out, self.T_a_ext_in, self.Q_r_int, self.Q_r_max, self.COP_ref) # COP [-]
         self.E_cmp   = self.Q_r_int / self.COP # compressor power input [W]
         self.Q_r_ext = self.Q_r_int + self.E_cmp # heat transfer from external unit to refrigerant [W]
 
@@ -1767,7 +1767,7 @@ class AirSourceHeatPump_heating:
         self.T_a_ext_in  = self.T0 # external unit air inlet temperature [K]
 
         # others
-        self.COP     = calculate_ASHP_heating_COP(T0 = self.T0, Q_r_int = self.Q_r_int, Q_r_max = self.Q_r_max) # COP [-]
+        self.COP     = calc_ASHP_heating_COP(T0 = self.T0, Q_r_int = self.Q_r_int, Q_r_max = self.Q_r_max) # COP [-]
         self.E_cmp   = self.Q_r_int / self.COP # compressor power input [W]
         self.Q_r_ext = self.Q_r_int - self.E_cmp # heat transfer from external unit to refrigerant [W]
 
@@ -1934,7 +1934,7 @@ class GroundSourceHeatPump_cooling:
 
         for _ in range(max_iter):
             self.T_r_exch = self.T_f_in + self.dT_r_exch  # 5 K 높게 설정
-            self.COP = calculate_GSHP_COP(Tg = self.T_g,
+            self.COP = calc_GSHP_COP(Tg = self.T_g,
                                          T_cond = self.T_r_exch,
                                          T_evap = self.T_r_int,
                                          theta_hat = 0.3)
@@ -2142,7 +2142,7 @@ class GroundSourceHeatPump_heating:
 
         for _ in range(max_iter):
             self.T_r_exch = self.T_f_in + self.dT_r_exch  # 5 K 높게 설정
-            self.COP = calculate_GSHP_COP(Tg = self.T_g,
+            self.COP = calc_GSHP_COP(Tg = self.T_g,
                                          T_cond = self.T_r_int,
                                          T_evap = self.T_r_exch,
                                          theta_hat = 0.3)

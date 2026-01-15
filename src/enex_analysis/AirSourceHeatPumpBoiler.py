@@ -28,6 +28,7 @@ from .enex_functions import (
     calc_fan_power_from_dV_fan,
     calc_HX_perf_for_target_heat,
     update_tank_temperature,
+    calc_energy_flow,
     calc_exergy_flow,
 )   
 
@@ -43,23 +44,23 @@ class AirSourceHeatPumpBoiler:
         # 1. 냉매/사이클/압축기 파라미터 -------------------------------
         ref         = 'R410A',
         V_disp_cmp  = 0.0005,
-        eta_cmp_isen = 0.7,
+        eta_cmp_isen = 0.8,
 
         # 2. 열교환기 파라미터 -----------------------------------------
-        UA_cond_design = 500.0,   # 응축기 열전달 계수 [W/K] (저탕조 온수와 응축기 열교환기 표면)
-        UA_evap_design = 500.0,   # 증발기 열전달 계수 [W/K] (실외 공기와 증발기 열교환기 표면)
+        UA_cond_design = None,   # 응축기 열전달 계수 [W/K]: 자동 산정 (kW당 250)
+        UA_evap_design = None,   # 증발기 열전달 계수 [W/K]: 자동 산정 (kW당 80)
 
         # 3. 실외기 팬 파라미터 ---------------------------------------
-        dV_ou_design = 2.5,   # 실외기 설계 풍량 [m3/s] (정풍량)
-        dP_ou_design = 500.0, # 실외기 설계 정압 [Pa]
-        A_cross_ou = 0.4,         # 실외기 단면적 [m²]
-        eta_fan_ou_design   = 0.8,   # 실외기 팬 효율 [-]
+        dV_ou_design      = 2.5,     # 실외기 설계 풍량 [m3/s] (정풍량)
+        dP_ou_design      = 500.0,   # 실외기 설계 정압 [Pa]
+        A_cross_ou        = 0.4,     # 실외기 단면적 [m²]
+        eta_fan_ou_design = 0.8,     # 실외기 팬 효율 [-]
 
         # 4. 탱크/제어/부하 파라미터 -----------------------------------
-        T_tank_w_setpoint     = 65.0,   # [°C] 저탕조 설정 온도
-        T_tank_w_lower_bound  = 55.0,   # [°C] 저탕조 하한 온도
-        T_serv_w              = 40.0,   # [°C] 서비스 급탕 온도
-        T_sup_w               = 15.0,   # [°C] 급수(상수도) 온도
+        T_tank_w_upper_bound = 65.0,   # [°C] 저탕조 설정 온도
+        T_tank_w_lower_bound = 55.0,   # [°C] 저탕조 하한 온도
+        T_serv_w             = 40.0,   # [°C] 서비스 급탕 온도
+        T_sup_w              = 15.0,   # [°C] 급수(상수도) 온도
 
         heater_capacity       = 8000.0,    # [W] 히터 최대 용량
         dV_w_serv_m3s         = 0.0001,    # [m3/s] 최대 급탕 유량
@@ -74,8 +75,8 @@ class AirSourceHeatPumpBoiler:
         h_o      = 15,    # [W/m²K] 외부 대류 열전달계수
         
         # 5. UV 램프 파라미터 -----------------------------------------
-        lamp_power_watts = 36.0, # [W] 램프 소비 전력
-        uv_lamp_exposure_duration_min = 10.0, # [min] 1회 UV램프 노출 기준시간
+        lamp_power_watts = 0, # [W] 램프 소비 전력
+        uv_lamp_exposure_duration_min = 0, # [min] 1회 UV램프 노출 기준시간
         num_switching_per_3hour = 1, # [개] 3시간 당 on 횟수
         
         # Reference:ASHRAE Standard 90.1 - 2022 (325 page)
@@ -96,11 +97,24 @@ class AirSourceHeatPumpBoiler:
         self.ref = ref
         self.V_disp_cmp = V_disp_cmp
         self.eta_cmp_isen = eta_cmp_isen
-        
+
+        self.heater_capacity = heater_capacity
+
         # --- 2. 열교환기 파라미터 ---
-        self.UA_cond_design = UA_cond_design
-        self.UA_evap_design = UA_evap_design
-        
+        '''
+        Asloune, H., & Riviere, P. (2018). A simplified model for assessing improvement potential of air-to-air conditioners and heat pumps.
+        International Refrigeration and Air Conditioning Conference. Paper 1878. https://docs.lib.purdue.edu/iracc/1878
+        '''
+        _hc_kw = self.heater_capacity / 1000.0
+        if UA_cond_design is None:
+            self.UA_cond_design = 400.0 * _hc_kw    # 250 W/K per kW
+        else:
+            self.UA_cond_design = UA_cond_design
+        if UA_evap_design is None:
+            self.UA_evap_design = 280.0 * _hc_kw     # 80 W/K per kW
+        else:
+            self.UA_evap_design = UA_evap_design
+
         # --- 3. 실외기 팬 파라미터 ---
         self.dV_ou_design = dV_ou_design
         self.dP_ou_design = dP_ou_design
@@ -127,9 +141,8 @@ class AirSourceHeatPumpBoiler:
         self.UA_tank = calc_simple_tank_UA(**self.tank_physical)
         self.C_tank = c_w * rho_w * (math.pi * r0**2 * H)
         
-        self.heater_capacity = heater_capacity
         self.dV_w_serv_m3s = dV_w_serv_m3s
-        self.T_tank_w_setpoint = T_tank_w_setpoint
+        self.T_tank_w_upper_bound = T_tank_w_upper_bound
         self.T_tank_w_lower_bound = T_tank_w_lower_bound
         self.T_sup_w = T_sup_w
         self.T_serv_w = T_serv_w
@@ -144,8 +157,6 @@ class AirSourceHeatPumpBoiler:
         # UV 램프 관련 계산 상수
         self.period_3hour_sec = 3 * cu.h2s  # 3시간을 초 단위로 변환
         self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s  # 분을 초로 변환
-        
-        self.Q_cond_load_threshold = 500.0
 
     def _calc_on_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
         """
@@ -211,7 +222,7 @@ class AirSourceHeatPumpBoiler:
                 - 열량 (Q_ref_cond, Q_ref_evap, Q_LMTD_cond)
                 - 전력 (E_cmp, E_fan_ou)
                 - 유량 (m_dot_ref, dV_fan_ou, dV_w_serv, dV_w_sup_tank, dV_w_sup_mix)
-                - 온도 (T0, T1-4, T_tank_w, T_serv_w, T_sup_w, T_air_ou_out)
+                - 온도 (T0, T1-4, T_tank_w, T_serv_w, T_sup_w, T_a_ou_out)
                 - 기타 (cmp_rpm, is_on)
                 None: 계산 실패 시 (예: h3 == h2인 경우)
         
@@ -281,39 +292,26 @@ class AirSourceHeatPumpBoiler:
         
         # 6단계: 실외기 열교환기 성능 계산
         T_ref_evap_avg_K = (T4_K + T1_K) / 2
-        T_air_ou_in_K = T0_K
+        T_a_ou_in_K = T0_K
         
-        # Q_cond_load가 0에 가까우면 열교환기 계산 생략 (root_scalar 에러 방지)
-        if abs(Q_cond_load) < self.Q_cond_load_threshold:
-            # 0 값으로 채운 결과 설정
-            dV_fan_ou = 0.0
-            UA_evap = self.UA_evap_design
-            T_air_ou_out_K = T0_K  # 열교환이 없으므로 입구 온도와 동일
-            LMTD_evap = 0.0
-            Q_LMTD_evap = 0.0
+        HX_perf_ou_dict = calc_HX_perf_for_target_heat(
+            Q_ref_target=Q_ref_evap,
+            T_a_ou_in_C=T0,
+            T_ref_avg_K=T_ref_evap_avg_K,
+            A_cross=self.A_cross_ou,
+            UA_design=self.UA_evap_design,
+            dV_fan_design=self.dV_ou_design
+        )
         
+        if HX_perf_ou_dict.get('converged', True) == False:
+            return None
         
-        else:
-            HX_perf_ou_dict = calc_HX_perf_for_target_heat(
-                Q_ref_target=Q_ref_evap,
-                T_air_in_C=T0,
-                T_ref_avg_K=T_ref_evap_avg_K,
-                A_cross=self.A_cross_ou,
-                UA_design=self.UA_evap_design,
-                dV_fan_design=self.dV_ou_design
-            )
-            # 수렴 실패 감지: converged 플래그 확인
-            if HX_perf_ou_dict.get('converged', True) == False:
-                # calc_HX_perf_for_target_heat 수렴 실패
-                # None을 반환하여 최적화 알고리즘이 다른 변수 조합을 시도할 수 있도록 함
-                return None
-            
-            # 수렴 성공 시 값 추출
-            dV_fan_ou = HX_perf_ou_dict['dV_fan']
-            UA_evap = HX_perf_ou_dict['UA']
-            T_air_ou_out_K = HX_perf_ou_dict['T_air_out_K']
-            LMTD_evap = HX_perf_ou_dict['LMTD']
-            Q_LMTD_evap = HX_perf_ou_dict['Q_LMTD']
+        # 수렴 성공 시 값 추출
+        dV_fan_ou = HX_perf_ou_dict['dV_fan']
+        UA_evap = HX_perf_ou_dict['UA']
+        T_a_ou_out_K = HX_perf_ou_dict['T_a_ou_out_K']
+        LMTD_evap = HX_perf_ou_dict['LMTD']
+        Q_LMTD_evap = HX_perf_ou_dict['Q_LMTD']
         
         # 7단계: LMTD 기반 열량 계산
         LMTD_tank = calc_lmtd_fluid_and_constant_temp(
@@ -331,7 +329,7 @@ class AirSourceHeatPumpBoiler:
             vsd_coeffs=self.vsd_coeffs_ou
         )
         
-        fan_eff = self.eta_fan_ou_design * dV_fan_ou / E_fan_ou
+        fan_eff = self.eta_fan_ou_design * dV_fan_ou / E_fan_ou * 100
         
         # 9단계: 엑서지 계산
         P0 = 101325
@@ -353,14 +351,16 @@ class AirSourceHeatPumpBoiler:
         X_fan_ou = E_fan_ou  # 팬 엑서지 입력
         
         # 실외 공기 및 응축기 엑서지
-        X_a_ou_in = calc_exergy_flow(G=c_a * rho_a * dV_fan_ou, T=T_air_ou_in_K, T0=T0_K)
-        X_a_ou_out = calc_exergy_flow(G=c_a * rho_a * dV_fan_ou, T=T_air_ou_out_K, T0=T0_K)
-        X_ref_cond = (1 - T0_K / T_tank_w_K) * Q_ref_cond  # 응축기(냉매→저탕조) 엑서지 유입량
+        X_a_ou_in = calc_exergy_flow(G=c_a * rho_a * dV_fan_ou, T=T_a_ou_in_K, T0=T0_K)
+        X_a_ou_out = calc_exergy_flow(G=c_a * rho_a * dV_fan_ou, T=T_a_ou_out_K, T0=T0_K)
+        X_ref_cond = Q_ref_cond * (1 - T0_K / T_tank_w_K)
+        X_ref_evap = Q_ref_evap * (1 - T0_K / T_a_ou_out_K)
         
         # 탱크 및 믹싱밸브 엑서지
         dV_w_sup_tank = self.dV_w_sup_tank if hasattr(self, 'dV_w_sup_tank') else 0.0
         dV_w_sup_mix = self.dV_w_sup_mix if hasattr(self, 'dV_w_sup_mix') else 0.0
         dV_w_serv = self.dV_w_serv if hasattr(self, 'dV_w_serv') else 0.0
+        
         
         # 실제 서비스 온도 계산 (믹싱 밸브)
         # alp 계산: 저탕조 온수 비율
@@ -376,6 +376,11 @@ class AirSourceHeatPumpBoiler:
             # 믹싱 밸브로 저탕조 온수와 상수도를 믹싱
             T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_sup_w_K
             T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+        
+        Q_tank_sup_w = calc_energy_flow(G=c_w * rho_w * dV_w_sup_tank, T=self.T_sup_w_K, T0=T0_K)
+        Q_tank_w = calc_energy_flow(G=c_w * rho_w * dV_w_sup_tank, T=T_tank_w_K, T0=T0_K)
+        Q_mix_sup_w = calc_energy_flow(G=c_w * rho_w * dV_w_sup_mix, T=self.T_sup_w_K, T0=T0_K)
+        Q_mix_serv_w = calc_energy_flow(G=c_w * rho_w * dV_w_serv, T=T_serv_w_actual_K, T0=T0_K)
         
         X_tank_sup_w = calc_exergy_flow(G=c_w * rho_w * dV_w_sup_tank, T=self.T_sup_w_K, T0=T0_K)
         X_tank_w = calc_exergy_flow(G=c_w * rho_w * dV_w_sup_tank, T=T_tank_w_K, T0=T0_K)
@@ -397,9 +402,9 @@ class AirSourceHeatPumpBoiler:
         X_flow_X3_to_X4 = X_flow_X2_to_X3 - Xc_exp
         X_flow_X4_to_X1 = X_flow_X3_to_X4 + X_a_ou_in - Xc_evap
         
-        # 총 입력 엑서지 및 효율
+        # 총 입력 엑서지
         X_tot = E_cmp + E_fan_ou  # 총 입력 엑서지
-        X_eff = X_mix_serv_w / X_tot if X_tot > 0 else 0.0  # 엑서지 효율
+        # 효율 계산(cop_ref, cop_sys, X_eff_ref, X_eff_sys)은 analyze_dynamic에서 UV 램프 전력을 고려하여 계산
         
         # 10단계: 최종 결과 딕셔너리 생성
         result = {
@@ -407,8 +412,8 @@ class AirSourceHeatPumpBoiler:
             'converged': True,
 
             # === [온도: °C] =======================================
-            'T_air_ou_in [°C]': cu.K2C(T_air_ou_in_K),
-            'T_air_ou_out [°C]': cu.K2C(T_air_ou_out_K),
+            'T_a_ou_in [°C]': cu.K2C(T_a_ou_in_K),
+            'T_a_ou_out [°C]': cu.K2C(T_a_ou_out_K),
             'T1 [°C]': cu.K2C(T1_K),
             'T2 [°C]': cu.K2C(T2_K),
             'T3 [°C]': cu.K2C(T3_K),
@@ -493,6 +498,7 @@ class AirSourceHeatPumpBoiler:
             'Xc_tank [W]': Xc_tank,
 
             # ---- 믹싱 밸브 & 온수 공급
+            'Q_mix_serv_w [W]': Q_mix_serv_w,
             'X_mix_sup_w [W]': X_mix_sup_w,
             'X_mix_serv_w [W]': X_mix_serv_w,
             'Xc_mix [W]': Xc_mix,
@@ -501,16 +507,15 @@ class AirSourceHeatPumpBoiler:
             'Xc_tot [W]': Xc_tot,
             'E_tot [W]': E_cmp + E_fan_ou,
             'X_fan_ou [W]': X_fan_ou,
-            'X_flow_X1_to_X2 [W]': X_flow_X1_to_X2,
-            'X_flow_X2_to_X3 [W]': X_flow_X2_to_X3,
-            'X_flow_X3_to_X4 [W]': X_flow_X3_to_X4,
-            'X_flow_X4_to_X1 [W]': X_flow_X4_to_X1,
+            # 'X_flow_X1_to_X2 [W]': X_flow_X1_to_X2,
+            # 'X_flow_X2_to_X3 [W]': X_flow_X2_to_X3,
+            # 'X_flow_X3_to_X4 [W]': X_flow_X3_to_X4,
+            # 'X_flow_X4_to_X1 [W]': X_flow_X4_to_X1,
             'X_tot [W]': X_tot,
 
             # === [무차원: 효율, COP] ==============================
-            'fan_eff [-]': fan_eff,
-            'cop [-]': Q_cond_load / (E_cmp + E_fan_ou) if (E_cmp + E_fan_ou) > 0 else 0,
-            'X_eff [-]': X_eff,
+            'fan_eff [%]': fan_eff,
+            # cop_ref, cop_sys, X_eff_ref, X_eff_sys는 analyze_dynamic에서 UV 램프 전력을 고려하여 계산
         }
         
         return result
@@ -557,10 +562,7 @@ class AirSourceHeatPumpBoiler:
             - 이전 값이 없으면 포화점 기준으로 계산합니다 (P-h 선도용)
             - 첫 번째 타임스텝이 OFF일 때는 냉매 상태값을 0으로 설정합니다
         """
-        # 1단계: ON 상태 템플릿 생성
-        
-        # Q_cond_load=0.0으로 계산하여 딕셔너리 구조만 얻음
-        # 실제 계산은 필요 없지만 결과 딕셔너리 구조를 얻기 위해 실행
+      
         result = self._calc_on_state(
                 optimization_vars=[5.0, 5.0],  # 임의의 값 (계산 결과는 무시됨)
                 T_tank_w=T_tank_w,
@@ -574,19 +576,15 @@ class AirSourceHeatPumpBoiler:
             if isinstance(value, (int, float)):
                 result[key] = 0.0
 
-        # 3~4단계: OFF 상태에 맞는 필수 값들과 P-h 선도 플로팅값을 result.update에서 한꺼번에 업데이트
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
 
-        # 실제 서비스 온도 계산 (믹싱 밸브, OFF 상태에서도 일관성 유지)
         den = max(1e-6, T_tank_w_K - self.T_sup_w_K)
         alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
         
         if alp >= 1.0:
-            # 저탕조 온수를 그대로 사용하는 경우 (T_tank_w < T_serv_w 목표값)
             T_serv_w_actual = T_tank_w
         else:
-            # 믹싱 밸브로 저탕조 온수와 상수도를 믹싱
             T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_sup_w_K
             T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
         
@@ -642,7 +640,7 @@ class AirSourceHeatPumpBoiler:
 
         result.update({
             'is_on': False,
-            'converged': True,  # OFF 상태는 정상적인 상태이므로 수렴 성공으로 간주
+            'converged': True,
             
             'T_tank_w [°C]': T_tank_w,
             'T0 [°C]': T0,
@@ -660,14 +658,12 @@ class AirSourceHeatPumpBoiler:
 
         return result
     
-    def _optimize_operation(self, T_tank_w, Q_cond_load, T0, method='SLSQP', callback=None):
+    def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
         """
         히트펌프 최적 운전점 탐색을 수행하는 내부 메서드.
         
         이 메서드는 analyze_steady와 analyze_dynamic에서 공통으로 사용되는
-        최적화 로직을 담당합니다. 두 단계로 구성됩니다:
-        1. Phase 1: Feasible point 탐색 (제약 위반량 최소화)
-        2. Phase 2: 본 최적화 (E_tot 최소화)
+        최적화 로직을 담당합니다. SLSQP 알고리즘을 사용하여 E_tot (총 전력 소비)를 최소화합니다.
         
         Args:
             T_tank_w (float): 저탕조 온도 [°C]
@@ -678,29 +674,19 @@ class AirSourceHeatPumpBoiler:
             
             T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
                 엑서지 계산의 기준점으로 사용되는 외기 온도
-            
-            method (str): 최적화 알고리즘 선택
-                - 'SLSQP': Sequential Least Squares Programming (기본값)
-                - 'trust-constr': Trust-region constrained optimization
-                - 'COBYLA': Constrained Optimization BY Linear Approximation
-                기본값: 'SLSQP'
-            
-            callback (callable, optional): 각 반복마다 호출되는 콜백 함수
-                콜백 함수는 현재 변수 벡터 x를 인자로 받습니다.
-                기본값: None
         
         Returns:
             scipy.optimize.OptimizeResult: 최적화 결과 객체
                 - x: 최적화된 변수 [dT_ref_cond, dT_ref_evap]
                 - success: 최적화 성공 여부
-                - iteration_history: 반복 이력 리스트 (각 반복의 변수 값)
                 - 기타 최적화 메타데이터
         
         Notes:
+            - 최적화 알고리즘: SLSQP (Sequential Least Squares Programming)
             - 최적화 변수: [dT_ref_cond, dT_ref_evap]
                 - dT_ref_cond: 냉매-저탕조 온도차 [K]
                 - dT_ref_evap: 냉매-실외 공기 온도차 [K]
-            - Phase 2 제약 조건:
+            - 제약 조건:
                 - Q_cond_load <= Q_LMTD_cond <= Q_cond_load * (1 + tolerance) (응축기 열전달 능력 범위)
                 - Q_ref_evap * (1 - tolerance) <= Q_LMTD_evap <= Q_ref_evap * (1 + tolerance) (증발기 열전달 밸런스 범위)
             - 목적 함수: E_tot (E_cmp + E_fan_ou) 최소화
@@ -712,28 +698,8 @@ class AirSourceHeatPumpBoiler:
         bounds = [(1.0, 30.0), (1.0, 30.0)]  # [dT_ref_cond, dT_ref_evap]
         initial_guess = [5.0, 20.0]
         
-        # 반복 이력 추적을 위한 리스트 초기화
-        iteration_history = []
-        
-        # 콜백 래퍼 함수 생성
-        def _callback_wrapper(xk):
-            """각 반복마다 호출되는 콜백 함수"""
-            iteration_history.append({
-                'iteration': len(iteration_history),
-                'x': np.array(xk).copy(),
-                'dT_ref_cond': xk[0],
-                'dT_ref_evap': xk[1]
-            })
-            if callback is not None:
-                callback(xk)
-        
         # Phase 2: 본 최적화 (E_tot 최소화)
         def _cond_LMTD_constraint_low(x):
-            """
-            응축기 LMTD 제약 조건 함수 (하한): Q_LMTD_cond - Q_cond_load >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
             try:
                 perf = self._calc_on_state(
                     optimization_vars=x,
@@ -747,17 +713,11 @@ class AirSourceHeatPumpBoiler:
                 if "Q_LMTD_cond [W]" not in perf or np.isnan(perf["Q_LMTD_cond [W]"]):
                     return -1e6
                 
-                # 제약 조건: Q_LMTD_cond - Q_cond_load >= 0
                 return perf["Q_LMTD_cond [W]"] - Q_cond_load
             except Exception as e:
                 return -1e6
         
         def _cond_LMTD_constraint_high(x):
-            """
-            응축기 LMTD 제약 조건 함수 (상한): Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
             try:
                 perf = self._calc_on_state(
                     optimization_vars=x,
@@ -777,11 +737,6 @@ class AirSourceHeatPumpBoiler:
                 return -1e6
 
         def _evap_LMTD_constraint_low(x):
-            """
-            증발기 LMTD 제약 조건 함수 (하한): Q_LMTD_evap - Q_ref_evap*(1-tolerance) >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
             try:
                 perf = self._calc_on_state(
                     optimization_vars=x,
@@ -802,11 +757,6 @@ class AirSourceHeatPumpBoiler:
                 return -1e6
         
         def _evap_LMTD_constraint_high(x):
-            """
-            증발기 LMTD 제약 조건 함수 (상한): Q_ref_evap*(1+tolerance) - Q_LMTD_evap >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
             try:
                 perf = self._calc_on_state(
                     optimization_vars=x,
@@ -826,7 +776,6 @@ class AirSourceHeatPumpBoiler:
             except Exception as e:
                 return -1e6
         
-        # Phase 2 제약 조건: 응축기와 증발기 모두 두 개의 ineq 제약
         const_funcs = [
             {'type': 'ineq', 'fun': _cond_LMTD_constraint_low},   # Q_LMTD_cond - Q_cond_load >= 0
             {'type': 'ineq', 'fun': _cond_LMTD_constraint_high},  # Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
@@ -853,51 +802,28 @@ class AirSourceHeatPumpBoiler:
                 if "E_tot [W]" not in perf or np.isnan(perf["E_tot [W]"]):
                     return 1e6
                 
-                # 목적 함수: E_tot 최소화
                 return perf["E_tot [W]"]
             except Exception as e:
                 return 1e6
         
-        # 알고리즘별 옵션 설정
-        if method == 'SLSQP':
-            options = {
-                'disp': False,
-                'maxiter': 100,
-                'ftol': 10,      # 함수 값 수렴 허용 오차
-                'eps': 0.01,      # 유한 차분 근사 스텝 크기
-            }
-        elif method == 'trust-constr':
-            options = {
-                'disp': False,
-                'maxiter': 100,
-                'gtol': 1e-6,    # 제약 조건 수렴 허용 오차
-                'xtol': 1e-8,    # 변수 수렴 허용 오차
-            }
-        elif method == 'COBYLA':
-            options = {
-                'disp': False,
-                'maxiter': 100,
-            }
-        else:
-            # 기본 옵션
-            options = {
-                'disp': False,
-                'maxiter': 100,
-            }
+        # SLSQP 알고리즘 옵션 설정
+        options = {
+            'disp': False,
+            'maxiter': 100,
+            'ftol': 10, 
+            'eps': 0.01,
+        }
         
-        # Phase 2 최적화 실행
+        # 최적화 실행 (항상 SLSQP 사용)
         opt_result = minimize(
-            _objective,         
+            _objective,
             initial_guess,
-            method=method,       
-            bounds=bounds,  
+            method='SLSQP',
+            bounds=bounds,
             constraints=const_funcs,
-            callback=_callback_wrapper if callback is not None else None,
+            callback=None,
             options=options
         )
-        
-        # 반복 이력 결과에 첨부
-        opt_result.iteration_history = iteration_history
         
         return opt_result
     
@@ -906,27 +832,43 @@ class AirSourceHeatPumpBoiler:
         T_tank_w,
         T0,
         dV_w_serv=None,  # 급탕 유량 [m3/s], None이면 0으로 가정
-        return_dict=True,  # True면 dict 반환, False면 DataFrame 반환
-        optimization_method='SLSQP'  # 최적화 알고리즘 선택
+        Q_cond_load=None,  # 저탕조 목표 열 교환율 [W], None이면 0으로 가정
+        return_dict=True  # True면 dict 반환, False면 DataFrame 반환
     ):
         """
         정상상태 해석 함수.
         
         주어진 조건에서 히트펌프의 정상상태 성능을 계산합니다.
-        저탕조의 에너지 밸런스를 만족하도록 Q_cond_load를 total_loss로 자동 계산합니다.
+        
+        두 가지 사용 모드를 지원합니다:
+        1. dV_w_serv 제공: 급탕 유량 기반으로 열 손실을 계산하여 Q_cond_load를 자동 결정
+        2. Q_cond_load 제공: 직접 주어진 응축기 열량으로 성능 계산
         
         Args:
             T_tank_w (float): 저탕조 온도 [°C]
             T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
                 엑서지 계산의 기준점으로 사용되는 외기 온도
-            dV_w_serv (float, optional): 급탕 유량 [m3/s]. None이면 0으로 가정
+            dV_w_serv (float, optional): 급탕 유량 [m3/s]. 
+                Q_cond_load가 None인 경우 필수. 제공된 경우 열 손실을 계산하여 
+                Q_cond_load를 자동 결정합니다.
+            Q_cond_load (float, optional): 저탕조 목표 열 교환율 [W].
+                dV_w_serv가 None인 경우 필수. 직접 주어진 응축기 열량으로 성능을 계산합니다.
             return_dict (bool): True면 dict 반환, False면 DataFrame 반환
         
         Returns:
             dict 또는 pd.DataFrame: 정상상태 해석 결과
                 - run_simulation과 동일한 형식의 결과 딕셔너리
                 - 최적화 실패 시 OFF 상태 결과 반환
+        
+        Raises:
+            ValueError: dV_w_serv와 Q_cond_load가 둘 다 None이거나, 둘 다 값이 주어진 경우
         """
+        # 입력 검증
+        if dV_w_serv is None and Q_cond_load is None:
+            raise ValueError("dV_w_serv와 Q_cond_load 중 하나는 반드시 제공되어야 합니다.")
+        if dV_w_serv is not None and Q_cond_load is not None:
+            raise ValueError("dV_w_serv와 Q_cond_load를 동시에 제공할 수 없습니다.")
+        
         # 온도 단위 변환
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
@@ -939,51 +881,51 @@ class AirSourceHeatPumpBoiler:
         Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
         den = max(1e-6, T_tank_w_K - self.T_sup_w_K)
         alp = min(1.0, max(0.0, self.T_serv_w_K - self.T_sup_w_K) / den)
-        print(f'alp: {alp:.2f}')
         
         self.dV_w_serv = dV_w_serv
         self.dV_w_sup_tank = alp * dV_w_serv
         self.dV_w_sup_mix = (1 - alp) * dV_w_serv
         
-        # 열 손실 계산
-        Q_use_loss = c_w * rho_w * self.dV_w_sup_tank * (T_tank_w_K - self.T_sup_w_K)
-        total_loss = Q_tank_loss + Q_use_loss
-        
-        # 정상상태: Q_cond_load = total_loss (에너지 밸런스)
-        Q_cond_load = total_loss
-        print(f"Q_cond_load [W]: {Q_cond_load}")
+        # Q_cond_load 계산
+        if Q_cond_load is None:
+            # dV_w_serv가 주어진 경우: 열 손실 계산하여 Q_cond_load 결정
+            Q_use_loss = c_w * rho_w * self.dV_w_sup_tank * (T_tank_w_K - self.T_sup_w_K)
+            total_loss = Q_tank_loss + Q_use_loss
+            # 정상상태: Q_cond_load = total_loss (에너지 밸런스)
+            Q_cond_load = total_loss
+        else:
+            # Q_cond_load가 주어진 경우: 주어진 값 사용
+            # Q_cond_load를 사용하므로 Q_use_loss는 계산하지 않음
+            pass
         
         # ON/OFF 상태 결정
-        if T_tank_w < self.T_tank_w_lower_bound:
+        if T_tank_w <= self.T_tank_w_lower_bound:
             is_on = True
-        elif T_tank_w > self.T_tank_w_setpoint:
+        elif T_tank_w > self.T_tank_w_upper_bound:
             is_on = False
         else:
             # 정상상태에서는 Q_cond_load > 0이면 ON으로 가정
-            is_on = Q_cond_load > self.Q_cond_load_threshold
+            is_on = Q_cond_load > 0
         
-        # OFF 상태 조기 체크: Q_cond_load가 임계값 이하이면 최적화 건너뛰기
-        if abs(Q_cond_load) <= self.Q_cond_load_threshold or not is_on:
+        # OFF 상태 조기 체크: Q_cond_load가 0 이하이면 최적화 건너뛰기
+        if Q_cond_load <= 0 or not is_on:
             result = self._calc_off_state(
                 T_tank_w=T_tank_w,
                 T0=T0
             )
         else:
-            # 최적화 과정 진행
             opt_result = self._optimize_operation(
                 T_tank_w=T_tank_w,
                 Q_cond_load=Q_cond_load,
                 T0=T0
             )
-            
-            # opt_result.x로 결과 계산 시도 (성공/실패 무관)
             result = None
             try:
                 result = self._calc_on_state(
                     optimization_vars=opt_result.x,
                     T_tank_w=T_tank_w,
+                    T0=T0,
                     Q_cond_load=Q_cond_load,
-                    T0=T0
                 )
             except Exception:
                 pass
@@ -1011,7 +953,12 @@ class AirSourceHeatPumpBoiler:
             
             # converged 플래그 설정
             if result is not None and isinstance(result, dict):
-                result['converged'] = opt_result.success
+                # opt_result가 정의되어 있고 success 속성이 있는 경우에만 설정
+                if 'opt_result' in locals() and hasattr(opt_result, 'success'):
+                    result['converged'] = opt_result.success
+                    if result['converged'] is False:
+                        print(f"Optimization failed")
+                # opt_result가 없는 경우 (예외 상황), converged는 이미 result에 설정되어 있거나 False로 유지
         
         if return_dict:
             return result
@@ -1028,8 +975,7 @@ class AirSourceHeatPumpBoiler:
         T0_schedule,
         result_save_csv_path=None,
         save_ph_diagram=False,
-        snapshot_save_path=None,
-        optimization_method='SLSQP',  # 최적화 알고리즘 선택
+        snapshot_save_path=None
         ):
         
         """
@@ -1089,19 +1035,17 @@ class AirSourceHeatPumpBoiler:
             self.dV_w_sup_mix = (1 - alp) * self.dV_w_serv 
 
             Q_use_loss = c_w * rho_w * self.dV_w_sup_tank * (T_tank_w_K - self.T_sup_w_K)
-            total_loss = Q_tank_loss + Q_use_loss
             
             if T_tank_w <= self.T_tank_w_lower_bound: is_on = True
-            elif T_tank_w >= self.T_tank_w_setpoint: is_on = False
+            elif T_tank_w >= self.T_tank_w_upper_bound: is_on = False
             else: is_on = is_on_prev
             
             is_transitioning_off_to_on = (not is_on_prev) and is_on # False to True
             Q_cond_load_n = self.heater_capacity if is_on else 0.0
             is_on_prev = is_on
             
-            # OFF 상태 조기 체크: Q_cond_load_n이 임계값 이하이면 최적화 건너뛰기
-            if abs(Q_cond_load_n) <= self.Q_cond_load_threshold:
-                
+            # OFF 상태 조기 체크: Q_cond_load_n이 0 이하이면 최적화 건너뛰기
+            if Q_cond_load_n <= 0:
                 result = self._calc_off_state(
                     T_tank_w=T_tank_w,
                     T0=T0,
@@ -1112,8 +1056,7 @@ class AirSourceHeatPumpBoiler:
                 opt_result = self._optimize_operation(
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load_n,
-                    T0=T0,
-                    method=optimization_method
+                    T0=T0
                 )
                     
                 # opt_result.x로 결과 계산 시도 (성공/실패 무관)
@@ -1151,41 +1094,34 @@ class AirSourceHeatPumpBoiler:
                 
                 # converged 플래그 설정
                 if result is not None and isinstance(result, dict):
-                    result['converged'] = opt_result.success
+                    # opt_result가 정의되어 있고 success 속성이 있는 경우에만 설정
+                    if 'opt_result' in locals() and hasattr(opt_result, 'success'):
+                        result['converged'] = opt_result.success
+                    # opt_result가 없는 경우 (예외 상황), converged는 이미 result에 설정되어 있거나 False로 유지
             
-            # UV 램프 활성화 여부 확인
+            # UV 램프 전력 계산 (is_on과 독립적으로 작동)
+            # UV 램프는 3시간 주기로 등간격으로 켜지며, 히트펌프의 ON/OFF 상태와 무관하게 작동
+            E_uv_lamp = 0
             is_uv_lamp_enabled = (self.num_switching_per_3hour > 0 and self.lamp_power_watts > 0)
             
-            # UV 램프 상태 계산 (활성화된 경우에만)
-            is_uv_lamp_on = False
-            E_uv_lamp = 0.0
-            
             if is_uv_lamp_enabled:
-                # 현재 시간을 3시간 주기로 나눈 나머지
                 time_in_period = time[n] % self.period_3hour_sec
+                # 등간격 스케줄링: 논문의 공식 적용
+                # t_start,i = (t_period - n_switch × t_exposure) / (n_switch + 1) × (i + 1) + i × t_exposure
+                period_sec = self.period_3hour_sec
+                exposure_sec = self.uv_lamp_exposure_duration_sec
+                n_switch = self.num_switching_per_3hour
                 
-                # 각 ON 구간 사이의 간격 계산
-                # 총 ON 시간 = num_switching_per_3hour * exposure_duration_sec
-                total_on_time = self.num_switching_per_3hour * self.uv_lamp_exposure_duration_sec
-                # 총 OFF 시간 = period - total_on_time
-                total_off_time = self.period_3hour_sec - total_on_time
-                # 각 ON 구간 사이의 간격 (첫 ON 구간 전, 각 ON 구간 사이, 마지막 ON 구간 후를 균등 분배)
-                # 간격 개수 = num_switching_per_3hour + 1
-                interval_between_switches = total_off_time / (self.num_switching_per_3hour + 1)
+                # 등간격 간격 계산
+                interval = (period_sec - n_switch * exposure_sec) / (n_switch + 1)
                 
-                # 각 ON 구간의 시작 시간 계산 및 현재 시간이 ON 구간에 포함되는지 확인
-                for i in range(self.num_switching_per_3hour):
-                    # 각 ON 구간의 시작 시간
-                    # 첫 번째 간격 + (이전 ON 구간들의 시간 + 이전 간격들)
-                    start_time = interval_between_switches * (i + 1) + i * self.uv_lamp_exposure_duration_sec
-                    end_time = start_time + self.uv_lamp_exposure_duration_sec
+                for i in range(n_switch):
+                    start_time = interval * (i + 1) + i * exposure_sec
+                    end_time = start_time + exposure_sec
                     
                     if start_time <= time_in_period < end_time:
-                        is_uv_lamp_on = True
+                        E_uv_lamp = self.lamp_power_watts
                         break
-                
-                # UV 램프 전력 계산
-                E_uv_lamp = self.lamp_power_watts if is_uv_lamp_on else 0.0
             
             if is_transitioning_off_to_on:
                 # OFF→ON 전환 시점: 실제 계산된 ON 상태 값 저장
@@ -1198,26 +1134,35 @@ class AirSourceHeatPumpBoiler:
                 step_results['is_on'] = is_on
                 step_results['is_transitioning'] = False
             
-            # UV 램프 상태 및 전력 추가 (활성화된 경우에만)
-            if is_uv_lamp_enabled:
-                step_results['is_uv_lamp_on'] = is_uv_lamp_on
+            # UV 램프 전력을 step_results에 저장 (lamp_power_watts > 0인 경우에만)
+            if self.lamp_power_watts > 0:
                 step_results['E_uv_lamp [W]'] = E_uv_lamp
-                
-                # E_tot에 UV 램프 전력 포함
-                if 'E_tot [W]' in step_results:
-                    step_results['E_tot [W]'] = step_results['E_tot [W]'] + E_uv_lamp
-                else:
-                    # E_tot가 없는 경우 (fallback 등) 기본 전력 합계 계산
-                    E_cmp = step_results.get('E_cmp [W]', 0.0)
-                    E_fan_ou = step_results.get('E_fan_ou [W]', 0.0)
-                    step_results['E_tot [W]'] = E_cmp + E_fan_ou + E_uv_lamp
+            
+            # 필요한 변수들을 한 번만 가져오기
+            E_cmp = step_results.get('E_cmp [W]', 0.0)
+            E_fan_ou = step_results.get('E_fan_ou [W]', 0.0)
+            Q_cond_load = step_results.get('Q_cond_load [W]', 0.0)
+            Q_mix_serv_w = step_results.get('Q_mix_serv_w [W]', 0.0)
+            X_ref_cond = step_results.get('X_ref_cond [W]', 0.0)
+            X_cmp = step_results.get('X_cmp [W]', 0.0)
+            X_fan_ou = step_results.get('X_fan_ou [W]', 0.0)
+            X_mix_serv_w = step_results.get('X_mix_serv_w [W]', 0.0)
+            X_tot_base = step_results.get('X_tot [W]', 0.0)
+            E_total = E_cmp + E_fan_ou + E_uv_lamp
+            X_tot_with_uv = X_tot_base + E_uv_lamp
+            
+            Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
+            step_results['Q_tank_loss [W]'] = Q_tank_loss
+            step_results['E_tot [W]'] = E_total
+            step_results['cop_ref [-]'] = Q_cond_load / E_cmp if E_cmp > 0 else 0.0
+            step_results['cop_sys [-]'] = Q_cond_load / E_total if E_total > 0 else 0.0
+            step_results['X_eff_ref [%]'] = (X_ref_cond / X_cmp * 100) if X_cmp > 0 else 0.0
+            step_results['X_eff_sys [%]'] = (X_ref_cond / X_tot_with_uv * 100) if X_tot_with_uv > 0 else 0.0
+            step_results['X_tot [W]'] = X_tot_with_uv
             
             if n < tN - 1:
-                # 탱크 온도 계산: UV 램프가 활성화된 경우에만 전력 포함
-                Q_tank_in = result.get('Q_ref_cond [W]', 0.0)
-                if is_uv_lamp_enabled:
-                    Q_tank_in += E_uv_lamp
-                
+                # 탱크 온도 계산: UV 램프 전력 포함
+                Q_tank_in = result.get('Q_ref_cond [W]', 0.0) + step_results.get('E_uv_lamp [W]', 0.0)
                 T_tank_w_K = update_tank_temperature(
                     T_tank_w_K = T_tank_w_K,
                     Q_tank_in  = Q_tank_in,
