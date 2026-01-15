@@ -210,7 +210,7 @@ def print_balance(balance, decimal=2):
                 print(f"{symbol}: {round(value, decimal)} {unit}")
 
 
-def calculate_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
+def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
     """
     Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in cooling mode.
     
@@ -249,7 +249,7 @@ def calculate_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_re
     return COP
 
 
-def calculate_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
+def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     """
     Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in heating mode.
     
@@ -280,7 +280,7 @@ def calculate_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     return COP
 
 
-def calculate_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
+def calc_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
     """
     Calculate the Carnot-based COP of a GSHP system using the modified formula.
     
@@ -531,6 +531,32 @@ def generate_entropy_exergy_term(energy_term, Tsys, T0, fluid=None):
         exergy_term = -exergy_term
     return entropy_term, exergy_term
 
+def calc_energy_flow(G, T, T0):
+    """
+    Calculate exergy flow rate due to material flow (advection).
+    
+    Formula: Xf = G * ((T - T0) - T0 * ln(T/T0))
+    
+    Parameters
+    ----------
+    G : float
+        Heat capacity flow rate = specific heat × density × volumetric flow rate [W/K]
+    T : float
+        Flow temperature [K]
+    T0 : float
+        Reference (environment) temperature (T_dead_state) [K]
+    
+    Returns
+    -------
+    float
+        Exergy flow rate [W]
+    
+    Notes
+    -----
+    This function calculates the exergy associated with a flowing stream
+    of material at temperature T relative to the reference temperature T0.
+    """
+    return G * (T - T0)
 
 def calc_exergy_flow(G, T, T0):
     """
@@ -1042,7 +1068,7 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     return UA * (v / v_design) ** 0.8
 
 
-def calc_HX_perf_for_target_heat(Q_ref_target, T_air_in_C, T_ref_avg_K, A_cross, UA_design, dV_fan_design):
+def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross, UA_design, dV_fan_design):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
@@ -1055,7 +1081,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_air_in_C, T_ref_avg_K, A_cross,
         Positive (+): Heat transferred from refrigerant to air (heating mode).
         Negative (−): Heat transferred from air to refrigerant (cooling mode).
 
-    T_air_in_C : float
+    T_a_ou_in_C : float
         Inlet temperature of air [°C].
 
     T_ref_avg_K : float
@@ -1077,7 +1103,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_air_in_C, T_ref_avg_K, A_cross,
         Dictionary containing:
             - dV_fan : Required air-side flow rate [m³/s]
             - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
-            - T_air_out_K : Outlet air temperature [K]
+            - T_a_ou_out_K : Outlet air temperature [K]
             - LMTD : Log-mean temperature difference at operating point [K]
             - Q_LMTD : Heat transfer rate at operating point [W]
             - epsilon : Effectiveness at operating point [–]
@@ -1090,17 +1116,29 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_air_in_C, T_ref_avg_K, A_cross,
     """
     # All arguments are required. UA is always calculated using UA_design and velocity correction in this version.
     
-    T_air_in_K = cu.C2K(T_air_in_C)
-
+    # Q_ref_target이 0에 가까우면 root_scalar 호출 없이 0 값 반환
+    # bisect 메서드는 f(a)와 f(b)의 부호가 달라야 하므로, Q_ref_target=0일 때 실패함
+    T_a_ou_in_K = cu.C2K(T_a_ou_in_C)
+    if abs(Q_ref_target) < 1e-6:
+        return {
+            'converged': True,
+            'dV_fan': 0.0,
+            'UA': 0.0,
+            'T_a_ou_out_K': T_a_ou_in_K,  # 입구 온도와 동일 (열교환 없음)
+            'LMTD': 0.0,
+            'Q_LMTD': 0.0,
+            'epsilon': 0.0,
+        }
+    
     def _error_function(dV_fan):
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
-        T_air_out_K = T_air_in_K + epsilon * (T_ref_avg_K - T_air_in_K) # Heating assumption (Q_ref_target > 0)
+        T_a_ou_out_K = T_a_ou_in_K + epsilon * (T_ref_avg_K - T_a_ou_in_K) # Heating assumption (Q_ref_target > 0)
             
         LMTD = calc_lmtd_fluid_and_constant_temp(
             T_constant_K  = T_ref_avg_K,
-            T_fluid_in_K  = T_air_in_K,
-            T_fluid_out_K = T_air_out_K
+            T_fluid_in_K  = T_a_ou_in_K,
+            T_fluid_out_K = T_a_ou_out_K
         )
         Q_LMTD = UA * LMTD # [W]
         return Q_LMTD - Q_ref_target
@@ -1114,28 +1152,28 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_air_in_C, T_ref_avg_K, A_cross,
         dV_fan_converged = sol.root
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
-        T_air_out_K = T_air_in_K + epsilon * (T_ref_avg_K - T_air_in_K)  # Heating assumption (Q_ref_target > 0)
+        T_a_ou_out_K = T_a_ou_in_K + epsilon * (T_ref_avg_K - T_a_ou_in_K)  # Heating assumption (Q_ref_target > 0)
         LMTD = calc_lmtd_fluid_and_constant_temp(
             T_constant_K  = T_ref_avg_K,
-            T_fluid_in_K  = T_air_in_K,
-            T_fluid_out_K = T_air_out_K
+            T_fluid_in_K  = T_a_ou_in_K,
+            T_fluid_out_K = T_a_ou_out_K
         )
         Q_LMTD = UA * LMTD
         return {
+            'converged': True,  # 명시적으로 converged 플래그 추가
             'dV_fan': dV_fan_converged,
             'UA': UA,
-            'T_air_out_K': T_air_out_K,
+            'T_a_ou_out_K': T_a_ou_out_K,
             'LMTD': LMTD,
             'Q_LMTD': Q_LMTD,
             'epsilon': epsilon,
-            'converged': True  # 명시적으로 converged 플래그 추가
             }
     else:
         return {
             'converged': False,
             'dV_fan': np.nan,
             'UA': np.nan,
-            'T_air_out_K': np.nan,
+            'T_a_ou_out_K': np.nan,
             'LMTD': np.nan,
             'Q_LMTD': np.nan,
             'epsilon': np.nan
@@ -1170,7 +1208,6 @@ def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs):
     
     # Flow rate validation
     if dV_fan < 0:
-        print(f"fan flow rate must be greater than 0: {dV_fan} [m³/s]")
         raise ValueError("fan flow rate must be greater than 0")
     
     # Extract VSD Curve coefficients
@@ -1378,7 +1415,7 @@ def get_uv_params_from_turbidity(turbidity_ntu):
     }
 
 def calc_uv_exposure_time(radius_cm, uvc_output_W, lamp_arc_length_cm, 
-                               target_dose_mj_cm2=186, turbidity_ntu=0.25, absorption_coeff=None):
+                               target_dose_mj_cm2=186, turbidity_ntu=0.25):
     """
     ADA453967.pdf 문서의 Radial Model을 기반으로 UV 램프의 필요 가동 시간을 계산하는 함수
     https://apps.dtic.mil/sti/tr/pdf/ADA453967.pdf
@@ -1413,21 +1450,13 @@ def calc_uv_exposure_time(radius_cm, uvc_output_W, lamp_arc_length_cm,
         필요 1회 노출 시간 [분]
     """
     
-    # absorption_coeff 결정: turbidity가 제공되면 자동 계산, 아니면 직접 입력값 또는 기본값 사용
-    uv_params = None
-    uv_absorbance = None
-    reference_exposure_time = None
-    
-    if turbidity_ntu is not None:
-        # Turbidity 기반으로 파라미터 조회
-        uv_params = get_uv_params_from_turbidity(turbidity_ntu)
-        uv_absorbance = uv_params['uv_absorbance']
-        # 공식: ae = 2.303 × A254
-        absorption_coeff = 2.303 * uv_absorbance
-        reference_exposure_time = uv_params['reference_exposure_time_sec']
-    elif absorption_coeff is None:
-        # 기본값 사용
-        absorption_coeff = 0.16
+    # absorption_coeff 결정: turbidity가 제공되면 자동 계산
+    # Table 1의 데이터는 수질에 따른 빛 손실 원리를 보여주는 참고 자료이며,
+    # 최종 목표는 target_dose_mj_cm2 (기본값 186 mJ/cm²)입니다.
+    # 공식: ae = 2.303 × A254 (수질에 따른 빛 손실 원리 반영)
+    uv_params = get_uv_params_from_turbidity(turbidity_ntu)
+    uv_absorbance = uv_params['uv_absorbance']
+    absorption_coeff = 2.303 * uv_absorbance
     
     # 1. 선형 출력 밀도 P_L (Power emitted per unit arc length) 계산 [단위: mW/cm]
     # 입력된 Watts를 mW로 변환 후 길이로 나눔
@@ -1437,32 +1466,8 @@ def calc_uv_exposure_time(radius_cm, uvc_output_W, lamp_arc_length_cm,
     # 공식: I(r) = (P_L / 2πr) * e^(-ae * r) [cite: 1479]
     intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(-absorption_coeff * radius_cm)
     
-    # 3. 필요 노출 시간(Time) 계산 [단위: 초]
-    # 공식: Time = Dose / Intensity [cite: 1470]
-    if intensity_mw_cm2 <= 0:
-        return None # 계산 불가 (거리가 너무 멀거나 흡수율이 너무 높음)
-        
-    required_time_sec = target_dose_mj_cm2 / intensity_mw_cm2 # 단위 제곱 cm에 1초에 목표 5 mJ이 노출되기 위한 최소시간 기준
+    required_time_sec = target_dose_mj_cm2 / intensity_mw_cm2 
     required_time_min = required_time_sec / 60
-    
-    # 4. 요구 기준 만족 여부 판단 (turbidity가 제공된 경우에만)
-    meets_requirement = None
-    if turbidity_ntu is not None and reference_exposure_time is not None:
-        # 계산된 시간이 테이블 기준 시간 이하이면 만족
-        # 참고: 테이블의 기준은 5 mJ/cm² dose이지만, 여기서는 target_dose_mj_cm2를 사용
-        # 5 mJ/cm² 기준으로 정규화하여 비교
-        if target_dose_mj_cm2 == 5.0:
-            meets_requirement = required_time_sec <= reference_exposure_time
-        else:
-            # 다른 dose에 대해서는 비례적으로 계산
-            normalized_time = required_time_sec * (5.0 / target_dose_mj_cm2)
-            meets_requirement = normalized_time <= reference_exposure_time
-
-    # 모델 적용 가능 여부 프린트
-    if meets_requirement is not None:
-        print(f"[UV LAMP CHECK] 현재 입력 조건(uv lamp model, turbidity={turbidity_ntu}, dose={target_dose_mj_cm2})에서 적용 가능: {meets_requirement}")
-    else:
-        print("[UV LAMP CHECK] 탁도 정보 없거나 비교 불가 - 모델 적합 여부 판단 불가")
 
     return required_time_min
 
@@ -1571,7 +1576,7 @@ def process_dhw_schedule_from_Annex_42(df_input):
         
     return schedule
 
-def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
+def calc_total_water_use_from_schedule(schedule, peak_load_m3s, info = True, info_unit = 'L'):
     '''
     Calculate total water use from schedule.
 
@@ -1599,10 +1604,11 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
     - schedule must be list of tuple, each item is (start_str, end_str, ratio) format.
     '''
     peak_load_lpm = peak_load_m3s * cu.m32L / cu.s2m
-    print(f'Peak load: {peak_load_lpm} L/min')
     total_use = 0
-    print(f"{'Start':>6} ~ {'End':>6} | {'Ratio':>5} | {'Liters':>6}")
-    print("-" * 35)
+    if info:
+        print(f'Peak load: {peak_load_lpm} L/min')
+        print(f"{'Start':>6} ~ {'End':>6} | {'Ratio':>5} | {'Liters':>6}")
+        print("-" * 35)
     
     for start, end, ratio in schedule:
         # 시간 차이 계산 (간단히 HH:MM 파싱)
@@ -1616,28 +1622,36 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s):
         liters = ratio * peak_load_lpm * duration_min
         total_use += liters
         
-        # 주요 구간만 출력
-        print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters:>6.1f} L")
+        if info:
+            if info_unit == 'L':
+                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters:>6.1f} L")
+            elif info_unit == 'mL':
+                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters*1000:>6.1f} mL")
+            elif info_unit == 'm3':
+                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters*cu.L2m3:>6.1f} m3")
+            else:
+                raise ValueError(f"Invalid info_unit: {info_unit}")
             
-    print("-" * 35)
-    print(f"Total daily water use: {total_use:.2f} Liters")
+    if info:
+        print("-" * 35)
+        print(f"Total daily water use: {total_use:.2f} Liters")
     return total_use
 
-def calculate_mains_temp_custom(csv_file_path: str, target_date_str: str) -> float:
+def calc_cold_water_temp(df, target_date_str: str) -> float:
     """
     기상자료개방포털(https://data.kma.go.kr/data/grnd/selectAsosRltmList.do?pgmNo=36)의
-    월간 평균온도 데이터(CSV)와 날짜를 입력받아, EnergyPlus 알고리즘으로 상수도 온도를 계산합니다.
+    월간 평균온도 데이터(DataFrame)와 날짜를 입력받아, EnergyPlus 알고리즘으로 상수도 온도를 계산합니다.
 
-    [적용된 공식 및 계수]
-    1. Offset = 6 F (섭씨 차이로 자동 변환하여 적용)
+    [적용된 공식 및 계수] (모두 화씨 계산)
+    1. Offset = 6 F  
     2. Ratio  = 0.4 + 0.01 * (연평균기온_F - 44)
     3. Lag    = 35 - 1.0 * (연평균기온_F - 44)
-    * 공식 내 '44'는 화씨 기준이므로 연평균 기온을 화씨로 변환하여 계산합니다.
+    4. 최종 결과를 cu.F2C로 변환 (°C 반환)
 
     Parameters:
     -----------
-    csv_file_path : str
-        '평균기온(°C)' 컬럼이 포함된 CSV 파일 경로.
+    df : pd.DataFrame
+        '평균기온(°C)' 컬럼이 포함된 DataFrame.
     target_date_str : str
         계산할 날짜 (형식: 'YYYY-MM-DD').
 
@@ -1646,56 +1660,41 @@ def calculate_mains_temp_custom(csv_file_path: str, target_date_str: str) -> flo
     float
         계산된 상수도 온도 (°C)
     """
-    
-    # 1. CSV 데이터 로드 및 전처리
-    try:
-        df = pd.read_csv(csv_file_path, encoding='cp949')
-    except UnicodeDecodeError:
-        df = pd.read_csv(csv_file_path, encoding='utf-8')
-    
+
+    # 1. DataFrame 전처리
     df.columns = df.columns.str.strip()
     target_col = '평균기온(°C)'
-    
     if target_col not in df.columns:
-        raise ValueError(f"CSV 파일에 '{target_col}' 컬럼이 존재하지 않습니다.")
-    
+        raise ValueError(f"DataFrame에 '{target_col}' 컬럼이 존재하지 않습니다.")
+
     # 2. 기상 통계 추출 (섭씨 기준)
-    t_avg_annual_c = df[target_col].mean()       # 연평균 기온 (C)
-    t_max_monthly_c = df[target_col].max()       # 월최대 기온 (C)
-    t_min_monthly_c = df[target_col].min()       # 월최소 기온 (C)
-    t_diff_max_c = t_max_monthly_c - t_min_monthly_c # 최대 온도차 (C)
-    
-    # 3. 파라미터 계산을 위한 단위 변환 (섭씨 -> 화씨)
-    t_avg_annual_f = cu.C2F(t_avg_annual_c)
-    
-    # 4. 사용자 지정 파라미터 계산
-    
-    # (1) Offset: 6 F -> 섭씨 차이로 변환
-    # 온도 값 변환이 아니라 '차이(Delta)' 변환이므로 cu.F2C를 사용하여 변환합니다.
-    # 온도 차이 변환: cu.F2C(32 + offset_f) - cu.F2C(32) = offset_f * (5/9)
+    t_avg_annual_c = df[target_col].mean()          # 연평균 기온 (C)
+    t_max_monthly_c = df[target_col].max()          # 월최대 기온 (C)
+    t_min_monthly_c = df[target_col].min()          # 월최소 기온 (C)
+
+    # 3. 모든 값 화씨 단위로 변환
+    t_avg_annual_f = cu.C2F(t_avg_annual_c)         # 연평균 기온 (F)
+    t_max_monthly_f = cu.C2F(t_max_monthly_c)       # 월최대 기온 (F)
+    t_min_monthly_f = cu.C2F(t_min_monthly_c)       # 월최소 기온 (F)
+    t_diff_max_f = t_max_monthly_f - t_min_monthly_f # 최대 온도차 (F)
+
+    # 4. 계수 정의 및 공식 적용 (전부 화씨)
     offset_f = 6.0
-    offset_c = cu.F2C(offset_f)
-    
-    # (2) Ratio: 0.4 + 0.01 * (T_avg_F - 44)
     ratio = 0.4 + 0.01 * (t_avg_annual_f - 44)
-    
-    # (3) Lag: 35 - 1.0 * (T_avg_F - 44)
     lag_days = 35 - 1.0 * (t_avg_annual_f - 44)
-    
-    # 5. 날짜 처리 (Day of Year)
+
+    # 5. 날짜 처리
     target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
     day_of_year = target_date.timetuple().tm_yday
-    
-    # 6. 최종 공식 적용 (섭씨 기준)
-    # T_mains = (T_avg + Offset) + Ratio * (T_diff / 2) * sin(...)
-    
-    # 각도 계산 (Degree -> Radian 변환)
-    # 0.986은 360도 / 365일
+
+    # 6. 최종 공식 적용 (화씨)
+    # T_mains_f = (T_avg_F + Offset_F) + Ratio * (T_diff_F / 2) * sin(...)
     degrees = 0.986 * (day_of_year - 15 - lag_days) - 90
     radians = np.radians(degrees)
-    
-    t_mains_c = (t_avg_annual_c + offset_c) + ratio * (t_diff_max_c / 2) * np.sin(radians)
-    
+    t_mains_f = (t_avg_annual_f + offset_f) + ratio * (t_diff_max_f / 2) * np.sin(radians)
+
+    # 7. 화씨 -> 섭씨 변환
+    t_mains_c = cu.F2C(t_mains_f)
     return round(t_mains_c, 2)
 
 def compute_refrigerant_thermodynamic_states(
