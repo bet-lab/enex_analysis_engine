@@ -31,7 +31,7 @@ This module contains helper functions organized into the following categories:
 7. Heat Pump Cycle Functions
    - calculate_ASHP_*_COP: Air source heat pump COP calculations
    - calculate_GSHP_COP: Ground source heat pump COP calculation
-   - compute_refrigerant_thermodynamic_states: Calculate refrigerant cycle states
+   - calc_ref_state: Calculate refrigerant cycle states (with superheating/subcooling support)
    - find_ref_loop_optimal_operation: Find optimal operation point
    - plot_cycle_diagrams: Plot P-h and T-h diagrams
 
@@ -1068,7 +1068,7 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     return UA * (v / v_design) ** 0.8
 
 
-def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross, UA_design, dV_fan_design):
+def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
@@ -1084,10 +1084,15 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross
     T_a_ou_in_C : float
         Inlet temperature of air [°C].
 
-    T_ref_avg_K : float
-        Average refrigerant temperature used as the constant-temperature side [K].
-        Typically the mean of refrigerant inlet and outlet temperatures.
-
+    T1_star_K : float
+        Saturation temperature at evaporator (dew point, x=1) [K].
+        Used as the constant-temperature side for evaporator heat exchange.
+        
+    T3_star_K : float
+        Saturation temperature at condenser (bubble point, x=0) [K].
+        Used as the constant-temperature side for condenser heat exchange.
+        (Currently not used, reserved for future condenser calculations)
+        
     A_cross : float
         Heat exchanger cross-sectional area for airflow [m²].
 
@@ -1124,7 +1129,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross
             'converged': True,
             'dV_fan': 0.0,
             'UA': 0.0,
-            'T_a_ou_out_K': T_a_ou_in_K,  # 입구 온도와 동일 (열교환 없음)
+            'T_a_ou_mid_K': T_a_ou_in_K,  # 입구 온도와 동일 (열교환 없음)
             'LMTD': 0.0,
             'Q_LMTD': 0.0,
             'epsilon': 0.0,
@@ -1133,12 +1138,13 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross
     def _error_function(dV_fan):
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
-        T_a_ou_out_K = T_a_ou_in_K + epsilon * (T_ref_avg_K - T_a_ou_in_K) # Heating assumption (Q_ref_target > 0)
+        # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
+        T_a_ou_mid_K = T_a_ou_in_K + epsilon * (T1_star_K - T_a_ou_in_K) # Heating assumption (Q_ref_target > 0)
             
         LMTD = calc_lmtd_fluid_and_constant_temp(
-            T_constant_K  = T_ref_avg_K,
+            T_constant_K  = T1_star_K,
             T_fluid_in_K  = T_a_ou_in_K,
-            T_fluid_out_K = T_a_ou_out_K
+            T_fluid_out_K = T_a_ou_mid_K
         )
         Q_LMTD = UA * LMTD # [W]
         return Q_LMTD - Q_ref_target
@@ -1152,18 +1158,19 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross
         dV_fan_converged = sol.root
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
-        T_a_ou_out_K = T_a_ou_in_K + epsilon * (T_ref_avg_K - T_a_ou_in_K)  # Heating assumption (Q_ref_target > 0)
+        # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
+        T_a_ou_mid_K = T_a_ou_in_K + epsilon * (T1_star_K - T_a_ou_in_K)  # Heating assumption (Q_ref_target > 0)
         LMTD = calc_lmtd_fluid_and_constant_temp(
-            T_constant_K  = T_ref_avg_K,
+            T_constant_K  = T1_star_K,
             T_fluid_in_K  = T_a_ou_in_K,
-            T_fluid_out_K = T_a_ou_out_K
+            T_fluid_out_K = T_a_ou_mid_K
         )
         Q_LMTD = UA * LMTD
         return {
             'converged': True,  # 명시적으로 converged 플래그 추가
             'dV_fan': dV_fan_converged,
             'UA': UA,
-            'T_a_ou_out_K': T_a_ou_out_K,
+            'T_a_ou_mid': cu.K2C(T_a_ou_mid_K),
             'LMTD': LMTD,
             'Q_LMTD': Q_LMTD,
             'epsilon': epsilon,
@@ -1173,7 +1180,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T_ref_avg_K, A_cross
             'converged': False,
             'dV_fan': np.nan,
             'UA': np.nan,
-            'T_a_ou_out_K': np.nan,
+            'T_a_ou_mid': np.nan,
             'LMTD': np.nan,
             'Q_LMTD': np.nan,
             'epsilon': np.nan
@@ -1697,24 +1704,29 @@ def calc_cold_water_temp(df, target_date_str: str) -> float:
     t_mains_c = cu.F2C(t_mains_f)
     return round(t_mains_c, 2)
 
-def compute_refrigerant_thermodynamic_states(
-    T_evap_K,  # 증발 온도 [K]
-    T_cond_K,  # 응축 온도 [K]
+def calc_ref_state(
+    T_evap_K,  # 증발 온도 [K] (포화 온도로 해석)
+    T_cond_K,  # 응축 온도 [K] (포화 온도로 해석)
     refrigerant,  # 냉매 이름
     eta_cmp_isen,  # 압축기 단열 효율
     T0_K=None,  # 기준 온도 [K] (엑서지 계산용, 선택적)
     P0=101325,  # 기준 압력 [Pa] (엑서지 계산용, 선택적)
     mode='heating',  # 작동 모드 ('heating' 또는 'cooling')
+    dT_superheat=0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
+    dT_subcool=0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
 ):
     """
     냉매 사이클의 State 1-4 열역학 물성치를 계산하는 공통 함수.
+    (수정됨: 과열도(Superheating) 및 과냉각도(Subcooling) 고려 모델)
     
     이 함수는 히트펌프 사이클의 4개 주요 상태점을 계산합니다:
     
     난방 모드 (mode='heating'):
-    - State 1: 압축기 입구 (증발기 출구, 저압 포화 증기)
+    - State 1*: 증발기 포화 증기 (x=1) - 포화 온도점
+    - State 1: 압축기 입구 (증발기 출구, 저압 과열 증기) = State 1* + dT_superheat
     - State 2: 압축기 출구 (응축기 입구, 고압 과열 증기)
-    - State 3: 응축기 출구 (팽창밸브 입구, 고압 포화 액체)
+    - State 3*: 응축기 포화 액체 (x=0) - 포화 온도점
+    - State 3: 응축기 출구 (팽창밸브 입구, 고압 과냉 액체) = State 3* - dT_subcool
     - State 4: 팽창밸브 출구 (증발기 입구, 저압 액체+기체 혼합물)
     
     냉방 모드 (mode='cooling', 4-way 밸브로 인한 역순환):
@@ -1724,21 +1736,23 @@ def compute_refrigerant_thermodynamic_states(
     - State 4: 응축기 출구 (팽창밸브 입구, 고압 포화 액체)
     
     알고리즘:
-    1. 증발기와 응축기 압력 계산 (포화 압력)
-    2. State 1: 저압 포화 증기 상태 계산
-    3. State 2: 단열 압축 후 실제 압축(비단열) 계산
+    1. 증발기와 응축기 포화 압력 계산
+    2. State 1*: 저압 포화 증기 상태 계산 (T1_star_K = T_evap_K)
+    3. State 1: 과열 증기 상태 계산 (T1_K = T1_star_K + dT_superheat)
+    4. State 2: 단열 압축 후 실제 압축(비단열) 계산
        - 등엔트로피 압축 후 엔탈피 계산 (이상적)
        - 압축기 효율을 고려한 실제 엔탈피 계산
-    4. State 3: 고압 포화 액체 상태 계산
-    5. State 4: 등엔탈피 팽창 (h4 = h3) 후 상태 계산
+    5. State 3*: 고압 포화 액체 상태 계산 (T3_star_K = T_cond_K)
+    6. State 3: 과냉 액체 상태 계산 (T3_K = T3_star_K - dT_subcool)
+    7. State 4: 등엔탈피 팽창 (h4 = h3) 후 상태 계산
     
     호출 관계:
-    - 호출자: _calculate_gshpb_next_step (DHW_main_engine.py)
+    - 호출자: AirSourceHeatPumpBoiler._calc_state, GroundSourceHeatPumpBoiler._calc_on_state
     - 호출 함수: CoolProp.PropsSI (냉매 물성 계산)
     
     Args:
-        - T_evap_K (float): 증발 온도 [K]
-        - T_cond_K (float): 응축 온도 [K]
+        - T_evap_K (float): 증발 포화 온도 [K]
+        - T_cond_K (float): 응축 포화 온도 [K]
         - refrigerant (str): 냉매 이름 (CoolProp 형식, 예: 'R410A')
         - eta_cmp_isen (float): 압축기 단열 효율 [0-1]
             - 실제 압축 전력 = 이론 압축 전력 / eta_cmp_isen
@@ -1748,14 +1762,19 @@ def compute_refrigerant_thermodynamic_states(
         - mode (str, optional): 작동 모드 ('heating' 또는 'cooling', 기본값: 'heating')
             - 'heating': 난방 모드 (기본 계산, State 1=압축기 유입)
             - 'cooling': 냉방 모드 (4-way 밸브 역순환, State 2=압축기 유입으로 재매핑)
+        - dT_superheat (float, optional): 증발기 출구 과열도 [K] (기본값: 0.0)
+            - dT_superheat=0이면 포화 증기 (기존 동작 유지)
+        - dT_subcool (float, optional): 응축기 출구 과냉각도 [K] (기본값: 0.0)
+            - dT_subcool=0이면 포화 액체 (기존 동작 유지)
     
     Returns:
         dict: State 1-4의 물성치를 포함한 딕셔너리
         - P1, P2, P3, P4: 압력 [Pa] (모드에 따라 물리적 위치에 맞게 재매핑됨)
-        - T1_K, T2_K, T3_K, T4_K: 온도 [K] (모드에 따라 물리적 위치에 맞게 재매핑됨)
+        - T1_K, T2_K, T3_K, T4_K: 온도 [K] (실제 상태점, 모드에 따라 재매핑됨)
+        - T1_star_K, T3_star_K: 포화 온도 [K] (포화 상태점)
         - h1, h2, h3, h4: 엔탈피 [J/kg] (모드에 따라 물리적 위치에 맞게 재매핑됨)
         - s1, s2, s3, s4: 엔트로피 [J/kgK] (모드에 따라 물리적 위치에 맞게 재매핑됨)
-        - rho1: 압축기 유입 밀도 [kg/m³] (냉매 유량 계산에 사용)
+        - rho: 압축기 유입 밀도 [kg/m³] (냉매 유량 계산에 사용)
         - x1, x2, x3, x4: 엑서지 [J/kg] (T0_K, P0가 제공된 경우, 모드에 따라 재매핑됨)
         - mode: 계산에 사용된 모드 ('heating' 또는 'cooling')
         
@@ -1768,37 +1787,72 @@ def compute_refrigerant_thermodynamic_states(
           여기서 (h0, s0)는 기준 상태(T0_K, P0)의 엔탈피와 엔트로피
         - State 2는 단열 효율을 고려한 실제 압축 과정을 반영
         - State 4는 등엔탈피 과정 (h4 = h3)으로 팽창밸브를 모델링
+        - dT_superheat=0, dT_subcool=0이면 기존 동작과 동일 (하위 호환성 유지)
     """
     
-    # 1단계: 증발기 및 응축기 압력 계산
-    P1 = CP.PropsSI('P', 'T', T_evap_K, 'Q', 1, refrigerant)
-    P3 = CP.PropsSI('P', 'T', T_cond_K, 'Q', 0, refrigerant)
+    # 1단계: 포화 온도 및 압력 계산
+    T1_star_K = T_evap_K  # 증발기 포화 증기 온도 (State 1*)
+    T3_star_K = T_cond_K  # 응축기 포화 액체 온도 (State 3*)
     
-    # 2. State 1 계산 - 압축기 입구 (저압 포화 증기)
-    h1 = CP.PropsSI('H', 'P', P1, 'Q', 1, refrigerant)  # 엔탈피 [J/kg]
-    s1 = CP.PropsSI('S', 'P', P1, 'Q', 1, refrigerant)  # 엔트로피 [J/kgK]
-    rho = CP.PropsSI('D', 'P', P1, 'Q', 1, refrigerant)  # 밀도 [kg/m³] (냉매 유량 계산용)
-    T1_K = T_evap_K  # 포화 증기이므로 증발 온도와 동일
+    P_evap = CP.PropsSI('P', 'T', T1_star_K, 'Q', 1, refrigerant)  # 증발기 포화 압력
+    P_cond = CP.PropsSI('P', 'T', T3_star_K, 'Q', 0, refrigerant)  # 응축기 포화 압력
     
-    # 3. State 2 계산 - 압축기 출구 (고압 과열 증기)
-    h2_isen = CP.PropsSI('H', 'P', P3, 'S', s1, refrigerant)  # 등엔트로피 압축 후 엔탈피
+    # 2단계: State 1* (포화 증기) 및 State 1 (실제 과열 증기) 계산
+    # State 1*: 포화 증기 상태 (참조용)
+    h1_star = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
+    s1_star = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
+    
+    # State 1: 실제 압축기 입구 (과열 증기)
+    T1_K = T1_star_K + dT_superheat  # 과열도 적용
+    
+    # dT_superheat = 0일 때는 포화 증기 상태로 처리 (CoolProp 에러 방지)
+    if abs(dT_superheat) < 1e-6:  # 0에 가까우면 포화 상태
+        h1 = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
+        s1 = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
+        rho = CP.PropsSI('D', 'P', P_evap, 'Q', 1, refrigerant)  # 압축기 유입 밀도
+    else:  # 과열 상태
+        h1 = CP.PropsSI('H', 'T', T1_K, 'P', P_evap, refrigerant)
+        s1 = CP.PropsSI('S', 'T', T1_K, 'P', P_evap, refrigerant)
+        rho = CP.PropsSI('D', 'T', T1_K, 'P', P_evap, refrigerant)  # 압축기 유입 밀도
+    
+    # 3단계: State 2 계산 - 압축기 출구 (고압 과열 증기)
+    h2_isen = CP.PropsSI('H', 'P', P_cond, 'S', s1, refrigerant)  # 등엔트로피 압축 후 엔탈피
     
     h2 = h1 + (h2_isen - h1) / eta_cmp_isen
-    T2_K = CP.PropsSI('T', 'P', P3, 'H', h2, refrigerant)  # 과열 온도
-    P2 = P3  # 압력은 응축기 압력과 동일
-    s2 = CP.PropsSI('S', 'P', P3, 'H', h2, refrigerant)  # 실제 엔트로피 (s1보다 큼)
+    T2_K = CP.PropsSI('T', 'P', P_cond, 'H', h2, refrigerant)  # 과열 온도
+    P2 = P_cond  # 압력은 응축기 압력과 동일
+    s2 = CP.PropsSI('S', 'P', P_cond, 'H', h2, refrigerant)  # 실제 엔트로피 (s1보다 큼)
     
-    # 4. State 3 계산 - 응축기 출구 (고압 포화 액체)
-    h3 = CP.PropsSI('H', 'P', P3, 'Q', 0, refrigerant)  # 포화 액체 엔탈피
-    s3 = CP.PropsSI('S', 'P', P3, 'Q', 0, refrigerant)  # 포화 액체 엔트로피
-    T3_K = T_cond_K  # 포화 액체이므로 응축 온도와 동일
+    # 3.5단계: State 2* 계산 - 응축기 입구에서 포화 증기에 처음 도달하는 지점
+    # T2_star: P_cond 압력에서 포화 증기(Q=1) 상태
+    T2_star_K = T3_star_K  # 응축기 포화 온도와 동일
+    P2_star = P_cond  # 응축기 포화 압력
+    h2_star = CP.PropsSI('H', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔탈피
+    s2_star = CP.PropsSI('S', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔트로피
     
-    # 5. State 4 계산 - 팽창밸브 출구 (저압 액체+기체 혼합물)
+    # 4단계: State 3* (포화 액체) 및 State 3 (실제 과냉 액체) 계산
+    # State 3*: 포화 액체 상태 (참조용)
+    h3_star = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
+    s3_star = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
+    
+    # State 3: 실제 응축기 출구 (과냉 액체)
+    T3_K = T3_star_K - dT_subcool  # 과냉각도 적용
+    
+    # dT_subcool = 0일 때는 포화 액체 상태로 처리 (CoolProp 에러 방지)
+    if abs(dT_subcool) < 1e-6:  # 0에 가까우면 포화 상태
+        h3 = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
+        s3 = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
+    else:  # 과냉 상태
+        h3 = CP.PropsSI('H', 'T', T3_K, 'P', P_cond, refrigerant)
+        s3 = CP.PropsSI('S', 'T', T3_K, 'P', P_cond, refrigerant)
+    
+    # 5단계: State 4 계산 - 팽창밸브 출구 (저압 액체+기체 혼합물)
     h4 = h3  # 등엔탈피 팽창
-    P4 = P1  # 압력은 증발기 압력과 동일
-    T4_K = CP.PropsSI('T', 'P', P1, 'H', h4, refrigerant)  # 저압에서 엔탈피 h4에 해당하는 온도
-    s4 = CP.PropsSI('S', 'P', P1, 'H', h4, refrigerant)  # 팽창 후 엔트로피
+    P4 = P_evap  # 압력은 증발기 압력과 동일
+    T4_K = CP.PropsSI('T', 'P', P_evap, 'H', h4, refrigerant)  # 저압에서 엔탈피 h4에 해당하는 온도
+    s4 = CP.PropsSI('S', 'P', P_evap, 'H', h4, refrigerant)  # 팽창 후 엔트로피
     
+    # 엑서지 계산용 기준 상태
     h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, refrigerant)
     s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, refrigerant)
     
@@ -1806,13 +1860,15 @@ def compute_refrigerant_thermodynamic_states(
         result = {
             # 냉방 모드 기준 물성치 (물리적 위치에 따라 재매핑)
             'P1': P2,
-            'P2': P1,
+            'P2': P_evap,
             'P3': P4,
-            'P4': P3,
+            'P4': P_cond,
             'T1_K': T2_K,
             'T2_K': T1_K,
             'T3_K': T4_K,
             'T4_K': T3_K,
+            'T1_star_K': T2_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
+            'T3_star_K': T3_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
             'h1': h2,
             'h2': h1,
             'h3': h4,
@@ -1827,25 +1883,32 @@ def compute_refrigerant_thermodynamic_states(
     else:
         # 난방 모드: 기본 계산값 그대로 사용
         result = {
-            'P1': P1,
-            'P2': P2,
-            'P3': P3,
-            'P4': P4,
+            'P1': P_evap,
+            'P2': P_cond,
+            'P3': P_cond,
+            'P4': P_evap,
             'T1_K': T1_K,
             'T2_K': T2_K,
             'T3_K': T3_K,
             'T4_K': T4_K,
+            'T1_star_K': T1_star_K,  # 포화 증기 온도
+            'T2_star_K': T2_star_K,  # 응축기 포화 증기 온도
+            'T3_star_K': T3_star_K,  # 포화 액체 온도
+            'P2_star': P2_star,  # 응축기 포화 압력
             'h1': h1,
             'h2': h2,
+            'h2_star': h2_star,  # 포화 증기 엔탈피
             'h3': h3,
             'h4': h4,
             's1': s1,
             's2': s2,
+            's2_star': s2_star,  # 포화 증기 엔트로피
             's3': s3,
             's4': s4,
             'rho': rho,  # 압축기 유입 밀도 (State 1)
             'x1': (h1-h0) - T0_K*(s1 - s0),
             'x2': (h2-h0) - T0_K*(s2 - s0),
+            'x2_star': (h2_star-h0) - T0_K*(s2_star - s0),  # 포화 증기 엑서지
             'x3': (h3-h0) - T0_K*(s3 - s0),
             'x4': (h4-h0) - T0_K*(s4 - s0),
             'mode': 'heating',
@@ -1998,7 +2061,7 @@ def find_ref_loop_optimal_operation(
     find_ref_loop_optimal_operation (본 함수)
         ├─ calculate_performance_func 호출 (최적화 반복 중 여러 번)
         │   └─ _calculate_gshpb_next_step (DHW_main_engine.py)
-        │       └─ compute_refrigerant_thermodynamic_states 호출
+        │       └─ calc_ref_state 호출
         ├─ constraint_funcs 호출 (제약 조건 평가)
         │   └─ create_lmtd_constraints() 반환 함수들
         └─ off_result_formatter 호출 (OFF 상태 시)
@@ -2217,7 +2280,7 @@ def plot_cycle_diagrams(
     
     호출 관계:
     - 호출자: GroundSourceHeatPumpBoiler.analyze_dynamic, AirSourceHeatPumpBoiler.analyze_dynamic
-    - 사용 데이터: compute_refrigerant_thermodynamic_states 결과
+    - 사용 데이터: calc_ref_state 결과
     
     플로팅 단계:
     ──────────────────────────────────────────────────────────────────────────
@@ -2567,3 +2630,567 @@ def update_tank_temperature(
     T_tank_w_K_new = T_tank_w_K + dT
     return T_tank_w_K_new
 
+
+def print_simulation_summary(df, dt_s, dV_ou_design):
+    """
+    시뮬레이션 결과 CSV 파일을 읽어 종합 통계를 출력합니다.
+    
+    이 함수는 `AirSourceHeatPumpBoiler.analyze_dynamic` 메서드가 생성한 CSV 파일을
+    읽어서 수렴 여부, Fan 전력 투입률, Fan 평균 풍량, Fan 전력 통계, Compressor 회전수
+    통계 등을 계산하여 출력합니다.
+    
+    Parameters
+    ----------
+    csv_path : str
+        시뮬레이션 결과 CSV 파일 경로
+    dt_s : float
+        타임스텝 [초]
+    dV_ou_design : float
+        설계 풍량 [m³/s]
+    
+    Returns
+    -------
+    None
+        print만 수행하며 반환값은 없음
+    
+    Raises
+    ------
+    FileNotFoundError
+        CSV 파일이 존재하지 않을 때
+    KeyError
+        필요한 컬럼이 CSV 파일에 없을 때
+    
+    Notes
+    -----
+    - 모든 통계는 동작 시 데이터만 사용 (0이 아닌 값들)
+    - `dt_s`는 에너지 적분 계산에 사용 (`sum() * dt_s`)
+    
+    Examples
+    --------
+    >>> print_simulation_summary(
+    ...     csv_path='../result/hpb_UV.csv',
+    ...     dt_s=60,
+    ...     dV_ou_design=1.5
+    ... )
+    ========================================
+    [수렴 여부] All converged: True
+    ========================================
+    [Fan 전력 투입률] 7.5%   (일반: 5~10%)
+    ========================================
+    ...
+    """
+    # 필수 컬럼 확인
+    required_columns = ['converged', 'E_fan_ou [W]', 'E_tot [W]', 'dV_fan_ou [m3/s]', 'cmp_rpm [rpm]']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise KeyError(f"Required columns not found in CSV: {missing_columns}")
+    
+    # 1. 수렴 여부 확인 및 출력
+    print("="*40)
+    converged_all = df['converged'].all()
+    print(f"[수렴 여부] All converged: {converged_all}")
+    if not converged_all:
+        nonconverged_count = (~df['converged']).sum()
+        print(f"  - 미수렴 데이터 수: {nonconverged_count} / {len(df)}")
+        print(df[df['converged'] == False])
+    print("="*40)
+    
+    # 2. Fan 전력 투입률 계산 및 출력
+    fan_power_pct = ((df['E_fan_ou [W]'].sum() * dt_s) / (df['E_tot [W]'].sum() * dt_s)) * 100
+    print(f"[Fan 전력 투입률] {fan_power_pct:.1f}%   (일반: 5~10%)")
+    print("="*40)
+    
+    # 3. Fan 평균 풍량 계산 및 출력
+    fan_nonzero = df.loc[df['dV_fan_ou [m3/s]'] != 0, 'dV_fan_ou [m3/s]']
+    if len(fan_nonzero) > 0:
+        fan_avg_flow = fan_nonzero.mean()
+        fan_avg_flow_pct = (fan_avg_flow / dV_ou_design) * 100
+        print("[Fan 평균 풍량]")
+        print(f"  - 평균 풍량: {fan_avg_flow:.3f} m³/s   (설계 대비 {fan_avg_flow_pct:.1f}%)")
+    else:
+        print("[Fan 평균 풍량]")
+        print("  - 동작 데이터가 없습니다.")
+    print("="*40)
+    
+    # 4. Fan 전력 통계 계산 및 출력
+    fan_power_nonzero = df.loc[df['E_fan_ou [W]'] != 0, 'E_fan_ou [W]']
+    if len(fan_power_nonzero) > 0:
+        fan_power_avg = fan_power_nonzero.mean()
+        fan_power_min = fan_power_nonzero.min()
+        fan_power_max = fan_power_nonzero.max()
+        print("[Fan 전력: 동작 시]")
+        print(f"  - 평균: {fan_power_avg:.1f} W | 최소: {fan_power_min:.1f} W | 최대: {fan_power_max:.1f} W")
+    else:
+        print("[Fan 전력: 동작 시]")
+        print("  - 동작 데이터가 없습니다.")
+    print("="*40)
+    
+    # 5. Compressor 회전수 통계 계산 및 출력
+    cmp_rpm_nonzero = df.loc[df['cmp_rpm [rpm]'] != 0, 'cmp_rpm [rpm]']
+    if len(cmp_rpm_nonzero) > 0:
+        cmp_rpm_min = cmp_rpm_nonzero.min()
+        cmp_rpm_max = df['cmp_rpm [rpm]'].max()  # 전체 데이터의 최대값 사용 (원본 코드와 동일)
+        cmp_rpm_avg_nonzero = cmp_rpm_nonzero.mean()
+        print("[Compressor 회전수]")
+        print(f"  - min: {cmp_rpm_min:.1f} rpm | max: {cmp_rpm_max:.1f} rpm")
+        print(f"  - 평균(동작 조건): {cmp_rpm_avg_nonzero:.1f} rpm")
+    else:
+        print("[Compressor 회전수]")
+        print("  - 동작 데이터가 없습니다.")
+    print("="*40)
+
+def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
+    """Plot T-h diagram on given axis. 
+    If csv_path and timestep_idx are provided, draw horizontal lines for tank water temp / outdoor temp for that timestep.
+    """
+    # 색상 정의
+    color1 = 'oc.blue5'   
+    color2 = 'oc.red5'    
+    color3 = 'black'
+    color4 = 'oc.gray6'  
+    line_color = 'oc.gray5'
+
+    # 축 범위 설정
+    xmin, xmax = 0, 600  # 엔탈피 [kJ/kg]
+    ymin, ymax = -40, 120  # 온도 [°C]
+
+    # 포화선 계산
+    T_critical = cu.K2C(CP.PropsSI('Tcrit', refrigerant))
+    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 600)
+    h_liq = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
+    h_vap = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 1, refrigerant) / 1000 for T in temps]
+
+    # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
+    h1_star = result.get('h1_star [J/kg]', np.nan) * cu.J2kJ
+    h1 = result.get('h1 [J/kg]', np.nan) * cu.J2kJ
+    h2 = result.get('h2 [J/kg]', np.nan) * cu.J2kJ
+    h2_star = result.get('h2_star [J/kg]', np.nan) * cu.J2kJ
+    h3_star = result.get('h3_star [J/kg]', np.nan) * cu.J2kJ
+    h3 = result.get('h3 [J/kg]', np.nan) * cu.J2kJ
+    h4 = result.get('h4 [J/kg]', np.nan) * cu.J2kJ
+    
+    T1_star = result.get('T1_star [°C]', np.nan)
+    T1 = result.get('T1 [°C]', np.nan)
+    T2 = result.get('T2 [°C]', np.nan)
+    T2_star = result.get('T2_star [°C]', np.nan)
+    T3_star = result.get('T3_star [°C]', np.nan)
+    T3 = result.get('T3 [°C]', np.nan)
+    T4 = result.get('T4 [°C]', np.nan)
+
+    # 포화선 그리기
+    ax.plot(h_liq, temps, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
+    ax.plot(h_vap, temps, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
+
+    # 마커 색상 결정
+    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
+    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+
+    # 물리적 프로세스 경로 그리기
+    # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
+    if not (np.isnan(h4) or np.isnan(h1_star) or np.isnan(T4) or np.isnan(T1_star)):
+        ax.plot([h4, h1_star], [T4, T1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1_star → T1: 등압 superheating
+    if not (np.isnan(h1_star) or np.isnan(h1) or np.isnan(T1_star) or np.isnan(T1)):
+        ax.plot([h1_star, h1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1 → T2: 압축
+    if not (np.isnan(h1) or np.isnan(h2) or np.isnan(T1) or np.isnan(T2)):
+        ax.plot([h1, h2], [T1, T2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선)
+    if not (np.isnan(h2) or np.isnan(h2_star) or np.isnan(T2) or np.isnan(T2_star)):
+        ax.plot([h2, h2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선)
+    if not (np.isnan(h2_star) or np.isnan(h3_star) or np.isnan(T2_star) or np.isnan(T3_star)):
+        ax.plot([h2_star, h3_star], [T2_star, T3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3_star → T3: 등압 subcooling
+    if not (np.isnan(h3_star) or np.isnan(h3) or np.isnan(T3_star) or np.isnan(T3)):
+        ax.plot([h3_star, h3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3 → T4: 등엔탈피 팽창 (수직선)
+    if not (np.isnan(h3) or np.isnan(h4) or np.isnan(T3) or np.isnan(T4)):
+        ax.plot([h3, h4], [T3, T4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+
+    # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
+    def points_are_close(x1, y1, x2, y2, tol=1e-6):
+        """두 점이 동일한지 확인 (좌표 비교)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
+    
+    points = []
+    
+    # 1*와 1 비교
+    if points_are_close(h1_star, T1_star, h1, T1):
+        points.append((h1, T1, r'$1=1^*$'))
+    else:
+        if not (np.isnan(h1_star) or np.isnan(T1_star)):
+            points.append((h1_star, T1_star, r'$1^*$'))
+        if not (np.isnan(h1) or np.isnan(T1)):
+            points.append((h1, T1, '1'))
+    
+    # 2와 2* 비교
+    if points_are_close(h2, T2, h2_star, T2_star):
+        points.append((h2, T2, r'$2=2^*$'))
+    else:
+        if not (np.isnan(h2) or np.isnan(T2)):
+            points.append((h2, T2, '2'))
+        if not (np.isnan(h2_star) or np.isnan(T2_star)):
+            points.append((h2_star, T2_star, r'$2^*$'))
+    
+    # 3*와 3 비교
+    if points_are_close(h3_star, T3_star, h3, T3):
+        points.append((h3, T3, r'$3=3^*$'))
+    else:
+        if not (np.isnan(h3_star) or np.isnan(T3_star)):
+            points.append((h3_star, T3_star, r'$3^*$'))
+        if not (np.isnan(h3) or np.isnan(T3)):
+            points.append((h3, T3, '3'))
+    
+    # 4는 항상 표시
+    if not (np.isnan(h4) or np.isnan(T4)):
+        points.append((h4, T4, '4'))
+    
+    for h_val, T_val, label in points:
+        ax.plot(h_val, T_val, marker='o', markersize=2.5, 
+               markerfacecolor=cycle_markerfacecolor, 
+               markeredgecolor=cycle_markeredgecolor,
+               markeredgewidth=0, zorder=2)
+        ax.annotate(label, (h_val, T_val),
+                   xytext=(0, 3), textcoords='offset points',
+                   ha='center', va='bottom',
+                   fontsize=fs['legend'])
+
+    ax.axhline(y=T_tank, color='oc.red5', linestyle=':', linewidth=dm.lw(0))
+    ax.text(xmin + 20, T_tank + 2, f'Tank: {T_tank:.1f}°C', color='oc.red5',
+            fontsize=fs['legend'], ha='left', va='bottom')
+    ax.axhline(y=T0, color='oc.orange5', linestyle=':', linewidth=dm.lw(0))
+    ax.text(xmin + 20, T0 - 2, f'Outdoor: {T0:.1f}°C', color='oc.orange5',
+            fontsize=fs['legend'], ha='left', va='top')
+
+    # 축 설정
+    ax.set_xlabel('Enthalpy [kJ/kg]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_ylabel('Temperature [°C]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.tick_params(axis='both', which='major', labelsize=fs['tick'], pad=pad['tick'])
+    
+    # legend 만들기 - 항상 마커는 검은색, 사이클 선도 검은색 마커, 선은 gray4로 표기
+    legend_handles = []
+    handle1, = ax.plot([], [], color=color1, linewidth=dm.lw(0), label='Saturated liquid')
+    handle2, = ax.plot([], [], color=color2, linewidth=dm.lw(0), label='Saturated vapor')
+    handle3, = ax.plot([], [], color=line_color, linewidth=dm.lw(0), marker='o', linestyle=':', markersize=2.5, markerfacecolor=color3, markeredgecolor=color3, label='Refrigerant cycle', markeredgewidth=0,)
+    legend_handles.append(handle1)
+    legend_handles.append(handle2)
+    legend_handles.append(handle3)
+    ax.legend(
+        handles=legend_handles,
+        loc='upper left', bbox_to_anchor=(0.0, 0.99),
+        handlelength=1.5, labelspacing=0.5, columnspacing=2,
+        ncol=1, frameon=False, fontsize=fs['legend']
+    )
+    
+def plot_ph_diagram(ax, result, refrigerant, fs, pad):
+    """Plot P-h diagram on given axis. 
+    If csv_path and timestep_idx are provided, draw horizontal lines for tank water temp / outdoor temp for that timestep.
+    """
+    # 색상 정의
+    color1 = 'oc.blue5'   # 포화 액체선
+    color2 = 'oc.red5'    # 포화 증기선
+    color3 = 'black'
+    color4 = 'oc.gray6'
+    line_color = 'oc.gray4'
+
+    # 축 범위 설정
+    xmin, xmax = 0, 600  # 엔탈피 [kJ/kg]
+    ymin, ymax = 100, 10**4  # 압력 [kPa]
+
+    # 포화선 계산
+    T_critical = cu.K2C(CP.PropsSI('Tcrit', refrigerant))
+    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 600)
+    h_liq = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
+    h_vap = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 1, refrigerant) / 1000 for T in temps]
+    p_sat = [CP.PropsSI('P', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
+
+    # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
+    P1_star = result.get('P1_star [Pa]', np.nan) * cu.Pa2kPa
+    P1 = result.get('P1 [Pa]', np.nan) * cu.Pa2kPa
+    P2 = result.get('P2 [Pa]', np.nan) * cu.Pa2kPa
+    P2_star = result.get('P2_star [Pa]', np.nan) * cu.Pa2kPa
+    P3_star = result.get('P3_star [Pa]', np.nan) * cu.Pa2kPa
+    P3 = result.get('P3 [Pa]', np.nan) * cu.Pa2kPa
+    P4 = result.get('P4 [Pa]', np.nan) * cu.Pa2kPa
+    
+    h1_star = result.get('h1_star [J/kg]', np.nan) * cu.J2kJ
+    h1 = result.get('h1 [J/kg]', np.nan) * cu.J2kJ
+    h2 = result.get('h2 [J/kg]', np.nan) * cu.J2kJ
+    h2_star = result.get('h2_star [J/kg]', np.nan) * cu.J2kJ
+    h3_star = result.get('h3_star [J/kg]', np.nan) * cu.J2kJ
+    h3 = result.get('h3 [J/kg]', np.nan) * cu.J2kJ
+    h4 = result.get('h4 [J/kg]', np.nan) * cu.J2kJ
+
+    # 포화선 그리기
+    ax.plot(h_liq, p_sat, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
+    ax.plot(h_vap, p_sat, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
+    
+    # 마커 색상 결정
+    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
+    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+
+    # 물리적 프로세스 경로 그리기
+    # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선, P4=P1_star)
+    if not (np.isnan(h4) or np.isnan(h1_star) or np.isnan(P4) or np.isnan(P1_star)):
+        ax.plot([h4, h1_star], [P4, P1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1_star → T1: 등압 superheating (P1_star=P1)
+    if not (np.isnan(h1_star) or np.isnan(h1) or np.isnan(P1_star) or np.isnan(P1)):
+        ax.plot([h1_star, h1], [P1_star, P1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1 → T2: 압축
+    if not (np.isnan(h1) or np.isnan(h2) or np.isnan(P1) or np.isnan(P2)):
+        ax.plot([h1, h2], [P1, P2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선, P2=P2_star)
+    if not (np.isnan(h2) or np.isnan(h2_star) or np.isnan(P2) or np.isnan(P2_star)):
+        ax.plot([h2, h2_star], [P2, P2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선, P2_star=P3_star)
+    if not (np.isnan(h2_star) or np.isnan(h3_star) or np.isnan(P2_star) or np.isnan(P3_star)):
+        ax.plot([h2_star, h3_star], [P2_star, P3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3_star → T3: 등압 subcooling (P3_star=P3)
+    if not (np.isnan(h3_star) or np.isnan(h3) or np.isnan(P3_star) or np.isnan(P3)):
+        ax.plot([h3_star, h3], [P3_star, P3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3 → T4: 등엔탈피 팽창 (수직선, h3=h4)
+    if not (np.isnan(h3) or np.isnan(h4) or np.isnan(P3) or np.isnan(P4)):
+        ax.plot([h3, h4], [P3, P4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+
+    # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
+    def points_are_close(x1, y1, x2, y2, tol=1e-6):
+        """두 점이 동일한지 확인 (좌표 비교)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
+    
+    points = []
+    
+    # 1*와 1 비교
+    if points_are_close(h1_star, P1_star, h1, P1):
+        points.append((h1, P1, r'$1=1^*$'))
+    else:
+        if not (np.isnan(h1_star) or np.isnan(P1_star)):
+            points.append((h1_star, P1_star, r'$1^*$'))
+        if not (np.isnan(h1) or np.isnan(P1)):
+            points.append((h1, P1, '1'))
+    
+    # 2와 2* 비교
+    if points_are_close(h2, P2, h2_star, P2_star):
+        points.append((h2, P2, r'$2=2^*$'))
+    else:
+        if not (np.isnan(h2) or np.isnan(P2)):
+            points.append((h2, P2, '2'))
+        if not (np.isnan(h2_star) or np.isnan(P2_star)):
+            points.append((h2_star, P2_star, r'$2^*$'))
+    
+    # 3*와 3 비교
+    if points_are_close(h3_star, P3_star, h3, P3):
+        points.append((h3, P3, r'$3=3^*$'))
+    else:
+        if not (np.isnan(h3_star) or np.isnan(P3_star)):
+            points.append((h3_star, P3_star, r'$3^*$'))
+        if not (np.isnan(h3) or np.isnan(P3)):
+            points.append((h3, P3, '3'))
+    
+    # 4는 항상 표시
+    if not (np.isnan(h4) or np.isnan(P4)):
+        points.append((h4, P4, '4'))
+    
+    for h_val, p_val, label in points:
+        ax.plot(h_val, p_val, marker='o', markersize=2.5, 
+               markerfacecolor=cycle_markerfacecolor, 
+               markeredgecolor=cycle_markeredgecolor,
+               markeredgewidth=0, zorder=2)
+        ax.annotate(label, (h_val, p_val),
+                   xytext=(0, 3), textcoords='offset points',
+                   ha='center', va='bottom',
+                   fontsize=fs['legend'])
+
+    # 축 설정
+    ax.set_xlabel('Enthalpy [kJ/kg]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_ylabel('Pressure [kPa]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_yscale('log')
+    ax.tick_params(axis='both', which='major', labelsize=fs['tick'], pad=pad['tick'])
+    
+    legend_handles = []
+    handle1, = ax.plot([], [], color=color1, linewidth=dm.lw(0), label='Saturated liquid')
+    handle2, = ax.plot([], [], color=color2, linewidth=dm.lw(0), label='Saturated vapor')
+    handle3, = ax.plot([], [], color=line_color, linewidth=dm.lw(0), marker='o', linestyle=':', markersize=2.5, markerfacecolor=color3, markeredgecolor=color3, label='Refrigerant cycle', markeredgewidth=0,)
+    legend_handles.append(handle1)
+    legend_handles.append(handle2)
+    legend_handles.append(handle3)
+    ax.legend(
+        handles=legend_handles,
+        loc='upper left', bbox_to_anchor=(0.0, 0.99),
+        handlelength=1.5, labelspacing=0.5, columnspacing=2,
+        ncol=1, frameon=False, fontsize=fs['legend']
+    )
+    
+def plot_ts_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
+    """Plot T-s diagram on given axis with super heating/cooling considered.
+    Shows 6 points: T1_star, T1, T2, T3_star, T3, T4 with physical process paths.
+    """
+    # 색상 정의
+    color1 = 'oc.blue5'   
+    color2 = 'oc.red5'    
+    color3 = 'black'
+    color4 = 'oc.gray6'  
+    line_color = 'oc.gray5'
+
+    # 축 범위 설정
+    xmin, xmax = 0, 2.0  # 엔트로피 [kJ/(kg·K)]
+    ymin, ymax = -40, 120  # 온도 [°C]
+
+    # 포화선 계산
+    T_critical = cu.K2C(CP.PropsSI('Tcrit', refrigerant))
+    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 600)
+    s_liq = [CP.PropsSI('S', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
+    s_vap = [CP.PropsSI('S', 'T', cu.C2K(T), 'Q', 1, refrigerant) / 1000 for T in temps]
+
+    # 포화선 그리기
+    ax.plot(s_liq, temps, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
+    ax.plot(s_vap, temps, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
+
+    # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
+    s1_star = result.get('s1_star [J/(kg·K)]', np.nan) / 1000
+    s1 = result.get('s1 [J/(kg·K)]', np.nan) / 1000
+    s2 = result.get('s2 [J/(kg·K)]', np.nan) / 1000
+    s2_star = result.get('s2_star [J/(kg·K)]', np.nan) / 1000
+    s3_star = result.get('s3_star [J/(kg·K)]', np.nan) / 1000
+    s3 = result.get('s3 [J/(kg·K)]', np.nan) / 1000
+    s4 = result.get('s4 [J/(kg·K)]', np.nan) / 1000
+    
+    T1_star = result.get('T1_star [°C]', np.nan)
+    T1 = result.get('T1 [°C]', np.nan)
+    T2 = result.get('T2 [°C]', np.nan)
+    T2_star = result.get('T2_star [°C]', np.nan)
+    T3_star = result.get('T3_star [°C]', np.nan)
+    T3 = result.get('T3 [°C]', np.nan)
+    T4 = result.get('T4 [°C]', np.nan)
+
+    # 마커 색상 결정
+    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
+    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+
+    # 물리적 프로세스 경로 그리기
+    # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
+    if not (np.isnan(s4) or np.isnan(s1_star) or np.isnan(T4) or np.isnan(T1_star)):
+        ax.plot([s4, s1_star], [T4, T1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1_star → T1: 등압 superheating
+    if not (np.isnan(s1_star) or np.isnan(s1) or np.isnan(T1_star) or np.isnan(T1)):
+        ax.plot([s1_star, s1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T1 → T2: 압축 (등엔트로피는 아니지만 실제 압축, s 증가)
+    if not (np.isnan(s1) or np.isnan(s2) or np.isnan(T1) or np.isnan(T2)):
+        ax.plot([s1, s2], [T1, T2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선)
+    if not (np.isnan(s2) or np.isnan(s2_star) or np.isnan(T2) or np.isnan(T2_star)):
+        ax.plot([s2, s2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선)
+    if not (np.isnan(s2_star) or np.isnan(s3_star) or np.isnan(T2_star) or np.isnan(T3_star)):
+        ax.plot([s2_star, s3_star], [T2_star, T3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3_star → T3: 등압 subcooling
+    if not (np.isnan(s3_star) or np.isnan(s3) or np.isnan(T3_star) or np.isnan(T3)):
+        ax.plot([s3_star, s3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+    
+    # T3 → T4: 등엔탈피 팽창 (엔트로피 증가)
+    if not (np.isnan(s3) or np.isnan(s4) or np.isnan(T3) or np.isnan(T4)):
+        ax.plot([s3, s4], [T3, T4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+
+    # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
+    def points_are_close(x1, y1, x2, y2, tol=1e-6):
+        """두 점이 동일한지 확인 (좌표 비교)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
+    
+    points = []
+    
+    # 1*와 1 비교
+    if points_are_close(s1_star, T1_star, s1, T1):
+        points.append((s1, T1, r'$1=1^*$'))
+    else:
+        if not (np.isnan(s1_star) or np.isnan(T1_star)):
+            points.append((s1_star, T1_star, r'$1^*$'))
+        if not (np.isnan(s1) or np.isnan(T1)):
+            points.append((s1, T1, '1'))
+    
+    # 2와 2* 비교
+    if points_are_close(s2, T2, s2_star, T2_star):
+        points.append((s2, T2, r'$2=2^*$'))
+    else:
+        if not (np.isnan(s2) or np.isnan(T2)):
+            points.append((s2, T2, '2'))
+        if not (np.isnan(s2_star) or np.isnan(T2_star)):
+            points.append((s2_star, T2_star, r'$2^*$'))
+    
+    # 3*와 3 비교
+    if points_are_close(s3_star, T3_star, s3, T3):
+        points.append((s3, T3, r'$3=3^*$'))
+    else:
+        if not (np.isnan(s3_star) or np.isnan(T3_star)):
+            points.append((s3_star, T3_star, r'$3^*$'))
+        if not (np.isnan(s3) or np.isnan(T3)):
+            points.append((s3, T3, '3'))
+    
+    # 4는 항상 표시
+    if not (np.isnan(s4) or np.isnan(T4)):
+        points.append((s4, T4, '4'))
+    
+    for s_val, T_val, label in points:
+        ax.plot(s_val, T_val, marker='o', markersize=2.5, 
+               markerfacecolor=cycle_markerfacecolor, 
+               markeredgecolor=cycle_markeredgecolor,
+               markeredgewidth=0, zorder=2)
+        ax.annotate(label, (s_val, T_val),
+                   xytext=(0, 3), textcoords='offset points',
+                   ha='center', va='bottom',
+                   fontsize=fs['legend'])
+
+    ax.axhline(y=T_tank, color='oc.red5', linestyle=':', linewidth=dm.lw(0))
+    ax.text(xmin + 0.05, T_tank + 2, f'Tank: {T_tank:.1f}°C', color='oc.red5',
+            fontsize=fs['legend'], ha='left', va='bottom')
+    ax.axhline(y=T0, color='oc.orange5', linestyle=':', linewidth=dm.lw(0))
+    ax.text(xmin + 0.05, T0 - 2, f'Outdoor: {T0:.1f}°C', color='oc.orange5',
+            fontsize=fs['legend'], ha='left', va='top')
+
+    # 축 설정
+    ax.set_xlabel('Entropy [kJ/(kg·K)]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_ylabel('Temperature [°C]', fontsize=fs['label'], labelpad=pad['label'])
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.tick_params(axis='both', which='major', labelsize=fs['tick'], pad=pad['tick'])
+    
+    # legend 만들기 - 항상 마커는 검은색, 사이클 선도 검은색 마커, 선은 gray5로 표기
+    legend_handles = []
+    handle1, = ax.plot([], [], color=color1, linewidth=dm.lw(0), label='Saturated liquid')
+    handle2, = ax.plot([], [], color=color2, linewidth=dm.lw(0), label='Saturated vapor')
+    handle3, = ax.plot([], [], color=line_color, linewidth=dm.lw(0), marker='o', linestyle=':', markersize=2.5, markerfacecolor=color3, markeredgecolor=color3, label='Refrigerant cycle', markeredgewidth=0,)
+    legend_handles.append(handle1)
+    legend_handles.append(handle2)
+    legend_handles.append(handle3)
+    ax.legend(
+        handles=legend_handles,
+        loc='upper left', bbox_to_anchor=(0.0, 0.99),
+        handlelength=1.5, labelspacing=0.5, columnspacing=2,
+        ncol=1, frameon=False, fontsize=fs['legend']
+    )
