@@ -151,7 +151,6 @@ def quartic_function(x, a, b, c, d, e):
     """Quartic function: y = a*x⁴ + b*x³ + c*x² + d*x + e"""
     return a * x ** 4 + b * x ** 3 + c * x ** 2 + d * x + e
 
-
 def print_balance(balance, decimal=2):
     """
     Print energy, entropy, or exergy balance dictionary in a formatted way.
@@ -209,7 +208,6 @@ def print_balance(balance, decimal=2):
             for symbol, value in terms.items():
                 print(f"{symbol}: {round(value, decimal)} {unit}")
 
-
 def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
     """
     Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in cooling mode.
@@ -248,7 +246,6 @@ def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
     COP = PLR * COP_ref / (EIR_by_T * EIR_by_PLR)
     return COP
 
-
 def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     """
     Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in heating mode.
@@ -278,7 +275,6 @@ def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
         PLR = 0.2    
     COP = -7.46 * (PLR - 0.0047 * cu.K2C(T0) - 0.477)**2 + 0.0941 * cu.K2C(T0) + 4.34
     return COP
-
 
 def calc_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
     """
@@ -325,7 +321,6 @@ def calc_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
     COP = 1 / denominator
     return COP
 
-
 def f(x):
     """
     Helper function for G-function calculation.
@@ -341,7 +336,6 @@ def f(x):
         f(x) = x*erf(x) - (1-exp(-x²))/√π
     """
     return x * erf(x) - (1 - np.exp(-x**2)) / SP
-
 
 def chi(s, rb, H, z0=0):
     """
@@ -371,9 +365,7 @@ def chi(s, rb, H, z0=0):
     
     return temp * Is
 
-
 _g_func_cache = {}
-
 
 def G_FLS(t, ks, as_, rb, H):
     """
@@ -433,7 +425,6 @@ def G_FLS(t, ks, as_, rb, H):
     _g_func_cache[key] = result
     return result
 
-
 def air_dynamic_viscosity(T_K):
     """
     Calculate air dynamic viscosity using Sutherland's formula.
@@ -459,7 +450,6 @@ def air_dynamic_viscosity(T_K):
     mu = mu0 * ((T_K / T0)**1.5) * ((T0 + S) / (T_K + S))
     return mu
 
-
 def air_prandtl_number(T_K):
     """
     Calculate air Prandtl number.
@@ -480,7 +470,6 @@ def air_prandtl_number(T_K):
     # Pr = mu * cp / k
     # For air: Pr ≈ 0.71 (weak temperature dependence)
     return 0.71
-
 
 # ============================================================================
 # Exergy and Entropy Functions
@@ -550,12 +539,15 @@ def calc_energy_flow(G, T, T0):
     -------
     float
         Exergy flow rate [W]
+        Returns np.nan if G == 0 (no flow)
     
     Notes
     -----
     This function calculates the exergy associated with a flowing stream
     of material at temperature T relative to the reference temperature T0.
     """
+    if G == 0:
+        return np.nan
     return G * (T - T0)
 
 def calc_exergy_flow(G, T, T0):
@@ -577,14 +569,16 @@ def calc_exergy_flow(G, T, T0):
     -------
     float
         Exergy flow rate [W]
+        Returns np.nan if G == 0 (no flow)
     
     Notes
     -----
     This function calculates the exergy associated with a flowing stream
     of material at temperature T relative to the reference temperature T0.
     """
+    if G == 0:
+        return np.nan
     return G * ((T - T0) - T0 * np.log(T / T0))
-
 
 # ============================================================================
 # Flow and Mixing Functions
@@ -620,7 +614,6 @@ def calc_Orifice_flow_coefficient(D0, D1):
     """
     m = D1 / D0  # Opening ratio
     return m**2
-
 
 def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
     """
@@ -661,7 +654,6 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
     else:
         # Stable condition -> no mixing
         return 0.0
-
 
 # ============================================================================
 # Tank Heat Transfer Functions
@@ -749,7 +741,6 @@ def calc_UA_tank_arr(r0, x_shell, x_ins, k_shell, k_ins, H, N, h_w, h_o):
     UA_arr = 1.0 / R_arr  # [W/K]
     return UA_arr
 
-
 # ============================================================================
 # TDMA Solver Functions
 # ============================================================================
@@ -792,7 +783,6 @@ def TDMA(a, b, c, d):
 
     T_new = np.dot(A_inv, d).flatten()  # Flatten the result to 1D array
     return T_new
-
 
 def _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in):
     """
@@ -846,7 +836,6 @@ def _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in):
         # Outlet node (out_idx)
         a[out_idx] -= G_loop
         b[out_idx] += G_loop
-
 
 def calc_simple_tank_UA(
         # Tank size [m]
@@ -911,8 +900,7 @@ def calc_simple_tank_UA(
     U_tank = 2/R_base_tot + 1/R_side_tot 
     return U_tank
 
-
-def calc_lmtd_counter_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
+def calc_LMTD_counter_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
     """
     Calculate LMTD for counter-flow heat exchanger.
     
@@ -944,8 +932,7 @@ def calc_lmtd_counter_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
     else:
         return (dT1 - dT2) / np.log(dT1 / dT2)
 
-
-def calc_lmtd_parallel_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
+def calc_LMTD_parallel_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
     """
     Calculate LMTD for parallel-flow heat exchanger.
     
@@ -976,61 +963,6 @@ def calc_lmtd_parallel_flow(T_hot_in_K, T_hot_out_K, T_cold_in_K, T_cold_out_K):
         return (dT1 + dT2) / 2
     else:
         return (dT1 - dT2) / np.log(dT1 / dT2)
-
-
-def calc_lmtd_fluid_and_constant_temp(T_constant_K, T_fluid_in_K, T_fluid_out_K):
-    """
-    Calculate LMTD when one fluid maintains constant temperature.
-    
-    One fluid maintains a constant temperature (e.g., during phase change),
-    while the other fluid temperature changes from inlet to outlet.
-    This applies to condensers, evaporators, or any heat exchanger where
-    one fluid undergoes phase change or maintains constant temperature.
-    
-    Parameters:
-    -----------
-    T_constant_K : float
-        Constant temperature of one fluid [K]
-    T_fluid_in_K : float
-        Inlet temperature of the other fluid [K]
-    T_fluid_out_K : float
-        Outlet temperature of the other fluid [K]
-    
-    Returns:
-    --------
-    float
-        LMTD [K]
-    
-    Notes:
-    ------
-    - Since one fluid temperature is constant, LMTD is calculated in simplified form.
-    - Q>0 (constant temp fluid releases heat): T_constant > T_fluid_in, T_constant > T_fluid_out
-      → dT_in = T_constant - T_fluid_in, dT_out = T_constant - T_fluid_out
-    - Q<0 (constant temp fluid absorbs heat): T_constant < T_fluid_in, T_constant < T_fluid_out
-      → dT_in = T_fluid_in - T_constant, dT_out = T_fluid_out - T_constant
-    """
-    # Temperature difference calculation (maintain sign)
-    dT_in = T_constant_K - T_fluid_in_K
-    dT_out = T_constant_K - T_fluid_out_K
-    
-    # Physical validity check: dT_in and dT_out must have same sign
-    if dT_in * dT_out <= 0:
-        # Constant temperature is between fluid inlet and outlet (physically impossible)
-        return np.nan
-    
-    # Calculate LMTD using absolute values
-    dT_in_abs = abs(dT_in)
-    dT_out_abs = abs(dT_out)
-    
-    if dT_in_abs <= 0 or dT_out_abs <= 0:
-        return np.nan
-    
-    # LMTD calculation
-    if abs(dT_in_abs - dT_out_abs) < 1e-4:
-        return (dT_in_abs + dT_out_abs) / 2
-    else:
-        return (dT_in_abs - dT_out_abs) / np.log(dT_in_abs / dT_out_abs)
-
 
 def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     """
@@ -1067,8 +999,7 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     v_design = dV_fan_design / A_cross if A_cross > 0 else 0
     return UA * (v / v_design) ** 0.8
 
-
-def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design):
+def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design, is_active=True):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
@@ -1101,6 +1032,9 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
 
     dV_fan_design : float
         Design fan flow rate [m³/s]. Used for velocity normalization.
+    is_active : bool, optional
+        활성화 여부 (기본값: True)
+        is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
 
     Returns
     -------
@@ -1112,6 +1046,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
             - LMTD : Log-mean temperature difference at operating point [K]
             - Q_LMTD : Heat transfer rate at operating point [W]
             - epsilon : Effectiveness at operating point [–]
+        Returns dict with all values as np.nan if is_active=False
 
     Notes
     -----
@@ -1119,6 +1054,18 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
     - LMTD is computed assuming one side stays at constant temperature (refrigerant avg).
     - The solution applies to both air-source heat pump condenser and evaporator, depending on Q_ref_target sign.
     """
+    # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
+    if not is_active:
+        T_a_ou_in_K = cu.C2K(T_a_ou_in_C)
+        return {
+            'converged': True,
+            'dV_fan': np.nan,
+            'UA': np.nan,
+            'T_a_ou_mid': np.nan,
+            'Q_ou_air': np.nan,
+            'epsilon': np.nan,
+        }
+    
     # All arguments are required. UA is always calculated using UA_design and velocity correction in this version.
     
     # Q_ref_target이 0에 가까우면 root_scalar 호출 없이 0 값 반환
@@ -1130,8 +1077,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
             'dV_fan': 0.0,
             'UA': 0.0,
             'T_a_ou_mid_K': T_a_ou_in_K,  # 입구 온도와 동일 (열교환 없음)
-            'LMTD': 0.0,
-            'Q_LMTD': 0.0,
+            'Q_ou_air': 0.0,
             'epsilon': 0.0,
         }
     
@@ -1139,17 +1085,18 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T_a_ou_in_K + epsilon * (T1_star_K - T_a_ou_in_K) # Heating assumption (Q_ref_target > 0)
-            
-        LMTD = calc_lmtd_fluid_and_constant_temp(
-            T_constant_K  = T1_star_K,
-            T_fluid_in_K  = T_a_ou_in_K,
-            T_fluid_out_K = T_a_ou_mid_K
-        )
-        Q_LMTD = UA * LMTD # [W]
-        return Q_LMTD - Q_ref_target
+        T_a_ou_mid_K = T1_star_K + epsilon * (T_a_ou_in_K - T1_star_K) # Heating assumption (Q_ref_target > 0)
+        
+        # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
+        Q_ou_air = c_a * rho_a * dV_fan * (T_a_ou_in_K - T_a_ou_mid_K) # 흡열이므로 (입구 - 출구) * C_min
+        # Heating 모드 기준: Refrigerant가 열 흡수, Air가 열 방출. 
+        # T_a_ou_in > T_a_ou_mid > T1_star
+        # Q_ref_target > 0 (Refrigerant gains heat)
+        # Q_air (Air loses heat) = m_dot * cp * (Tin - Tout) > 0
+        
+        return Q_ou_air - Q_ref_target
 
-    dV_min = 0.1 # [m³/s]
+    dV_min = dV_fan_design * 0.1 # [m³/s]
     dV_max = dV_fan_design # [m³/s]
     sol = root_scalar(_error_function, bracket=[dV_min, dV_max], method='bisect')
     
@@ -1159,20 +1106,16 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T_a_ou_in_K + epsilon * (T1_star_K - T_a_ou_in_K)  # Heating assumption (Q_ref_target > 0)
-        LMTD = calc_lmtd_fluid_and_constant_temp(
-            T_constant_K  = T1_star_K,
-            T_fluid_in_K  = T_a_ou_in_K,
-            T_fluid_out_K = T_a_ou_mid_K
-        )
-        Q_LMTD = UA * LMTD
+        T_a_ou_mid_K = T1_star_K + epsilon * (T_a_ou_in_K - T1_star_K)  # Heating assumption (Q_ref_target > 0)
+        
+        Q_ou_air = c_a * rho_a * dV_fan_converged * (T_a_ou_in_K - T_a_ou_mid_K)
+        
         return {
             'converged': True,  # 명시적으로 converged 플래그 추가
             'dV_fan': dV_fan_converged,
             'UA': UA,
             'T_a_ou_mid': cu.K2C(T_a_ou_mid_K),
-            'LMTD': LMTD,
-            'Q_LMTD': Q_LMTD,
+            'Q_ou_air': Q_ou_air,
             'epsilon': epsilon,
             }
     else:
@@ -1181,13 +1124,11 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
             'dV_fan': np.nan,
             'UA': np.nan,
             'T_a_ou_mid': np.nan,
-            'LMTD': np.nan,
-            'Q_LMTD': np.nan,
+            'Q_ou_air': np.nan,
             'epsilon': np.nan
         }
 
-
-def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs):
+def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs, is_active=True):
     """
     Calculate fan power using ASHRAE 90.1 VSD Curve.
     
@@ -1199,12 +1140,19 @@ def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs):
         Fan parameters (fan_design_flow_rate, fan_design_power)
     vsd_coeffs : dict
         VSD Curve coefficients (c1~c5)
+    is_active : bool, optional
+        활성화 여부 (기본값: True)
+        is_active=False일 때 np.nan 반환
     
     Returns:
     --------
     float
         Fan power [W]
+        Returns np.nan if is_active=False
     """
+    if not is_active:
+        return np.nan
+    
     # Extract design parameters
     fan_design_flow_rate = fan_params.get('fan_design_flow_rate', None)
     fan_design_power = fan_params.get('fan_design_power', None)
@@ -1239,8 +1187,39 @@ def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs):
     
     return fan_power
 
+def check_hp_schedule_active(hour, hp_on_schedule):
+    """
+    주어진 시간이 히트펌프 운전 허용 구간에 포함되는지 확인합니다.
+    
+    Parameters
+    ----------
+    hour : float
+        현재 시간 [시] (0.0 ~ 24.0)
+    hp_on_schedule : list of tuple
+        히트펌프 운전 허용 구간 리스트. 각 튜플은 (시작_시, 종료_시) 형식.
+        예: [(0.0, 5.0), (8.0, 24.0)] → 0~5시, 8~24시 구간에만 운전 허용
+    
+    Returns
+    -------
+    bool
+        hour이 hp_on_schedule의 어떤 구간에 포함되면 True, 아니면 False.
+        구간은 [start, end) 형식 (start 포함, end 미포함).
+    
+    Examples
+    --------
+    >>> check_hp_schedule_active(3.0, [(0.0, 5.0), (8.0, 24.0)])
+    True
+    >>> check_hp_schedule_active(6.0, [(0.0, 5.0), (8.0, 24.0)])
+    False
+    >>> check_hp_schedule_active(10.0, [(0.0, 5.0), (8.0, 24.0)])
+    True
+    """
+    for start_hour, end_hour in hp_on_schedule:
+        if start_hour <= hour < end_hour:
+            return True
+    return False
 
-def _build_schedule_ratios(entries, t_array):
+def build_schedule_ratios(entries, t_array):
     """
     Build schedule ratio array from schedule entries for each timestep (t_array).
 
@@ -1248,8 +1227,8 @@ def _build_schedule_ratios(entries, t_array):
     ----------
     entries : list of tuple
         Schedule entry list. Each item is (start_str, end_str, frac) format.
-        - start_str, end_str: "H:M" or "H" format string (e.g., "6:00", "23:30", "24:00", etc.).
-          "24:00" is specially handled as end of day (= 24*cu.h2s seconds).
+        - start_str, end_str: "H:M", "H:M:S", "H" format string (e.g., "6:00", "23:30:20", "24:00", etc.).
+          "24:00" or "24:00:00" is specially handled as end of day (= 24*cu.h2s seconds).
         - frac: Usage ratio (float) for that interval. Clipped to 0.0 ~ 1.0 range.
         Intervals are treated as half-open [start, end).
 
@@ -1266,7 +1245,7 @@ def _build_schedule_ratios(entries, t_array):
     Summary
     -------
     - Time strings are converted to seconds internally using _time_str_to_sec.
-    - If end is 24*cu.h2s (e.g., "24:00"), it is adjusted to last value before end of day.
+    - If end is 24*cu.h2s (e.g., "24:00", "24:00:00"), it is adjusted to last value before end of day.
     - If interval crosses midnight (e.g., start=23:00, end=02:00), OR mask is used to
       correctly cover intervals that cross midnight.
     - Ratio (frac) is clipped to 0~1 range using np.clip.
@@ -1274,8 +1253,8 @@ def _build_schedule_ratios(entries, t_array):
 
     Examples
     --------
-    entries = [("6:00","7:00",0.5), ("6:30","8:00",0.8)]
-    -> Interval 6:30~7:00 has max(0.5,0.8)=0.8 applied.
+    entries = [("6:00","7:00",0.5), ("6:30:15","8:00:30",0.8)]
+    -> Interval 6:30:15~7:00:00 has max(0.5,0.8)=0.8 applied.
 
     Notes
     -----
@@ -1288,41 +1267,49 @@ def _build_schedule_ratios(entries, t_array):
 
     def _time_str_to_sec(time_str):
         """
-        Convert time string format (e.g., "H", "H:M") to integer seconds within day (0 ~ 86400).
+        Convert time string format (e.g., "H", "H:M", "H:M:S") to integer seconds within day (0 ~ 86400).
 
         Parameters
         ----------
         time_str : str
-            Time string in "H" or "H:M" format.
+            Time string in "H", "H:M", or "H:M:S" format.
             - "H" represents hour, integer in 0~24 range.
-            - "H:M" is format with hour and minute separated by colon (:).
-                Hour is 0~24, minute is 0~59 integer.
-            - "24:00" is specially handled as end of day (= 24*cu.h2s seconds).
+            - "H:M" format, hour and minute, minute is 0~59 integer.
+            - "H:M:S" format, hour, minute, and second, second is 0~59 integer.
+            - "24:00" or "24:00:00" is specially handled as end of day (= 24*cu.h2s seconds).
 
         Behavior
         --------
-        - Separate hour and minute, convert to seconds: seconds = (h % 24) * 3600 + m * 60
-        - If input is "24:00" (string starts with '24' and h%24 == 0), return 24*cu.h2s.
-        - Hour (h) is modulo operated with 24, so notation >= 24 is mapped to 0..23.
-        
+        - Separate hour, minute, and second, convert to seconds: seconds = (h % 24) * 3600 + m * 60 + s
+        - If input is "24:00" or "24:00:00" (string starts with '24' and h%24 == 0), return 24*cu.h2s.
+        - Hour (h) is modulo operated with 24, so notation >= 24 is mapped to 0..23 except for "24:00"/"24:00:00".
+
         Returns
         -------
         int
             Integer seconds within day (0 ~ 86400).
-        """ 
-        h, m = (time_str.split(':') + ['0'])[:2]
-        h = int(h) % 24
-        m = int(m)
-        return 24*cu.h2s if (h == 0 and time_str.strip().startswith('24')) else h*cu.h2s + m*60
-        
+        """
+        fields = time_str.strip().split(':')
+        # Pad missing values: ["H"], ["H","M"], ["H","M","S"]
+        while len(fields) < 3:
+            fields.append('0')
+        h, m, s = (int(x) for x in fields[:3])
+        # "24:00" or "24:00:00" => end of day
+        if h == 0 and time_str.strip().startswith('24'):
+            return 24*cu.h2s
+        h = h % 24
+        return h*cu.h2s + m*60 + s
+
     # Process schedule entries
     for start_str, end_str, frac in entries:
         s = _time_str_to_sec(start_str)
         e = _time_str_to_sec(end_str)
-        if e == 24*cu.h2s: e = 24*cu.h2s - 1e-9
+        if e == 24*cu.h2s:
+            e = 24*cu.h2s - 1e-9
         ratio = np.clip(frac, 0.0, 1.0)
-        if s == e: continue
-        
+        if s == e:
+            continue
+
         if s < e:
             mask = (secs_mod >= s) & (secs_mod < e)
         else:
@@ -1478,110 +1465,60 @@ def calc_uv_exposure_time(radius_cm, uvc_output_W, lamp_arc_length_cm,
 
     return required_time_min
 
-
-def process_dhw_schedule_from_Annex_42(df_input):
+def make_dhw_schedule_from_Annex_42_profile(flow_rate_array, df_time_step, simulation_time_step):
     """
-    Annex 42 급탕 스케줄 엑셀에서 로드한 DHW 데이터프레임을 받아 연간 평균화 및 노말라이즈된 스케줄을 반환하는 함수
+    Generate DHW schedule list from flow profile data.
+    
+    This function implements the logic to convert a flow profile (L/min) 
+    into a schedule list with specified time step.
     
     Args:
-        df_input (pd.DataFrame): pd.read_excel로 읽은 원본 데이터프레임
-        
+        flow_rate_array (array-like): Flow rate data in L/min .
+        simulation_time_step (float): Simulation time step in seconds.
+    
     Returns:
-        list: [("시작시간", "종료시간", fraction), ...] 형태의 리스트
+        list: List of tuples (start_time, end_time, fraction).
     """
+    df_time_step = 60
     
-    # 1. 헤더 위치 찾기 및 데이터프레임 재설정
-    # 이미 컬럼명이 올바르게 설정된 경우
-    expected_cols = {'Date', 'Hour', 'Minute'}
-    if expected_cols.issubset(df_input.columns):
-        df = df_input.copy()
+    # Peak 유량 산출 (Fraction = 1.0 기준값)
+    if hasattr(flow_rate_array, 'max'):
+         peak_flow_rate_array = flow_rate_array.max()
     else:
-        # 상단 설명글 등으로 인해 헤더가 데이터 영역에 있는 경우 탐색
-        header_idx = None
-        for i in range(min(20, len(df_input))):  # 상위 20행 내에서 탐색
-            # 행의 값들을 문자열로 변환하여 헤더 키워드 확인
-            row_values = [str(val).strip() for val in df_input.iloc[i].values]
-            if 'Date' in row_values and 'Hour' in row_values and 'Minute' in row_values:
-                header_idx = i
-                break
-        
-        if header_idx is not None:
-            # 찾은 헤더 행을 기준으로 데이터프레임 다시 생성
-            df = df_input.iloc[header_idx + 1:].copy()
-            df.columns = df_input.iloc[header_idx]
-        else:
-            # 헤더를 못 찾은 경우 원본 그대로 사용 (에러 발생 가능성 있음)
-            df = df_input.copy()
+         peak_flow_rate_array = max(flow_rate_array)
 
-    # 2. 데이터 전처리 (숫자형 변환 및 결측치 제거)
-    # 월별 컬럼 식별
-    month_cols = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    target_cols = ['Hour', 'Minute'] + [c for c in month_cols if c in df.columns]
+    schedule_entries = []
+    num_slots_per_min = int(df_time_step // simulation_time_step)
     
-    # 숫자형으로 변환 (오류 발생 시 NaN 처리)
-    for col in target_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # 시간 정보가 없는 행(빈 행 등) 제거
-    df = df.dropna(subset=['Hour', 'Minute'])
-    
-    # 3. 데이터 집계 (Aggregation)
-    # 월별 컬럼(Jan~Dec)을 행(row)으로 녹여서(melt) 전체 평균을 구하기 쉽게 변환
-    available_months = [c for c in month_cols if c in df.columns]
-    df_melted = df.melt(id_vars=['Hour', 'Minute'], value_vars=available_months, value_name='Flow')
-    
-    # 시간대(Hour, Minute)별로 그룹화하여 연간 평균 유량 계산
-    profile = df_melted.groupby(['Hour', 'Minute'])['Flow'].mean().reset_index()
-    
-    # 시간 순서대로 정렬 (절대 시간 계산: (Hour-1)*60 + Minute)
-    # 데이터 상 Hour=1, Minute=5는 00:05분을 의미한다고 가정 (일반적인 Annex 데이터 포맷)
-    profile['AbsTime'] = (profile['Hour'] - 1) * 60 + profile['Minute']
-    profile = profile.sort_values(by='AbsTime')
+    for i, flow in enumerate(flow_rate_array):
+        # i번째 1분 데이터의 시작 시간(초 단위, 0-based)
+        minute_start_sec = i * df_time_step
+        # 각 1분 데이터를 10초 단위 구간 6개로 쪼개 작성
+        for slot in range(num_slots_per_min):
+            slot_start_sec = minute_start_sec + slot * simulation_time_step
+            slot_end_sec = slot_start_sec + simulation_time_step
 
-    # 4. 노말라이즈 (Normalization)
-    # 연간 평균 프로필 중 최대 유량 찾기
-    max_flow = profile['Flow'].max()
-    
-    if max_flow > 0:
-        profile['Fraction'] = profile['Flow'] / max_flow
-    else:
-        profile['Fraction'] = 0.0
-        
-    # 5. 결과 리스트 생성
-    schedule = []
-    
-    # 시간 간격(Interval) 자동 감지 (예: 1분, 5분, 15분)
-    times = profile['AbsTime'].values
-    if len(times) > 1:
-        # 첫 번째 시간과 두 번째 시간의 차이를 간격으로 사용
-        interval = times[1] - times[0]
-    else:
-        interval = 60 # 기본값
-        
-    for _, row in profile.iterrows():
-        abs_time_end = int(row['AbsTime'])
-        fraction = row['Fraction']
-        
-        # 시작 시간과 종료 시간 계산 (분 단위)
-        # 데이터의 시간은 해당 간격의 '끝'을 의미하거나 '시작'을 의미할 수 있으나,
-        # 보통 누적 데이터는 끝 시간을 기록함. 여기서는 (End - interval) ~ End 로 계산
-        start_mins = abs_time_end - interval
-        end_mins = abs_time_end
-        
-        # 분을 "H:MM" 문자열로 변환하는 헬퍼 함수
-        def mins_to_str(m):
-            m = m % 1440 # 24시간(1440분) 기준으로 순환
-            hh = int(m // 60)
-            mm = int(m % 60)
-            return f"{hh}:{mm:02d}"
+            # 시작 시간표시(H:MM:SS)
+            sh = slot_start_sec // cu.h2s
+            sm = (slot_start_sec % cu.h2s) // cu.m2s
+            ss = slot_start_sec % cu.m2s
+            start_time = f"{int(sh)}:{int(sm):02d}:{int(ss):02d}"
+
+            # 종료 시간 계산 (마지막 구간에서 24:00:00로 처리)
+            if slot_end_sec >= 24 * cu.h2s:
+                end_time = "24:00:00"
+            else:
+                eh = slot_end_sec // cu.h2s
+                em = (slot_end_sec % cu.h2s) // cu.m2s
+                es = slot_end_sec % cu.m2s
+                end_time = f"{int(eh)}:{int(em):02d}:{int(es):02d}"
+
+            fraction = (flow / peak_flow_rate_array) if peak_flow_rate_array > 0 else 0.0
+
+            schedule_entries.append((start_time, end_time, fraction))
             
-        start_str = mins_to_str(start_mins)
-        end_str = mins_to_str(end_mins)
-        
-        # 튜플 형태로 추가 
-        schedule.append((start_str, end_str, fraction))
-        
-    return schedule
+    return schedule_entries
+
 
 def calc_total_water_use_from_schedule(schedule, peak_load_m3s, info = True, info_unit = 'L'):
     '''
@@ -1591,7 +1528,7 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s, info = True, inf
     ----------
     schedule : list of tuple
         Schedule list. Each item is (start_str, end_str, ratio) format.
-        - start_str, end_str: "H:M" or "H" format string (e.g., "6:00", "23:30", "24:00", etc.).
+        - start_str, end_str: "H:M" or "H:M:S" format string (e.g., "6:00", "23:30:15", "24:00").
         - ratio: Usage ratio (float) for that interval. Clipped to 0.0 ~ 1.0 range.
     peak_load_m3s : float
         Peak load flow rate [m³/s].
@@ -1613,34 +1550,47 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s, info = True, inf
     peak_load_lpm = peak_load_m3s * cu.m32L / cu.s2m
     total_use = 0
     if info:
-        print(f'Peak load: {peak_load_lpm} L/min')
-        print(f"{'Start':>6} ~ {'End':>6} | {'Ratio':>5} | {'Liters':>6}")
-        print("-" * 35)
+        print(f'Peak load: {peak_load_lpm:.2f} L/min')
+        print(f"{'Start':>8} ~ {'End':>8} | {'Ratio':>5} | {'Liters':>8}")
+        print("-" * 45)
     
     for start, end, ratio in schedule:
-        # 시간 차이 계산 (간단히 HH:MM 파싱)
-        h1, m1 = map(int, start.split(':'))
-        h2, m2 = map(int, end.split(':'))
-        duration_min = (h2*cu.h2m + m2) - (h1*cu.h2m + m1)
+        # 시간 문자열 파싱 (H, H:M, H:M:S 지원)
+        def parse_to_min(time_str):
+            parts = list(map(float, time_str.split(':')))
+            if len(parts) == 1: # H
+                return parts[0] * 60
+            elif len(parts) == 2: # H:M
+                return parts[0] * 60 + parts[1]
+            elif len(parts) == 3: # H:M:S
+                return parts[0] * 60 + parts[1] + parts[2] / 60.0
+            return 0.0
+
+        t1_min = parse_to_min(start)
+        t2_min = parse_to_min(end)
+        
+        duration_min = t2_min - t1_min
         
         # 24:00 처리 (다음날 0시)
-        if duration_min < 0: duration_min += 24*cu.h2m 
+        if duration_min < 0: duration_min += 24 * 60 
 
         liters = ratio * peak_load_lpm * duration_min
         total_use += liters
         
         if info:
             if info_unit == 'L':
-                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters:>6.1f} L")
+                val_str = f"{liters:>8.1f} L"
             elif info_unit == 'mL':
-                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters*1000:>6.1f} mL")
+                val_str = f"{liters*1000:>8.1f} mL"
             elif info_unit == 'm3':
-                print(f"{start:>6} ~ {end:>6} | {ratio:>5.2f} | {liters*cu.L2m3:>6.1f} m3")
+                val_str = f"{liters*cu.L2m3:>8.4f} m3"
             else:
                 raise ValueError(f"Invalid info_unit: {info_unit}")
+
+            print(f"{start:>8} ~ {end:>8} | {ratio:>5.2f} | {val_str}")
             
     if info:
-        print("-" * 35)
+        print("-" * 45)
         print(f"Total daily water use: {total_use:.2f} Liters")
     return total_use
 
@@ -1714,6 +1664,7 @@ def calc_ref_state(
     mode='heating',  # 작동 모드 ('heating' 또는 'cooling')
     dT_superheat=0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
     dT_subcool=0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
+    is_active=True,  # 활성화 여부 (False일 때 nan 값 반환)
 ):
     """
     냉매 사이클의 State 1-4 열역학 물성치를 계산하는 공통 함수.
@@ -1766,6 +1717,8 @@ def calc_ref_state(
             - dT_superheat=0이면 포화 증기 (기존 동작 유지)
         - dT_subcool (float, optional): 응축기 출구 과냉각도 [K] (기본값: 0.0)
             - dT_subcool=0이면 포화 액체 (기존 동작 유지)
+        - is_active (bool, optional): 활성화 여부 (기본값: True)
+            - is_active=False일 때 모든 값이 nan인 딕셔너리 반환
     
     Returns:
         dict: State 1-4의 물성치를 포함한 딕셔너리
@@ -1789,6 +1742,40 @@ def calc_ref_state(
         - State 4는 등엔탈피 과정 (h4 = h3)으로 팽창밸브를 모델링
         - dT_superheat=0, dT_subcool=0이면 기존 동작과 동일 (하위 호환성 유지)
     """
+    
+    # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
+    if not is_active:
+        return {
+            'P1': np.nan,
+            'P2': np.nan,
+            'P3': np.nan,
+            'P4': np.nan,
+            'T1_K': np.nan,
+            'T2_K': np.nan,
+            'T3_K': np.nan,
+            'T4_K': np.nan,
+            'T1_star_K': np.nan,
+            'T2_star_K': np.nan,
+            'T3_star_K': np.nan,
+            'P2_star': np.nan,
+            'h1': np.nan,
+            'h2': np.nan,
+            'h2_star': np.nan,
+            'h3': np.nan,
+            'h4': np.nan,
+            's1': np.nan,
+            's2': np.nan,
+            's2_star': np.nan,
+            's3': np.nan,
+            's4': np.nan,
+            'rho': np.nan,
+            'x1': np.nan,
+            'x2': np.nan,
+            'x2_star': np.nan,
+            'x3': np.nan,
+            'x4': np.nan,
+            'mode': mode,
+        }
     
     # 1단계: 포화 온도 및 압력 계산
     T1_star_K = T_evap_K  # 증발기 포화 증기 온도 (State 1*)
@@ -2012,7 +1999,6 @@ def create_lmtd_constraints():
         return perf.get('Q_LMTD_evap', 0) - perf.get('Q_ref_evap', 0)
     
     return [constraint_tank, constraint_hx]
-
 
 def find_ref_loop_optimal_operation(
     calculate_performance_func,  # 사이클 성능 계산 함수 (사용자 정의)
@@ -2259,7 +2245,6 @@ def find_ref_loop_optimal_operation(
         # 최적화 중 예외 발생
         print(f'최적화 중 오류 발생: {e}')
         return None
-
 
 def plot_cycle_diagrams(
     result,
@@ -2586,7 +2571,6 @@ def plot_cycle_diagrams(
     
     plt.close()
 
-
 def update_tank_temperature(
     T_tank_w_K,      # 현재 탱크 온도 [K]
     Q_tank_in,       # 탱크 입력 열량 [W]
@@ -2630,114 +2614,337 @@ def update_tank_temperature(
     T_tank_w_K_new = T_tank_w_K + dT
     return T_tank_w_K_new
 
-
-def print_simulation_summary(df, dt_s, dV_ou_design):
+def calc_stc_performance(
+    I_DN_stc,              # 직달일사 [W/m²]
+    I_dH_stc,              # 확산일사 [W/m²]
+    T_stc_w_in_K,          # STC 입수 온도 (저탕조 온도) [K]
+    T0_K,                  # 기준 온도 [K]
+    A_stc_pipe,            # STC 파이프 면적 [m²]
+    alpha_stc,             # 흡수율 [-]
+    h_o_stc,               # 외부 대류 열전달계수 [W/m²K]
+    h_r_stc,               # 공기층 복사 열전달계수 [W/m²K]
+    k_ins_stc,             # 단열재 열전도도 [W/mK]
+    x_air_stc,             # 공기층 두께 [m]
+    x_ins_stc,             # 단열재 두께 [m]
+    dV_stc,                # STC 유량 [m³/s]
+    E_pump,                # 펌프 소모 전력 [W]
+    is_active=True,        # 활성화 여부 (기본값: True)
+):
     """
-    시뮬레이션 결과 CSV 파일을 읽어 종합 통계를 출력합니다.
+    Solar Thermal Collector (STC) 성능을 계산합니다.
     
-    이 함수는 `AirSourceHeatPumpBoiler.analyze_dynamic` 메서드가 생성한 CSV 파일을
-    읽어서 수렴 여부, Fan 전력 투입률, Fan 평균 풍량, Fan 전력 통계, Compressor 회전수
-    통계 등을 계산하여 출력합니다.
+    이 함수는 태양열 집열판의 열전달, 엔트로피, 엑서지 분석을 수행합니다.
+    enex_engine.py의 SolarAssistedGasBoiler.system_update() 로직을 참조하여 구현되었습니다.
     
     Parameters
     ----------
-    csv_path : str
-        시뮬레이션 결과 CSV 파일 경로
-    dt_s : float
-        타임스텝 [초]
-    dV_ou_design : float
-        설계 풍량 [m³/s]
+    I_DN_stc : float
+        직달일사 [W/m²]
+    I_dH_stc : float
+        확산일사 [W/m²]
+    T_stc_w_in_K : float
+        STC 입수 온도 (저탕조 온도) [K]
+    T0_K : float
+        기준 온도 (환경 온도) [K]
+    A_stc_pipe : float
+        STC 파이프 면적 [m²]
+    alpha_stc : float
+        흡수율 [-]
+    h_o_stc : float
+        외부 대류 열전달계수 [W/m²K]
+    h_r_stc : float
+        공기층 복사 열전달계수 [W/m²K]
+    k_ins_stc : float
+        단열재 열전도도 [W/mK]
+    x_air_stc : float
+        공기층 두께 [m]
+    x_ins_stc : float
+        단열재 두께 [m]
+    dV_stc : float
+        STC 유량 [m³/s]
+    is_active : bool, optional
+        활성화 여부 (기본값: True)
+        is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
     
     Returns
     -------
-    None
-        print만 수행하며 반환값은 없음
-    
-    Raises
-    ------
-    FileNotFoundError
-        CSV 파일이 존재하지 않을 때
-    KeyError
-        필요한 컬럼이 CSV 파일에 없을 때
+    dict
+        계산 결과 딕셔너리:
+        - I_sol_stc: 총 일사량 [W/m²]
+        - Q_sol_stc: 태양열 흡수 열량 [W]
+        - ksi_stc: 무차원 수 [-]
+        - T_stc_w_out_K: STC 출수 온도 [K]
+        - T_stc_K: 집열판 평균 온도 [K]
+        - Q_stc_w_out: STC 출수 열량 [W]
+        - Q_l_stc: 집열판 열 손실 [W]
+        - S_stc_w_in: 입수 엔트로피 [W/K]
+        - S_DN_stc: 직달일사 엔트로피 [W/K]
+        - S_dH_stc: 확산일사 엔트로피 [W/K]
+        - S_sol_stc: 총 태양 엔트로피 [W/K]
+        - S_stc_w_out: 출수 엔트로피 [W/K]
+        - S_l_stc: 열 손실 엔트로피 [W/K]
+        - S_g_stc: STC 엔트로피 생성률 [W/K]
+        - X_stc_w_in: 입수 엑서지 [W]
+        - X_stc_w_out: 출수 엑서지 [W]
+        - X_sol_stc: 태양 엑서지 [W]
+        - X_l_stc: 열 손실 엑서지 [W]
+        - Xc_stc: STC 엑서지 손실 [W]
+        Returns dict with all values as np.nan (except T_stc_w_out_K, T_stc_w_in_K = T_stc_w_in_K) if is_active=False
     
     Notes
     -----
-    - 모든 통계는 동작 시 데이터만 사용 (0이 아닌 값들)
-    - `dt_s`는 에너지 적분 계산에 사용 (`sum() * dt_s`)
-    
-    Examples
-    --------
-    >>> print_simulation_summary(
-    ...     csv_path='../result/hpb_UV.csv',
-    ...     dt_s=60,
-    ...     dV_ou_design=1.5
-    ... )
-    ========================================
-    [수렴 여부] All converged: True
-    ========================================
-    [Fan 전력 투입률] 7.5%   (일반: 5~10%)
-    ========================================
-    ...
+    - 모든 변수명에 _stc 접미사를 사용하여 STC 관련 변수임을 명확히 구분합니다.
+    - 열 손실은 Q_l_stc로 명명됩니다.
     """
-    # 필수 컬럼 확인
+    import math
+    from .constants import c_w, rho_w, k_D, k_d, k_a
+    
+    # U_stc 계산 (내부에서 계산)
+    # Resistance [m²K/W]
+    R_air_stc = x_air_stc / k_a
+    R_ins_stc = x_ins_stc / k_ins_stc
+    R_o_stc = 1 / h_o_stc
+    R_r_stc = 1 / h_r_stc
+    
+    R1_stc = (R_r_stc * R_air_stc) / (R_r_stc + R_air_stc) + R_o_stc
+    R2_stc = R_ins_stc + R_o_stc
+    
+    # U-value [W/m²K] (병렬)
+    U1_stc = 1 / R1_stc
+    U2_stc = 1 / R2_stc
+    U_stc = U1_stc + U2_stc
+    
+    # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
+    if not is_active:
+        return {
+            'I_sol_stc': np.nan,
+            'Q_sol_stc': np.nan,
+            'Q_stc_w_in': np.nan,
+            'Q_stc_w_out': np.nan,
+            'ksi_stc': np.nan,
+            'T_stc_w_final_K': T_stc_w_in_K,  # 입수 온도와 동일
+            'T_stc_w_out_K': T_stc_w_in_K,  # 입수 온도와 동일
+            'T_stc_w_in_K': T_stc_w_in_K,
+            'T_stc_K': np.nan,
+            'Q_l_stc': np.nan,
+            'S_stc_w_in': np.nan,
+            'S_DN_stc': np.nan,
+            'S_dH_stc': np.nan,
+            'S_sol_stc': np.nan,
+            'S_stc_w_out': np.nan,
+            'S_l_stc': np.nan,
+            'S_g_stc': np.nan,
+            'X_stc_w_in': np.nan,
+            'X_sol_stc': np.nan,
+            'X_stc_w_out': np.nan,
+            'X_l_stc': np.nan,
+            'Xc_stc': np.nan,
+        }
+    
+    # 총 일사량 계산
+    I_sol_stc = I_DN_stc + I_dH_stc
+    
+    # 태양열 흡수 열량
+    Q_sol_stc = I_sol_stc * A_stc_pipe * alpha_stc
+    
+    # Heat capacity flow rate
+    G_stc = c_w * rho_w * dV_stc
+    
+    # 입수 열량 (기준 온도 기준) - calc_energy_flow 사용
+    Q_stc_w_in = calc_energy_flow(G_stc, T_stc_w_in_K, T0_K)
+    
+    # 무차원 수 (효율 계수)
+    ksi_stc = np.exp(-A_stc_pipe * U_stc / G_stc)
+    
+    # STC 출수 온도 계산
+    T_stc_w_out_numerator = T0_K + (
+        Q_sol_stc + Q_stc_w_in
+        + A_stc_pipe * U_stc * (ksi_stc * T_stc_w_in_K / (1 - ksi_stc))
+        + A_stc_pipe * U_stc * T0_K
+    ) / G_stc
+    
+    T_stc_w_out_denominator = 1 + (A_stc_pipe * U_stc) / ((1 - ksi_stc) * G_stc)
+    
+    T_stc_w_out_K = T_stc_w_out_numerator / T_stc_w_out_denominator
+    T_stc_w_final_K = T_stc_w_out_K + E_pump / G_stc
+    T_stc_K = 1/(1-ksi_stc) * T_stc_w_out_K - ksi_stc/(1-ksi_stc) * T_stc_w_in_K
+    
+    # STC 출수 열량 - calc_energy_flow 사용
+    Q_stc_w_out = calc_energy_flow(G_stc, T_stc_w_out_K, T0_K)
+    
+    # 집열판 열 손실
+    Q_l_stc = A_stc_pipe * U_stc * (T_stc_K - T0_K)
+    
+    # 엔트로피 계산
+    S_stc_w_in = c_w * rho_w * dV_stc * math.log(T_stc_w_in_K / T0_K)
+    S_DN_stc = k_D * I_DN_stc**(0.9)
+    S_dH_stc = k_d * I_dH_stc**(0.9)
+    S_sol_stc = S_DN_stc + S_dH_stc
+    S_stc_w_out = c_w * rho_w * dV_stc * math.log(T_stc_w_out_K / T0_K)
+    S_l_stc = (1 / T_stc_K) * A_stc_pipe * U_stc * (T_stc_K - T0_K)
+    S_g_stc = S_stc_w_out + S_l_stc - (S_sol_stc + S_stc_w_in)
+    
+    # 엑서지 계산
+    # 유체 흐름 관련 엑서지는 calc_exergy_flow 함수 사용
+    X_stc_w_in = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
+    X_stc_w_out = calc_exergy_flow(G_stc, T_stc_w_out_K, T0_K)
+    X_stc_w_final = calc_exergy_flow(G_stc, T_stc_w_final_K, T0_K)
+    # 태양 복사 및 열 손실 엑서지는 기존 방식 유지
+    X_sol_stc = Q_sol_stc - S_sol_stc * T0_K
+    X_l_stc = Q_l_stc - S_l_stc * T0_K
+    Xc_stc = S_g_stc * T0_K
+    
+    return {
+        'I_sol_stc': I_sol_stc,
+        'Q_sol_stc': Q_sol_stc,
+        'Q_stc_w_in': Q_stc_w_in,
+        'Q_stc_w_out': Q_stc_w_out,
+        'ksi_stc': ksi_stc,
+        'T_stc_w_final_K': T_stc_w_final_K,
+        'T_stc_w_out_K': T_stc_w_out_K,
+        'T_stc_w_in_K': T_stc_w_in_K,
+        'T_stc_K': T_stc_K,
+        'Q_l_stc': Q_l_stc,
+        'S_stc_w_in': S_stc_w_in,
+        'S_DN_stc': S_DN_stc,
+        'S_dH_stc': S_dH_stc,
+        'S_sol_stc': S_sol_stc,
+        'S_stc_w_out': S_stc_w_out,
+        'S_l_stc': S_l_stc,
+        'S_g_stc': S_g_stc,
+        'X_stc_w_in': X_stc_w_in,
+        'X_sol_stc': X_sol_stc,
+        'X_stc_w_out': X_stc_w_out,
+        'X_stc_w_final': X_stc_w_final,
+        'X_l_stc': X_l_stc,
+        'Xc_stc': Xc_stc,
+    }
+
+def print_simulation_summary(df, simulation_time_step, dV_ou_design):
+    """
+    Reads simulation result DataFrame and prints comprehensive statistics in English.
+    """
     required_columns = ['converged', 'E_fan_ou [W]', 'E_tot [W]', 'dV_fan_ou [m3/s]', 'cmp_rpm [rpm]']
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
-        raise KeyError(f"Required columns not found in CSV: {missing_columns}")
-    
-    # 1. 수렴 여부 확인 및 출력
-    print("="*40)
+        raise KeyError(f"Required columns not found in DataFrame: {missing_columns}")
+
+    print("="*50)
+    # 1. Convergence Status
     converged_all = df['converged'].all()
-    print(f"[수렴 여부] All converged: {converged_all}")
+    print(f"[Convergence Status] All converged: {converged_all}")
     if not converged_all:
         nonconverged_count = (~df['converged']).sum()
-        print(f"  - 미수렴 데이터 수: {nonconverged_count} / {len(df)}")
-        print(df[df['converged'] == False])
-    print("="*40)
-    
-    # 2. Fan 전력 투입률 계산 및 출력
-    fan_power_pct = ((df['E_fan_ou [W]'].sum() * dt_s) / (df['E_tot [W]'].sum() * dt_s)) * 100
-    print(f"[Fan 전력 투입률] {fan_power_pct:.1f}%   (일반: 5~10%)")
-    print("="*40)
-    
-    # 3. Fan 평균 풍량 계산 및 출력
-    fan_nonzero = df.loc[df['dV_fan_ou [m3/s]'] != 0, 'dV_fan_ou [m3/s]']
-    if len(fan_nonzero) > 0:
-        fan_avg_flow = fan_nonzero.mean()
-        fan_avg_flow_pct = (fan_avg_flow / dV_ou_design) * 100
-        print("[Fan 평균 풍량]")
-        print(f"  - 평균 풍량: {fan_avg_flow:.3f} m³/s   (설계 대비 {fan_avg_flow_pct:.1f}%)")
+        print(f"  - Non-converged steps: {nonconverged_count} / {len(df)}")
+    print("-" * 50)
+
+    # 2. Compressor Statistics
+    cmp_rpm_nonzero = df.loc[df['cmp_rpm [rpm]'] > 0, 'cmp_rpm [rpm]']
+    print("[Compressor Speed]")
+    if not cmp_rpm_nonzero.empty:
+        print(f"  - Min: {cmp_rpm_nonzero.min():.1f} rpm | Max: {cmp_rpm_nonzero.max():.1f} rpm")
+        print(f"  - Avg (active): {cmp_rpm_nonzero.mean():.1f} rpm")
     else:
-        print("[Fan 평균 풍량]")
-        print("  - 동작 데이터가 없습니다.")
-    print("="*40)
-    
-    # 4. Fan 전력 통계 계산 및 출력
-    fan_power_nonzero = df.loc[df['E_fan_ou [W]'] != 0, 'E_fan_ou [W]']
-    if len(fan_power_nonzero) > 0:
-        fan_power_avg = fan_power_nonzero.mean()
-        fan_power_min = fan_power_nonzero.min()
-        fan_power_max = fan_power_nonzero.max()
-        print("[Fan 전력: 동작 시]")
-        print(f"  - 평균: {fan_power_avg:.1f} W | 최소: {fan_power_min:.1f} W | 최대: {fan_power_max:.1f} W")
+        print("  - No active data.")
+    print("-" * 50)
+
+    # 3. Fan Flow Rate Statistics
+    fan_nonzero = df.loc[df['dV_fan_ou [m3/s]'] > 0, 'dV_fan_ou [m3/s]']
+    print("[Fan Flow Rate]")
+    if not fan_nonzero.empty:
+        fan_avg = fan_nonzero.mean()
+        fan_avg_pct = (fan_avg / dV_ou_design) * 100
+        print(f"  - Min: {fan_nonzero.min():.3f} m³/s | Max: {fan_nonzero.max():.3f} m³/s")
+        print(f"  - Avg: {fan_avg:.3f} m³/s ({fan_avg_pct:.1f}% of design)")
     else:
-        print("[Fan 전력: 동작 시]")
-        print("  - 동작 데이터가 없습니다.")
-    print("="*40)
-    
-    # 5. Compressor 회전수 통계 계산 및 출력
-    cmp_rpm_nonzero = df.loc[df['cmp_rpm [rpm]'] != 0, 'cmp_rpm [rpm]']
-    if len(cmp_rpm_nonzero) > 0:
-        cmp_rpm_min = cmp_rpm_nonzero.min()
-        cmp_rpm_max = df['cmp_rpm [rpm]'].max()  # 전체 데이터의 최대값 사용 (원본 코드와 동일)
-        cmp_rpm_avg_nonzero = cmp_rpm_nonzero.mean()
-        print("[Compressor 회전수]")
-        print(f"  - min: {cmp_rpm_min:.1f} rpm | max: {cmp_rpm_max:.1f} rpm")
-        print(f"  - 평균(동작 조건): {cmp_rpm_avg_nonzero:.1f} rpm")
+        print("  - No active data.")
+    print("-" * 50)
+
+    # 3-1. Fan Velocity & Pressure Statistics
+    if 'v_fan_ou [m/s]' in df.columns:
+        v_fan_nonzero = df.loc[df['v_fan_ou [m/s]'] > 0, 'v_fan_ou [m/s]']
+        print("[Fan Velocity]")
+        if not v_fan_nonzero.empty:
+            print(f"  - Min: {v_fan_nonzero.min():.2f} m/s | Max: {v_fan_nonzero.max():.2f} m/s")
+            print(f"  - Avg: {v_fan_nonzero.mean():.2f} m/s")
+        else:
+            print("  - No active data.")
+        print("-" * 50)
+
+    if 'dP_fan_ou_static [Pa]' in df.columns and 'dP_fan_ou_dynamic [Pa]' in df.columns:
+        # Filter based on active fan (using dV_fan_ou > 0)
+        active_idx = df['dV_fan_ou [m3/s]'] > 0
+        dP_static = df.loc[active_idx, 'dP_fan_ou_static [Pa]']
+        dP_dynamic = df.loc[active_idx, 'dP_fan_ou_dynamic [Pa]']
+        
+        print("[Fan Pressure (Static / Dynamic)]")
+        if not dP_static.empty:
+            print(f"  - Static  : Avg {dP_static.mean():.1f} Pa | Min {dP_static.min():.1f} Pa | Max {dP_static.max():.1f} Pa")
+            print(f"  - Dynamic : Avg {dP_dynamic.mean():.1f} Pa | Min {dP_dynamic.min():.1f} Pa | Max {dP_dynamic.max():.1f} Pa")
+        else:
+            print("  - No active data.")
+        print("-" * 50)
+
+    # 4. Fan Power Statistics
+    fan_p_nonzero = df.loc[df['E_fan_ou [W]'] > 0, 'E_fan_ou [W]']
+    print("[Fan Power Use]")
+    if not fan_p_nonzero.empty:
+        print(f"  - Min: {fan_p_nonzero.min():.1f} W | Max: {fan_p_nonzero.max():.1f} W")
+        print(f"  - Avg: {fan_p_nonzero.mean():.1f} W")
     else:
-        print("[Compressor 회전수]")
-        print("  - 동작 데이터가 없습니다.")
-    print("="*40)
+        print("  - No active data.")
+    print("-" * 50)
+
+    # 5. System Efficiency Metrics
+    total_fan_energy = df['E_fan_ou [W]'].sum() * simulation_time_step
+    total_energy = df['E_tot [W]'].sum() * simulation_time_step
+    fan_ratio = (total_fan_energy / total_energy * 100) if total_energy > 0 else 0
+    print(f"[Fan Power Ratio] {fan_ratio:.1f}% (Typical: 5-10%)")
+    print("-" * 50)
+
+    # 6. Heat Exchange Performance: Outdoor Air
+    if 'T_a_ou_in [°C]' in df.columns and 'T_a_ou_out [°C]' in df.columns:
+        valid_idx = df['T_a_ou_out [°C]'].notna()
+        print("[Outdoor Air Temperature Difference (In - Out)]")
+        if valid_idx.any():
+            delta_T = df.loc[valid_idx, 'T_a_ou_in [°C]'] - df.loc[valid_idx, 'T_a_ou_out [°C]']
+            print(f"  - Avg Delta T: {delta_T.mean():.2f} K | Max Delta T: {delta_T.max():.2f} K")
+        else:
+            print("  - No active data.")
+        print("-" * 50)
+
+    # 7. Heat Exchange Performance: Temp Differences
+    print("[Heat Exchanger Temperature Differences]")
+    
+    # Condenser (T_cond - T_tank_w)
+    if 'T3_star [°C]' in df.columns and 'T_tank_w [°C]' in df.columns:
+        T_cond = df.loc[df['T3_star [°C]'] > -273, 'T3_star [°C]']
+        T_tank_w = df.loc[df['T_tank_w [°C]'] > -273, 'T_tank_w [°C]']
+        
+        if not T_cond.empty and not T_tank_w.empty:
+            dT_cond = T_cond - T_tank_w
+            # Filter valid (active) steps if possible, e.g. dT > 0 or Q > 0
+            # For simplicity, calculate stats for all active timestamps
+            print(f"  - Condenser (T_cond - T_tank) Avg: {dT_cond.mean():.2f} K | Min: {dT_cond.min():.2f} K | Max: {dT_cond.max():.2f} K")
+        else:
+            print("  - Condenser: No data")
+
+    # Evaporator (T_air_in - T_evap) & (T_air_in - T_air_out)
+    if 'T_a_ou_in [°C]' in df.columns and 'T1_star [°C]' in df.columns and 'T_a_ou_out [°C]' in df.columns:
+        T_air_in = df.loc[df['T_a_ou_in [°C]'] > -273, 'T_a_ou_in [°C]']
+        T_evap_sat = df.loc[df['T1_star [°C]'] > -273, 'T1_star [°C]']
+        T_air_out = df.loc[df['T_a_ou_out [°C]'] > -273, 'T_a_ou_out [°C]']
+        
+        if not T_air_in.empty:
+            dT_evap_drive = T_air_in - T_evap_sat
+            dT_air_drop = T_air_in - T_air_out
+            
+            print(f"  - Evap Drive (T_air_in - T_evap) Avg: {dT_evap_drive.mean():.2f} K")
+            print(f"  - Air Drop (T_air_in - T_air_out) Avg: {dT_air_drop.mean():.2f} K")
+        else:
+            print("  - Evaporator: No data")
+
+    print("="*50)
 
 def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     """Plot T-h diagram on given axis. 
@@ -2825,28 +3032,28 @@ def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     
     # 1*와 1 비교
     if points_are_close(h1_star, T1_star, h1, T1):
-        points.append((h1, T1, r'$1=1^*$'))
+        points.append((h1, T1, '1=1$^*$'))
     else:
         if not (np.isnan(h1_star) or np.isnan(T1_star)):
-            points.append((h1_star, T1_star, r'$1^*$'))
+            points.append((h1_star, T1_star, '1$^*$'))
         if not (np.isnan(h1) or np.isnan(T1)):
             points.append((h1, T1, '1'))
     
     # 2와 2* 비교
     if points_are_close(h2, T2, h2_star, T2_star):
-        points.append((h2, T2, r'$2=2^*$'))
+        points.append((h2, T2, '2=2$^*$'))
     else:
         if not (np.isnan(h2) or np.isnan(T2)):
             points.append((h2, T2, '2'))
         if not (np.isnan(h2_star) or np.isnan(T2_star)):
-            points.append((h2_star, T2_star, r'$2^*$'))
+            points.append((h2_star, T2_star, '2$^*$'))
     
     # 3*와 3 비교
     if points_are_close(h3_star, T3_star, h3, T3):
-        points.append((h3, T3, r'$3=3^*$'))
+        points.append((h3, T3, '3=3$^*$'))
     else:
         if not (np.isnan(h3_star) or np.isnan(T3_star)):
-            points.append((h3_star, T3_star, r'$3^*$'))
+            points.append((h3_star, T3_star, '3$^*$'))
         if not (np.isnan(h3) or np.isnan(T3)):
             points.append((h3, T3, '3'))
     
@@ -2980,28 +3187,28 @@ def plot_ph_diagram(ax, result, refrigerant, fs, pad):
     
     # 1*와 1 비교
     if points_are_close(h1_star, P1_star, h1, P1):
-        points.append((h1, P1, r'$1=1^*$'))
+        points.append((h1, P1, '1=1$^*$'))
     else:
         if not (np.isnan(h1_star) or np.isnan(P1_star)):
-            points.append((h1_star, P1_star, r'$1^*$'))
+            points.append((h1_star, P1_star, '1$^*$'))
         if not (np.isnan(h1) or np.isnan(P1)):
             points.append((h1, P1, '1'))
     
     # 2와 2* 비교
     if points_are_close(h2, P2, h2_star, P2_star):
-        points.append((h2, P2, r'$2=2^*$'))
+        points.append((h2, P2, '2=2$^*$'))
     else:
         if not (np.isnan(h2) or np.isnan(P2)):
             points.append((h2, P2, '2'))
         if not (np.isnan(h2_star) or np.isnan(P2_star)):
-            points.append((h2_star, P2_star, r'$2^*$'))
+            points.append((h2_star, P2_star, '2$^*$'))
     
     # 3*와 3 비교
     if points_are_close(h3_star, P3_star, h3, P3):
-        points.append((h3, P3, r'$3=3^*$'))
+        points.append((h3, P3, '3=3$^*$'))
     else:
         if not (np.isnan(h3_star) or np.isnan(P3_star)):
-            points.append((h3_star, P3_star, r'$3^*$'))
+            points.append((h3_star, P3_star, '3$^*$'))
         if not (np.isnan(h3) or np.isnan(P3)):
             points.append((h3, P3, '3'))
     
@@ -3127,28 +3334,28 @@ def plot_ts_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     
     # 1*와 1 비교
     if points_are_close(s1_star, T1_star, s1, T1):
-        points.append((s1, T1, r'$1=1^*$'))
+        points.append((s1, T1, '1=1$^*$'))
     else:
         if not (np.isnan(s1_star) or np.isnan(T1_star)):
-            points.append((s1_star, T1_star, r'$1^*$'))
+            points.append((s1_star, T1_star, '1$^*$'))
         if not (np.isnan(s1) or np.isnan(T1)):
             points.append((s1, T1, '1'))
     
     # 2와 2* 비교
     if points_are_close(s2, T2, s2_star, T2_star):
-        points.append((s2, T2, r'$2=2^*$'))
+        points.append((s2, T2, '2=2$^*$'))
     else:
         if not (np.isnan(s2) or np.isnan(T2)):
             points.append((s2, T2, '2'))
         if not (np.isnan(s2_star) or np.isnan(T2_star)):
-            points.append((s2_star, T2_star, r'$2^*$'))
+            points.append((s2_star, T2_star, '2$^*$'))
     
     # 3*와 3 비교
     if points_are_close(s3_star, T3_star, s3, T3):
-        points.append((s3, T3, r'$3=3^*$'))
+        points.append((s3, T3, '3=3$^*$'))
     else:
         if not (np.isnan(s3_star) or np.isnan(T3_star)):
-            points.append((s3_star, T3_star, r'$3^*$'))
+            points.append((s3_star, T3_star, '3$^*$'))
         if not (np.isnan(s3) or np.isnan(T3)):
             points.append((s3, T3, '3'))
     

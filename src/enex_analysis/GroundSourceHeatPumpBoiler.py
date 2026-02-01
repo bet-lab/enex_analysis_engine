@@ -5,25 +5,17 @@ from . import calc_util as cu
 from dataclasses import dataclass
 from scipy.optimize import minimize
 from .enex_functions import (
-    compute_refrigerant_thermodynamic_states,
-    plot_cycle_diagrams
+    calc_ref_state,
 )
 import CoolProp.CoolProp as CP
 from tqdm import tqdm
 import pandas as pd
 
 # Import constants from constants.py
-from .constants import (
-    c_a, rho_a, k_a, c_w, rho_w, mu_w, k_w, sigma, k_D, k_d, ex_eff_NG, SP
-)
+from .constants import *
 
 # Import functions from enex_functions.py
-from .enex_functions import (
-    calc_lmtd_fluid_and_constant_temp,
-    calc_simple_tank_UA,
-    G_FLS,
-    _build_schedule_ratios,
-)
+from .enex_functions import *
 
 @dataclass
 class GroundSourceHeatPumpBoiler:
@@ -80,6 +72,15 @@ class GroundSourceHeatPumpBoiler:
 
         #   (순환 펌프)
         E_pmp = 200,      # [W] 펌프 소비전력
+
+        # 5. UV 램프 파라미터 -----------------------------------------
+        lamp_power_watts = 0, # [W] 램프 소비 전력
+        uv_lamp_exposure_duration_min = 0, # [min] 1회 UV램프 노출 기준시간
+        num_switching_per_3hour = 1, # [개] 3시간 당 on 횟수
+
+        # 6. 과열도 및 과냉각도 설정 (Default 3도)
+        dT_superheat = 3.0,  # [K] 증발기 출구 과열도 (State 1* -> 1)
+        dT_subcool   = 3.0,  # [K] 응축기 출구 과냉각도 (State 3* -> 3)
         ):
 
         # --- 1. 기본 물성/상수 ---
@@ -127,6 +128,18 @@ class GroundSourceHeatPumpBoiler:
         self.dV_w_serv_m3s = dV_w_serv_m3s
         self.T_tank_w_setpoint = T_tank_w_setpoint
         self.T_tank_w_lower_bound = T_tank_w_lower_bound
+
+        # --- 5. UV 램프 파라미터 ---
+        self.lamp_power_watts = lamp_power_watts
+        self.uv_lamp_exposure_duration_min = uv_lamp_exposure_duration_min
+        self.num_switching_per_3hour = num_switching_per_3hour
+        # UV 램프 관련 계산 상수
+        self.period_3hour_sec = 3 * cu.h2s  # 3시간을 초 단위로 변환
+        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s  # 분을 초로 변환
+
+        # --- 6. 과열/과냉각 변수 저장 ---
+        self.dT_superheat = dT_superheat
+        self.dT_subcool = dT_subcool
         self.T_sup_w = T_sup_w
         self.T_serv_w = T_serv_w
 
@@ -178,7 +191,7 @@ class GroundSourceHeatPumpBoiler:
         호출 관계:
         - 호출자: _optimize_operation (본 클래스)
         - 호출 함수: 
-            - compute_refrigerant_thermodynamic_states (enex_functions.py)
+            - calc_ref_state (enex_functions.py)
         
         데이터 흐름:
         ──────────────────────────────────────────────────────────────────────────
@@ -186,7 +199,7 @@ class GroundSourceHeatPumpBoiler:
             ↓
         증발/응축 온도 계산 (T_evap_K, T_cond_K)
             ↓
-        compute_refrigerant_thermodynamic_states
+        calc_ref_state
             ↓ [State 1-4 물성치]
         냉매 유량 계산 (m_dot_ref)
             ↓
@@ -249,13 +262,15 @@ class GroundSourceHeatPumpBoiler:
         # ============================================================
         # 3단계: 공통 사이클 상태 계산
         # ============================================================
-        cycle_states = compute_refrigerant_thermodynamic_states(
+        cycle_states = calc_ref_state(
             T_evap_K=T_evap_K,
             T_cond_K=T_cond_K,
             refrigerant=self.ref,
             eta_cmp_isen=self.eta_cmp_isen,
             T0_K=T0_K,
-            P0=101325
+            P0=101325,
+            dT_superheat=self.dT_superheat,
+            dT_subcool=self.dT_subcool
         )
         
         # State 1의 밀도 (냉매 유량 계산에 사용)
@@ -375,6 +390,30 @@ class GroundSourceHeatPumpBoiler:
         x3 = (h3-h0) - T0_K*(s3 - s0)
         x4 = (h4-h0) - T0_K*(s4 - s0)
         
+        # 포화점 물성치 추출
+        T1_star_K = cycle_states.get('T1_star_K', np.nan)
+        T2_star_K = cycle_states.get('T2_star_K', np.nan)
+        T3_star_K = cycle_states.get('T3_star_K', np.nan)
+        P2_star = cycle_states.get('P2_star', P2)
+        
+        # 포화점 엔탈피, 엔트로피, 엑서지 계산
+        P1_star = P1  # 증발기 포화 압력
+        h1_star = CP.PropsSI('H', 'P', P1_star, 'Q', 1, self.ref)
+        s1_star = CP.PropsSI('S', 'P', P1_star, 'Q', 1, self.ref)
+        x1_star = (h1_star-h0) - T0_K*(s1_star - s0)
+        
+        h2_star = cycle_states.get('h2_star', np.nan)
+        s2_star = cycle_states.get('s2_star', np.nan)
+        if np.isnan(h2_star) or np.isnan(s2_star):
+            h2_star = CP.PropsSI('H', 'P', P2_star, 'Q', 1, self.ref)
+            s2_star = CP.PropsSI('S', 'P', P2_star, 'Q', 1, self.ref)
+        x2_star = (h2_star-h0) - T0_K*(s2_star - s0)
+        
+        P3_star = P3  # 응축기 포화 압력
+        h3_star = CP.PropsSI('H', 'P', P3_star, 'Q', 0, self.ref)
+        s3_star = CP.PropsSI('S', 'P', P3_star, 'Q', 0, self.ref)
+        x3_star = (h3_star-h0) - T0_K*(s3_star - s0)
+        
         # ============================================================
         # 9단계: 최종 결과 딕셔너리 생성 (단위 포함)
         # ============================================================
@@ -385,12 +424,18 @@ class GroundSourceHeatPumpBoiler:
             'converged': True,
             
             # === [온도: °C] =======================================
+            # [NEW] Saturation Points
+            'T1_star [°C]': cu.K2C(T1_star_K),
+            'T2_star [°C]': cu.K2C(T2_star_K),
+            'T3_star [°C]': cu.K2C(T3_star_K),
+            
+            # [Updated] Actual Points
             'T0 [°C]': T0,
             'T1 [°C]': cu.K2C(T1_K),
             'T2 [°C]': cu.K2C(T2_K),
             'T3 [°C]': cu.K2C(T3_K),
             'T4 [°C]': cu.K2C(T4_K),
-            'T_cond [°C]': cu.K2C(T2_K),
+            'T_cond [°C]': cu.K2C(T3_star_K if not np.isnan(T3_star_K) else T3_K),  # 대표 응축 온도는 포화 온도로 표시
             'T_tank_w [°C]': T_tank_w,
             'T_serv_w [°C]': self.T_serv_w,
             'T_sup_w [°C]': self.T_sup_w,
@@ -411,6 +456,9 @@ class GroundSourceHeatPumpBoiler:
             'P2 [Pa]': P2,
             'P3 [Pa]': P3,
             'P4 [Pa]': P4,
+            'P1_star [Pa]': P1_star,
+            'P2_star [Pa]': P2_star,
+            'P3_star [Pa]': P3_star,
             
             # === [질량유량: kg/s] ==================================
             'm_dot_ref [kg/s]': m_dot_ref,
@@ -423,18 +471,27 @@ class GroundSourceHeatPumpBoiler:
             'h2 [J/kg]': h2,
             'h3 [J/kg]': h3,
             'h4 [J/kg]': h4,
+            'h1_star [J/kg]': h1_star,
+            'h2_star [J/kg]': h2_star,
+            'h3_star [J/kg]': h3_star,
             
             # === [엔트로피: J/(kg·K)] ==============================
             's1 [J/(kg·K)]': s1,
             's2 [J/(kg·K)]': s2,
             's3 [J/(kg·K)]': s3,
             's4 [J/(kg·K)]': s4,
+            's1_star [J/(kg·K)]': s1_star,
+            's2_star [J/(kg·K)]': s2_star,
+            's3_star [J/(kg·K)]': s3_star,
             
             # === [엑서지 단위: J/kg] ===============================
             'x1 [J/kg]': x1,
             'x2 [J/kg]': x2,
             'x3 [J/kg]': x3,
             'x4 [J/kg]': x4,
+            'x1_star [J/kg]': x1_star,
+            'x2_star [J/kg]': x2_star,
+            'x3_star [J/kg]': x3_star,
             
             # === [에너지/열량: W] ==================================
             'Q_cond_load [W]': Q_cond_load,
@@ -812,8 +869,6 @@ class GroundSourceHeatPumpBoiler:
         schedule_entries,
         T0_schedule,
         result_save_csv_path=None,
-        save_ph_diagram=False,
-        snapshot_save_path=None,
         optimization_method='SLSQP',  # 최적화 알고리즘 선택
         ):
         
@@ -830,8 +885,6 @@ class GroundSourceHeatPumpBoiler:
             T0_schedule: 엑서지 분석 기준 온도(=외기온도) 스케줄 [°C]
                 엑서지 계산의 기준점으로 사용되는 외기 온도의 시간별 스케줄
             result_save_csv_path: 결과 CSV 저장 경로
-            save_ph_diagram: P-h 선도 이미지 저장 여부
-            snapshot_save_path: P-h 선도 이미지 저장 경로
             optimization_method: 최적화 알고리즘 선택 ('SLSQP', 'trust-constr', 'COBYLA')
         
         Returns:
@@ -1023,30 +1076,37 @@ class GroundSourceHeatPumpBoiler:
                 step_results['T_b_f_out [°C]'] = self.T_b_f_out
                 step_results['Q_b [W]'] = self.Q_b
             
+            # UV 램프 전력 계산 (is_on과 무관)
+            E_uv = 0
+            if (
+                self.num_switching_per_3hour > 0
+                and self.lamp_power_watts > 0
+            ):
+                time_in_period = time[n] % self.period_3hour_sec
+                interval = (
+                    self.period_3hour_sec
+                    - self.num_switching_per_3hour * self.uv_lamp_exposure_duration_sec
+                ) / (self.num_switching_per_3hour + 1)
+                for i in range(self.num_switching_per_3hour):
+                    start_time = interval * (i + 1) + i * self.uv_lamp_exposure_duration_sec
+                    if start_time <= time_in_period < start_time + self.uv_lamp_exposure_duration_sec:
+                        E_uv = self.lamp_power_watts
+                        break
+            
+            step_results['is_on'] = is_on
+            if self.lamp_power_watts > 0:
+                step_results['E_uv [W]'] = E_uv
+            
             # 다음 스텝 탱크 온도 계산
             if n < tN - 1:
-                Q_tank_in = result.get('Q_ref_cond [W]', 0.0)
+                # nan인 경우 0으로 처리 (탱크 온도 계산에는 실제 열량이 필요)
+                Q_ref_cond_val = result.get('Q_ref_cond [W]', np.nan)
+                Q_ref_cond_val = np.nan_to_num(Q_ref_cond_val, nan=0.0)
+                E_uv_val = step_results.get('E_uv [W]', 0.0)
+                Q_tank_in = Q_ref_cond_val + E_uv_val
                 Q_net = Q_tank_in - total_loss
                 T_tank_w_K += (Q_net / self.C_tank) * self.dt
-
-            # P-h 선도 저장
-            if save_ph_diagram:
-                if snapshot_save_path is None:
-                    raise ValueError("snapshot_save_path must be provided when save_ph_diagram is True.")
-                # 전환 시점이 아닐 때만 P-h 선도 저장 (전환 시점은 이전 스텝 값이므로)
-                if not is_transitioning_off_to_on:
-                    plot_cycle_diagrams(
-                        result=result,
-                        refrigerant=self.ref,
-                        show=False,
-                        show_temp_limits=True,
-                        save_path=snapshot_save_path+f'/{n:04d}.png',
-                        temp_limits=[
-                            ('Tank water', T_tank_w),
-                            ('GHE inlet', self.T_b_f_in),
-                            ('GHE outlet', self.T_b_f_out),
-                        ],
-                    )
+            
             results_data.append(step_results)
             
         results_df = pd.DataFrame(results_data)

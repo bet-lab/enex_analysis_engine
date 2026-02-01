@@ -13,7 +13,7 @@ from .constants import (
 
 # Import functions from enex_functions.py
 from .enex_functions import (
-    _build_schedule_ratios,
+    build_schedule_ratios,
 )
 
 
