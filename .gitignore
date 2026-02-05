@@ -100,4 +100,7 @@ result/
 data/
 project/
 simulation/
-paper/
+# paper/
+paper/*
+!paper/Annual_ASHP_enex_analysis/
+
