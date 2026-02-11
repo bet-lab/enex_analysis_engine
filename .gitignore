@@ -104,3 +104,8 @@ simulation/
 paper/*
 !paper/Annual_ASHP_enex_analysis/
 
+# Explicitly ignore other paper directories
+paper/ASHPB-model/
+paper/GB_HPB_grid_scenario/
+paper/HPB_UV/
+
