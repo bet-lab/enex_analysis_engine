@@ -240,7 +240,9 @@ def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
     """
     PLR = Q_r_int / Q_r_max
     if PLR < 0.2:
-        PLR = 0.2    
+        PLR = 0.2
+    if PLR > 1.0:
+        PLR = 1.0
     EIR_by_T = 0.38 + 0.02 * cu.K2C(T_a_int_out) + 0.01 * cu.K2C(T_a_ext_in)
     EIR_by_PLR = 0.22 + 0.50 * PLR + 0.26 * PLR**2
     COP = PLR * COP_ref / (EIR_by_T * EIR_by_PLR)
@@ -272,7 +274,9 @@ def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
     """
     PLR = Q_r_int / Q_r_max
     if PLR < 0.2:
-        PLR = 0.2    
+        PLR = 0.2
+    if PLR > 1.0:
+        PLR = 1.0
     COP = -7.46 * (PLR - 0.0047 * cu.K2C(T0) - 0.477)**2 + 0.0941 * cu.K2C(T0) + 4.34
     return COP
 
