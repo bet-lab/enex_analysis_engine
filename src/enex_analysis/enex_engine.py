@@ -1603,7 +1603,7 @@ class AirSourceHeatPump_cooling:
         self.fan_ext = Fan().fan2
 
         # COP
-        self.Q_r_max = 9000 # [W]
+        self.Q_r_max = 20000 # [W]
 
         # temperature
         self.T0      = 32 # environmental temperature [°C]
@@ -1737,7 +1737,7 @@ class AirSourceHeatPump_heating:
         self.fan_ext = Fan().fan2
 
         # COP
-        self.Q_r_max = 9000 # maximum heating capacity [W]
+        self.Q_r_max = 20000 # maximum heating capacity [W]
 
         # temperature
         self.T0      = 0 # environmental temperature [°C]
