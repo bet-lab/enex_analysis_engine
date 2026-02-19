@@ -558,27 +558,63 @@ def calc_exergy_flow(G, T, T0):
     
     Parameters
     ----------
-    G : float
+    G : float, array-like, or pd.Series
         Heat capacity flow rate = specific heat × density × volumetric flow rate [W/K]
-    T : float
+    T : float, array-like, or pd.Series
         Flow temperature [K]
-    T0 : float
+    T0 : float, array-like, or pd.Series
         Reference (environment) temperature (T_dead_state) [K]
     
     Returns
     -------
-    float
+    float, np.ndarray, or pd.Series
         Exergy flow rate [W]
-        Returns np.nan if G == 0 (no flow)
+        Returns np.nan (or array/Series with np.nan) if G == 0 (no flow)
+        Return type matches input type: scalar -> scalar, Series -> Series, array -> array
     
     Notes
     -----
     This function calculates the exergy associated with a flowing stream
     of material at temperature T relative to the reference temperature T0.
+    Supports vectorized operations for pandas Series and numpy arrays.
     """
-    if G == 0:
-        return np.nan
-    return G * ((T - T0) - T0 * np.log(T / T0))
+    # Store original input types for return type matching
+    G_input = G
+    is_series = isinstance(G, pd.Series)
+    is_scalar = not isinstance(G, (pd.Series, np.ndarray))
+    
+    # Convert to numpy arrays for computation
+    G_arr = np.asarray(G) if not is_scalar else np.array([G])
+    T_arr = np.asarray(T) if not isinstance(T, (pd.Series, np.ndarray)) else np.asarray(T)
+    T0_arr = np.asarray(T0) if not isinstance(T0, (pd.Series, np.ndarray)) else np.asarray(T0)
+    
+    # Ensure all arrays have the same shape
+    if G_arr.ndim == 0:
+        G_arr = np.array([G_arr])
+    if T_arr.ndim == 0:
+        T_arr = np.array([T_arr])
+    if T0_arr.ndim == 0:
+        T0_arr = np.array([T0_arr])
+    
+    # Broadcast if needed
+    G_arr, T_arr, T0_arr = np.broadcast_arrays(G_arr, T_arr, T0_arr)
+    
+    # Initialize result array with NaN
+    result = np.full_like(G_arr, np.nan, dtype=np.float64)
+    
+    # Create mask for valid calculations
+    mask = (G_arr != 0) & (~np.isnan(G_arr)) & (~np.isnan(T_arr)) & (~np.isnan(T0_arr)) & (T_arr > 0) & (T0_arr > 0)
+    
+    # Calculate exergy flow for valid elements
+    result[mask] = G_arr[mask] * ((T_arr[mask] - T0_arr[mask]) - T0_arr[mask] * np.log(T_arr[mask] / T0_arr[mask]))
+    
+    # Return in original format
+    if is_series:
+        return pd.Series(result.flatten(), index=G_input.index)
+    elif is_scalar:
+        return result.item() if result.size == 1 else result[0]
+    else:
+        return result if result.ndim > 0 else result.item()
 
 # ============================================================================
 # Flow and Mixing Functions
@@ -2633,7 +2669,7 @@ def calc_stc_performance(
     """
     Solar Thermal Collector (STC) 성능을 계산합니다.
     
-    이 함수는 태양열 집열판의 열전달, 엔트로피, 엑서지 분석을 수행합니다.
+    이 함수는 태양열 집열판의 열전달 분석을 수행합니다.
     enex_engine.py의 SolarAssistedGasBoiler.system_update() 로직을 참조하여 구현되었습니다.
     
     Parameters
@@ -2662,6 +2698,8 @@ def calc_stc_performance(
         단열재 두께 [m]
     dV_stc : float
         STC 유량 [m³/s]
+    E_pump : float
+        펌프 소모 전력 [W]
     is_active : bool, optional
         활성화 여부 (기본값: True)
         is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
@@ -2672,29 +2710,21 @@ def calc_stc_performance(
         계산 결과 딕셔너리:
         - I_sol_stc: 총 일사량 [W/m²]
         - Q_sol_stc: 태양열 흡수 열량 [W]
+        - Q_stc_w_in: STC 입수 열량 [W]
+        - Q_stc_w_out: STC 출수 열량 [W]
         - ksi_stc: 무차원 수 [-]
         - T_stc_w_out_K: STC 출수 온도 [K]
+        - T_stc_w_final_K: 펌프 열 포함 최종 출수 온도 [K]
+        - T_stc_w_in_K: STC 입수 온도 [K]
         - T_stc_K: 집열판 평균 온도 [K]
-        - Q_stc_w_out: STC 출수 열량 [W]
         - Q_l_stc: 집열판 열 손실 [W]
-        - S_stc_w_in: 입수 엔트로피 [W/K]
-        - S_DN_stc: 직달일사 엔트로피 [W/K]
-        - S_dH_stc: 확산일사 엔트로피 [W/K]
-        - S_sol_stc: 총 태양 엔트로피 [W/K]
-        - S_stc_w_out: 출수 엔트로피 [W/K]
-        - S_l_stc: 열 손실 엔트로피 [W/K]
-        - S_g_stc: STC 엔트로피 생성률 [W/K]
-        - X_stc_w_in: 입수 엑서지 [W]
-        - X_stc_w_out: 출수 엑서지 [W]
-        - X_sol_stc: 태양 엑서지 [W]
-        - X_l_stc: 열 손실 엑서지 [W]
-        - Xc_stc: STC 엑서지 손실 [W]
         Returns dict with all values as np.nan (except T_stc_w_out_K, T_stc_w_in_K = T_stc_w_in_K) if is_active=False
     
     Notes
     -----
     - 모든 변수명에 _stc 접미사를 사용하여 STC 관련 변수임을 명확히 구분합니다.
     - 열 손실은 Q_l_stc로 명명됩니다.
+    - 엔트로피 및 엑서지 계산은 제거되었으며, CSV 파일 후처리를 통해 계산해야 합니다.
     """
     import math
     from .constants import c_w, rho_w, k_D, k_d, k_a
@@ -2727,18 +2757,6 @@ def calc_stc_performance(
             'T_stc_w_in_K': T_stc_w_in_K,
             'T_stc_K': np.nan,
             'Q_l_stc': np.nan,
-            'S_stc_w_in': np.nan,
-            'S_DN_stc': np.nan,
-            'S_dH_stc': np.nan,
-            'S_sol_stc': np.nan,
-            'S_stc_w_out': np.nan,
-            'S_l_stc': np.nan,
-            'S_g_stc': np.nan,
-            'X_stc_w_in': np.nan,
-            'X_sol_stc': np.nan,
-            'X_stc_w_out': np.nan,
-            'X_l_stc': np.nan,
-            'Xc_stc': np.nan,
         }
     
     # 총 일사량 계산
@@ -2775,25 +2793,6 @@ def calc_stc_performance(
     # 집열판 열 손실
     Q_l_stc = A_stc_pipe * U_stc * (T_stc_K - T0_K)
     
-    # 엔트로피 계산
-    S_stc_w_in = c_w * rho_w * dV_stc * math.log(T_stc_w_in_K / T0_K)
-    S_DN_stc = k_D * I_DN_stc**(0.9)
-    S_dH_stc = k_d * I_dH_stc**(0.9)
-    S_sol_stc = S_DN_stc + S_dH_stc
-    S_stc_w_out = c_w * rho_w * dV_stc * math.log(T_stc_w_out_K / T0_K)
-    S_l_stc = (1 / T_stc_K) * A_stc_pipe * U_stc * (T_stc_K - T0_K)
-    S_g_stc = S_stc_w_out + S_l_stc - (S_sol_stc + S_stc_w_in)
-    
-    # 엑서지 계산
-    # 유체 흐름 관련 엑서지는 calc_exergy_flow 함수 사용
-    X_stc_w_in = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
-    X_stc_w_out = calc_exergy_flow(G_stc, T_stc_w_out_K, T0_K)
-    X_stc_w_final = calc_exergy_flow(G_stc, T_stc_w_final_K, T0_K)
-    # 태양 복사 및 열 손실 엑서지는 기존 방식 유지
-    X_sol_stc = Q_sol_stc - S_sol_stc * T0_K
-    X_l_stc = Q_l_stc - S_l_stc * T0_K
-    Xc_stc = S_g_stc * T0_K
-    
     return {
         'I_sol_stc': I_sol_stc,
         'Q_sol_stc': Q_sol_stc,
@@ -2805,26 +2804,13 @@ def calc_stc_performance(
         'T_stc_w_in_K': T_stc_w_in_K,
         'T_stc_K': T_stc_K,
         'Q_l_stc': Q_l_stc,
-        'S_stc_w_in': S_stc_w_in,
-        'S_DN_stc': S_DN_stc,
-        'S_dH_stc': S_dH_stc,
-        'S_sol_stc': S_sol_stc,
-        'S_stc_w_out': S_stc_w_out,
-        'S_l_stc': S_l_stc,
-        'S_g_stc': S_g_stc,
-        'X_stc_w_in': X_stc_w_in,
-        'X_sol_stc': X_sol_stc,
-        'X_stc_w_out': X_stc_w_out,
-        'X_stc_w_final': X_stc_w_final,
-        'X_l_stc': X_l_stc,
-        'Xc_stc': Xc_stc,
     }
 
-def print_simulation_summary(df, simulation_time_step, dV_ou_design):
+def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
     """
     Reads simulation result DataFrame and prints comprehensive statistics in English.
     """
-    required_columns = ['converged', 'E_fan_ou [W]', 'E_tot [W]', 'dV_fan_ou [m3/s]', 'cmp_rpm [rpm]']
+    required_columns = ['converged', 'E_ou_fan [W]', 'E_tot [W]', 'dV_ou_a_fan [m3/s]', 'cmp_rpm [rpm]']
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         raise KeyError(f"Required columns not found in DataFrame: {missing_columns}")
@@ -2849,11 +2835,11 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_design):
     print("-" * 50)
 
     # 3. Fan Flow Rate Statistics
-    fan_nonzero = df.loc[df['dV_fan_ou [m3/s]'] > 0, 'dV_fan_ou [m3/s]']
+    fan_nonzero = df.loc[df['dV_ou_a_fan [m3/s]'] > 0, 'dV_ou_a_fan [m3/s]']
     print("[Fan Flow Rate]")
     if not fan_nonzero.empty:
         fan_avg = fan_nonzero.mean()
-        fan_avg_pct = (fan_avg / dV_ou_design) * 100
+        fan_avg_pct = (fan_avg / dV_ou_fan_a_design) * 100
         print(f"  - Min: {fan_nonzero.min():.3f} m³/s | Max: {fan_nonzero.max():.3f} m³/s")
         print(f"  - Avg: {fan_avg:.3f} m³/s ({fan_avg_pct:.1f}% of design)")
     else:
@@ -2861,8 +2847,8 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_design):
     print("-" * 50)
 
     # 3-1. Fan Velocity & Pressure Statistics
-    if 'v_fan_ou [m/s]' in df.columns:
-        v_fan_nonzero = df.loc[df['v_fan_ou [m/s]'] > 0, 'v_fan_ou [m/s]']
+    if 'v_ou_a_fan [m/s]' in df.columns:
+        v_fan_nonzero = df.loc[df['v_ou_a_fan [m/s]'] > 0, 'v_ou_a_fan [m/s]']
         print("[Fan Velocity]")
         if not v_fan_nonzero.empty:
             print(f"  - Min: {v_fan_nonzero.min():.2f} m/s | Max: {v_fan_nonzero.max():.2f} m/s")
@@ -2871,11 +2857,11 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_design):
             print("  - No active data.")
         print("-" * 50)
 
-    if 'dP_fan_ou_static [Pa]' in df.columns and 'dP_fan_ou_dynamic [Pa]' in df.columns:
-        # Filter based on active fan (using dV_fan_ou > 0)
-        active_idx = df['dV_fan_ou [m3/s]'] > 0
-        dP_static = df.loc[active_idx, 'dP_fan_ou_static [Pa]']
-        dP_dynamic = df.loc[active_idx, 'dP_fan_ou_dynamic [Pa]']
+    if 'dP_ou_fan_static [Pa]' in df.columns and 'dP_ou_fan_dynamic [Pa]' in df.columns:
+        # Filter based on active fan (using dV_ou_a_fan > 0)
+        active_idx = df['dV_ou_a_fan [m3/s]'] > 0
+        dP_static = df.loc[active_idx, 'dP_ou_fan_static [Pa]']
+        dP_dynamic = df.loc[active_idx, 'dP_ou_fan_dynamic [Pa]']
         
         print("[Fan Pressure (Static / Dynamic)]")
         if not dP_static.empty:
@@ -2886,7 +2872,7 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_design):
         print("-" * 50)
 
     # 4. Fan Power Statistics
-    fan_p_nonzero = df.loc[df['E_fan_ou [W]'] > 0, 'E_fan_ou [W]']
+    fan_p_nonzero = df.loc[df['E_ou_fan [W]'] > 0, 'E_ou_fan [W]']
     print("[Fan Power Use]")
     if not fan_p_nonzero.empty:
         print(f"  - Min: {fan_p_nonzero.min():.1f} W | Max: {fan_p_nonzero.max():.1f} W")
@@ -2896,7 +2882,7 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_design):
     print("-" * 50)
 
     # 5. System Efficiency Metrics
-    total_fan_energy = df['E_fan_ou [W]'].sum() * simulation_time_step
+    total_fan_energy = df['E_ou_fan [W]'].sum() * simulation_time_step
     total_energy = df['E_tot [W]'].sum() * simulation_time_step
     fan_ratio = (total_fan_energy / total_energy * 100) if total_energy > 0 else 0
     print(f"[Fan Power Ratio] {fan_ratio:.1f}% (Typical: 5-10%)")
