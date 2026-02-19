@@ -175,24 +175,13 @@ class AirSourceHeatPumpBoiler:
         # --- 7. 히트펌프 운전 구간 제어 ---
         self.hp_on_schedule = hp_on_schedule
         
-        # --- 8. STC 파라미터 ---
-        self.A_stc = A_stc
-        self.A_stc_pipe = A_stc_pipe
-        self.alpha_stc = alpha_stc
-        self.h_o_stc = h_o_stc
-        self.h_r_stc = h_r_stc
-        self.k_ins_stc = k_ins_stc
-        self.x_air_stc = x_air_stc
-        self.x_ins_stc = x_ins_stc
         
-        # --- 9. STC 펌프 파라미터 ---
-        self.preheat_start_hour = preheat_start_hour
-        self.preheat_end_hour = preheat_end_hour
-        self.dV_stc_w = dV_stc_w
-        self.E_stc_pump = E_stc_pump
-        
-        # --- 10. STC 배치 선택 ---
-        self.stc_placement = stc_placement
+        # --- 8. STC & 9. STC Pump & 10. STC Placement ---
+        self._setup_stc_parameters(
+            A_stc, A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
+            preheat_start_hour, preheat_end_hour, dV_stc_w, E_stc_pump, stc_placement
+        )
+
 
         # [NEW] 최적화 초기값 저장을 위한 변수
         self.prev_opt_x = None
@@ -1048,114 +1037,25 @@ class AirSourceHeatPumpBoiler:
             # 4. SOLAR THERMAL COLLECTOR (STC) & SOURCE TEMP
             # =================================================================
             if use_stc:
-                # 4-1. Tank Circuit Mode
-                # Physical behavior: Water circulates from tank -> STC -> tank
-                # - STC inlet temp = tank temp (T_tank_w_K)
-                # - STC heats water using solar radiation
-                # - Heated water returns to tank, increasing tank energy
-                # - Flow rate is independent of tank refill (dV_stc_w)
-                if self.stc_placement == 'tank_circuit':
-                    # Probing: Check if STC can provide useful heating
-                    stc_result_test = calc_stc_performance(
-                        I_DN_stc=I_DN_schedule[n], I_dH_stc=I_dH_schedule[n],
-                        T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
-                        A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
-                        h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
-                        k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
-                        x_ins_stc=self.x_ins_stc, dV_stc=self.dV_stc_w,
-                        E_pump=self.E_stc_pump,
-                        is_active=True, 
-                    )
-                    
-                    # STC activates only if: (1) within preheat time window, (2) STC outlet > tank temp
-                    stc_active = preheat_on and stc_result_test['T_stc_w_out_K'] > T_tank_w_K
-                    if stc_active:
-                        stc_result = stc_result_test
-                    else:
-                        stc_result = calc_stc_performance(
-                            I_DN_stc=I_DN_schedule[n], I_dH_stc=I_dH_schedule[n],
-                            T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
-                            A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
-                            h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
-                            k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
-                            x_ins_stc=self.x_ins_stc, dV_stc=self.dV_stc_w,
-                            E_pump=self.E_stc_pump,
-                            is_active=False
-                        )
-
-                    # Extract STC results
-                    # Note: T_stc_w_out_K excludes pump heat; T_stc_w_final_K includes pump heat
-                    # Q_stc_w_out is calculated from T_stc_w_out_K (solar heat only)
-                    # Pump heat (E_stc_pump_pwr) is added separately in energy balance
-                    T_stc_w_out_K = stc_result['T_stc_w_out_K']
-                    T_stc_w_final_K = stc_result.get('T_stc_w_final_K', T_stc_w_out_K)
-                    Q_stc_w_out   = stc_result.get('Q_stc_w_out', 0.0)
-                    Q_stc_w_in    = stc_result.get('Q_stc_w_in', 0.0)
-                    # Set pump power: active only when STC is actually heating
-                    E_stc_pump_pwr = self.E_stc_pump if stc_active else 0.0
+                stc_calc_result = self._calculate_stc_dynamic(
+                    I_DN=I_DN_schedule[n], 
+                    I_dH=I_dH_schedule[n],
+                    T_tank_w_K=T_tank_w_K,
+                    T0_K=T0_K,
+                    preheat_on=preheat_on,
+                    dV_tank_refill=self.dV_tank_w_in
+                )
                 
-                # 4-2. Mains Preheat Mode
-                # Physical behavior: Mains water -> STC -> tank
-                # - STC preheats cold mains water before it enters tank
-                # - STC inlet temp = mains temp (T_tank_w_in_K)
-                # - Preheated water enters tank at T_stc_w_out_K
-                # - STC energy gain is included in Q_refill_net (via T_refill_K)
-                # - Flow rate equals tank refill rate (dV_tank_w_in)
-                elif self.stc_placement == 'mains_preheat':
-                    # Only active if: (1) within preheat time window, (2) refill flow exists
-                    if preheat_on and self.dV_tank_w_in > 0:
-                        stc_result_test = calc_stc_performance(
-                            I_DN_stc=I_DN_schedule[n], I_dH_stc=I_dH_schedule[n],
-                            T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                            A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
-                            h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
-                            k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
-                            x_ins_stc=self.x_ins_stc, dV_stc=self.dV_tank_w_in,
-                            E_pump=self.E_stc_pump,
-                            is_active=True,
-                        )
-                        
-                        # STC activates only if outlet temp > inlet (mains) temp
-                        if stc_result_test['T_stc_w_out_K'] > self.T_tank_w_in_K:
-                            stc_active = True
-                            stc_result = stc_result_test
-                        else:
-                            stc_active = False
-                            stc_result = calc_stc_performance(
-                                I_DN_stc=I_DN_schedule[n], I_dH_stc=I_dH_schedule[n],
-                                T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                                A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
-                                h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
-                                k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
-                                x_ins_stc=self.x_ins_stc, dV_stc=self.dV_tank_w_in,
-                                E_pump=self.E_stc_pump,
-                                is_active=False
-                            )
-                    else:
-                        stc_active = False
-                        stc_result = calc_stc_performance(
-                            I_DN_stc=I_DN_schedule[n], I_dH_stc=I_dH_schedule[n],
-                            T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                            A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
-                            h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
-                            k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
-                            x_ins_stc=self.x_ins_stc, dV_stc=1.0, 
-                            E_pump=self.E_stc_pump,
-                            is_active=False
-                        )
+                stc_active = stc_calc_result['stc_active']
+                stc_result = stc_calc_result['stc_result']
+                T_stc_w_out_K = stc_calc_result['T_stc_w_out_K']
+                T_stc_w_final_K = stc_calc_result['T_stc_w_final_K']
+                Q_stc_w_out = stc_calc_result['Q_stc_w_out']
+                Q_stc_w_in = stc_calc_result['Q_stc_w_in']
+                E_stc_pump_pwr = stc_calc_result['E_stc_pump_pwr']
+                
+                # Note: T_tank_w_in_K update for mains_preheat is handled in Section 5 via T_refill_K
 
-                    T_stc_w_out_K = stc_result['T_stc_w_out_K']
-                    Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
-                    Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
-                    
-                    # Set refill temp and pump power based on STC activation
-                    # Note: T_stc_w_out_K excludes pump heat; pump heat added separately in energy balance
-                    if stc_active:
-                        T_tank_w_in_K = T_stc_w_out_K  # Will be used as T_refill_K
-                        E_stc_pump_pwr = self.E_stc_pump
-                    else:
-                        T_tank_w_in_K = self.T_tank_w_in_K
-                        E_stc_pump_pwr = 0.0
 
             # =================================================================
             # 5. REFILL MASS & ENERGY BALANCE
@@ -1437,3 +1337,158 @@ class AirSourceHeatPumpBoiler:
             df['cop_sys [-]'] = df['Q_cond_load [W]'] / df['E_tot [W]'].replace(0, np.nan)
 
         return df
+
+    def _setup_stc_parameters(
+        self, A_stc, A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
+        preheat_start_hour, preheat_end_hour, dV_stc_w, E_stc_pump, stc_placement
+    ):
+        """
+        Solar Thermal Collector (STC) 관련 파라미터를 설정하는 내부 메서드.
+        __init__ 메서드의 복잡도를 줄이기 위해 분리됨.
+        """
+        # --- 8. STC 파라미터 ---
+        self.A_stc = A_stc
+        self.A_stc_pipe = A_stc_pipe
+        self.alpha_stc = alpha_stc
+        self.h_o_stc = h_o_stc
+        self.h_r_stc = h_r_stc
+        self.k_ins_stc = k_ins_stc
+        self.x_air_stc = x_air_stc
+        self.x_ins_stc = x_ins_stc
+        
+        # --- 9. STC 펌프 파라미터 ---
+        self.preheat_start_hour = preheat_start_hour
+        self.preheat_end_hour = preheat_end_hour
+        self.dV_stc_w = dV_stc_w
+        self.E_stc_pump = E_stc_pump
+        
+        # --- 10. STC 배치 선택 ---
+        self.stc_placement = stc_placement
+
+    def _calculate_stc_dynamic(
+        self, 
+        I_DN, I_dH, 
+        T_tank_w_K, T0_K, 
+        preheat_on, 
+        dV_tank_refill
+    ):
+        """
+        한 타임스텝에 대한 STC 성능 및 상태를 계산하는 내부 메서드.
+        analyze_dynamic 내 4. SOLAR THERMAL COLLECTOR 섹션을 분리함.
+        """
+        # 기본값 초기화
+        stc_active = False
+        stc_result = {}
+        
+        # 결과 변수 초기화 (비활성 상태 기준)
+        # T_stc_w_out_K: 펌프 발열 제외, 순수 태양열 가열 온도
+        T_stc_w_out_K = np.nan 
+        T_stc_w_final_K = np.nan
+        Q_stc_w_out = 0.0
+        Q_stc_w_in = 0.0
+        E_stc_pump_pwr = 0.0
+        
+        # 4-1. Tank Circuit Mode
+        if self.stc_placement == 'tank_circuit':
+            # Probing
+            stc_result_test = calc_stc_performance(
+                I_DN_stc=I_DN, I_dH_stc=I_dH,
+                T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
+                A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
+                h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
+                k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
+                x_ins_stc=self.x_ins_stc, dV_stc=self.dV_stc_w,
+                E_pump=self.E_stc_pump,
+                is_active=True, 
+            )
+            
+            # Activation Condition: Preheat window AND Net Energy Gain > 0 (Outlet > Tank)
+            stc_active = preheat_on and stc_result_test['T_stc_w_out_K'] > T_tank_w_K
+            
+            if stc_active:
+                stc_result = stc_result_test
+                E_stc_pump_pwr = self.E_stc_pump
+            else:
+                stc_result = calc_stc_performance(
+                    I_DN_stc=I_DN, I_dH_stc=I_dH,
+                    T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
+                    A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
+                    h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
+                    k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
+                    x_ins_stc=self.x_ins_stc, dV_stc=self.dV_stc_w,
+                    E_pump=self.E_stc_pump,
+                    is_active=False
+                )
+                E_stc_pump_pwr = 0.0
+
+            # Result Extraction
+            T_stc_w_out_K = stc_result['T_stc_w_out_K']
+            T_stc_w_final_K = stc_result.get('T_stc_w_final_K', T_stc_w_out_K)
+            Q_stc_w_out   = stc_result.get('Q_stc_w_out', 0.0)
+            Q_stc_w_in    = stc_result.get('Q_stc_w_in', 0.0)
+        
+        # 4-2. Mains Preheat Mode
+        elif self.stc_placement == 'mains_preheat':
+            # Activation: Preheat window AND Flow exists
+            if preheat_on and dV_tank_refill > 0:
+                stc_result_test = calc_stc_performance(
+                    I_DN_stc=I_DN, I_dH_stc=I_dH,
+                    T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
+                    A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
+                    h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
+                    k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
+                    x_ins_stc=self.x_ins_stc, dV_stc=dV_tank_refill,
+                    E_pump=self.E_stc_pump,
+                    is_active=True,
+                )
+                
+                # Activation Condition: Outlet > Inlet (Mains)
+                if stc_result_test['T_stc_w_out_K'] > self.T_tank_w_in_K:
+                    stc_active = True
+                    stc_result = stc_result_test
+                else:
+                    stc_active = False
+                    stc_result = calc_stc_performance(
+                        I_DN_stc=I_DN, I_dH_stc=I_dH,
+                        T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
+                        A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
+                        h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
+                        k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
+                        x_ins_stc=self.x_ins_stc, dV_stc=dV_tank_refill,
+                        E_pump=self.E_stc_pump,
+                        is_active=False
+                    )
+            else:
+                stc_active = False
+                # STC inactive calculation (flow=1.0 dummy or actual?)
+                # Original code used dV_stc=1.0 for inactive calculation in else block
+                stc_result = calc_stc_performance(
+                    I_DN_stc=I_DN, I_dH_stc=I_dH,
+                    T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
+                    A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
+                    h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
+                    k_ins_stc=self.k_ins_stc, x_air_stc=self.x_air_stc,
+                    x_ins_stc=self.x_ins_stc, dV_stc=1.0, 
+                    E_pump=self.E_stc_pump,
+                    is_active=False
+                )
+
+            # Result Extraction
+            T_stc_w_out_K = stc_result['T_stc_w_out_K']
+            Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
+            Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
+            
+            if stc_active:
+                E_stc_pump_pwr = self.E_stc_pump
+            else:
+                E_stc_pump_pwr = 0.0
+
+        return {
+            'stc_active': stc_active,
+            'stc_result': stc_result,
+            'T_stc_w_out_K': T_stc_w_out_K,
+            'T_stc_w_final_K': T_stc_w_final_K,
+            'Q_stc_w_out': Q_stc_w_out,
+            'Q_stc_w_in': Q_stc_w_in,
+            'E_stc_pump_pwr': E_stc_pump_pwr
+        }
