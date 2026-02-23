@@ -31,20 +31,20 @@ class GroundSourceHeatPumpBoiler:
         eta_cmp_isen   = 0.7,
 
         # 2. 열교환기 파라미터 -----------------------------------------
-        UA_cond = 500,   # W/K
-        UA_evap = 500,   # W/K
+        UA_cond_design = 500,   # W/K
+        UA_evap_design = 500,   # W/K
 
         # 3. 탱크/제어/부하 파라미터 -----------------------------------
         #    (온도/제어 관련)
-        T0                    = 0.0,    # [°C] 기준 외기 온도
-        Ts                    = 16.0,   # [°C] 지중 온도/초기값
-        T_tank_w_setpoint     = 65.0,   # [°C] 저탕조 설정 온도
-        T_tank_w_lower_bound  = 55.0,   # [°C] 저탕조 하한 온도
-        T_serv_w              = 40.0,   # [°C] 서비스 급탕 온도
-        T_sup_w               = 15.0,   # [°C] 급수(상수도) 온도
+        T0                     = 0.0,    # [°C] 기준 외기 온도
+        Ts                     = 16.0,   # [°C] 지중 온도/초기값
+        T_tank_w_upper_bound   = 65.0,   # [°C] 저탕조 설정 온도
+        T_tank_w_lower_bound   = 55.0,   # [°C] 저탕조 하한 온도
+        T_mix_w_out            = 40.0,   # [°C] 서비스 급탕 온도
+        T_tank_w_in            = 15.0,   # [°C] 급수(상수도) 온도
 
-        heater_capacity       = 8000.0,    # [W] 히터 최대 용량
-        dV_w_serv_m3s         = 0.0001,    # [m³/s] 최대 급탕 유량
+        hp_capacity            = 8000.0,    # [W] 히트펌프 최대 용량
+        dV_mix_w_out_max       = 0.0001,    # [m³/s] 최대 급탕 유량
 
         #   (탱크/보온 관련)
         r0       = 0.2,   # [m] 탱크 반지름
@@ -104,29 +104,31 @@ class GroundSourceHeatPumpBoiler:
 
         # --- 3. 열교환기 파라미터 ---
         self.heat_exchanger = {
-            'UA_cond': UA_cond,
-            'UA_evap': UA_evap,
+            'UA_cond_design': UA_cond_design,
+            'UA_evap_design': UA_evap_design,
         }
-        self.UA_cond = UA_cond
-        self.UA_evap = UA_evap
+        self.UA_cond_design = UA_cond_design
+        self.UA_evap_design = UA_evap_design
+        self.UA_cond = UA_cond_design  # alias for internal use
+        self.UA_evap = UA_evap_design  # alias for internal use
 
         # --- 4. 탱크/제어/부하 파라미터 (온도/제어/유량/설정) ---
         self.control_params = {
             'T0': T0,
             'Ts': Ts,
-            'T_tank_w_setpoint': T_tank_w_setpoint,
+            'T_tank_w_upper_bound': T_tank_w_upper_bound,
             'T_tank_w_lower_bound': T_tank_w_lower_bound,
-            'T_serv_w': T_serv_w,
-            'T_sup_w': T_sup_w,
-            'heater_capacity': heater_capacity,
-            'dV_w_serv_m3s': dV_w_serv_m3s,
+            'T_mix_w_out': T_mix_w_out,
+            'T_tank_w_in': T_tank_w_in,
+            'hp_capacity': hp_capacity,
+            'dV_mix_w_out_max': dV_mix_w_out_max,
         }
         self.Ts = Ts
         self.T_b_f_in = Ts   # 초기값, 시뮬레이션 진행중 갱신
 
-        self.heater_capacity = heater_capacity
-        self.dV_w_serv_m3s = dV_w_serv_m3s
-        self.T_tank_w_setpoint = T_tank_w_setpoint
+        self.hp_capacity = hp_capacity
+        self.dV_mix_w_out_max = dV_mix_w_out_max
+        self.T_tank_w_upper_bound = T_tank_w_upper_bound
         self.T_tank_w_lower_bound = T_tank_w_lower_bound
 
         # --- 5. UV 램프 파라미터 ---
@@ -140,8 +142,8 @@ class GroundSourceHeatPumpBoiler:
         # --- 6. 과열/과냉각 변수 저장 ---
         self.dT_superheat = dT_superheat
         self.dT_subcool = dT_subcool
-        self.T_sup_w = T_sup_w
-        self.T_serv_w = T_serv_w
+        self.T_tank_w_in = T_tank_w_in
+        self.T_mix_w_out = T_mix_w_out
 
         # --- 5. 탱크/보어홀/지중/유체 파라미터 ---
         self.borehole = {
@@ -165,81 +167,92 @@ class GroundSourceHeatPumpBoiler:
         self.T0_K       = cu.C2K(T0)
         self.Ts_K       = cu.C2K(self.Ts)
         self.T_b_f_in_K = cu.C2K(self.T_b_f_in)
-        self.T_sup_w_K  = cu.C2K(T_sup_w)
-        self.T_serv_w_K = cu.C2K(T_serv_w)
+        self.T_tank_w_in_K  = cu.C2K(T_tank_w_in)
+        self.T_mix_w_out_K = cu.C2K(T_mix_w_out)
         self.dV_b_f_m3s = dV_b_f_lpm * cu.L2m3/cu.m2s  
         
         self.Q_cond_LOAD_OFF_TOL = 500.0     # [W] 이하면 완전 OFF
+
+        # 최적화 초기값 재사용
+        self.prev_opt_x = None
         
-    def _calc_on_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
+    def _calc_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
         """
         지열원 히트펌프 보일러(GSHPB)의 사이클 성능을 계산하는 메서드.
+        ON/OFF 상태를 구분하지 않고 단일 진입점으로 처리 (ASHPB와 동일).
         
-        이 메서드는 최적화 변수(optimization_vars)를 받아 히트펌프 사이클 성능을 계산합니다.
-        최적화 과정에서 반복적으로 호출되어 목적 함수와 제약 조건을 평가하는 데 사용됩니다.
-        
-        주요 작업:
-        1. 최적화 변수 언패킹 (온도차 추출)
-        2. 증발 및 응축 온도 계산
-        3. 공통 사이클 상태 계산
-        4. 냉매 유량 및 성능 데이터 계산
-        5. LMTD 기반 열량 계산 (응축기, 증발기)
-        6. 지중열 교환 계산
-        7. 엑서지 계산
-        8. 최종 결과 딕셔너리 생성
-        
-        호출 관계:
-        - 호출자: _optimize_operation (본 클래스)
-        - 호출 함수: 
-            - calc_ref_state (enex_functions.py)
-        
-        데이터 흐름:
-        ──────────────────────────────────────────────────────────────────────────
-        [optimization_vars, T_tank_w, Q_cond_load, T0]
-            ↓
-        증발/응축 온도 계산 (T_evap_K, T_cond_K)
-            ↓
-        calc_ref_state
-            ↓ [State 1-4 물성치]
-        냉매 유량 계산 (m_dot_ref)
-            ↓
-        성능 데이터 계산 (Q_ref_cond, Q_ref_evap, E_cmp)
-            ↓
-        LMTD 기반 열량 계산 및 지중열 교환 계산
-            ↓
-        [포맷팅된 결과 딕셔너리]
-        
-        Args:
-            optimization_vars (list): 최적화 변수 배열 [dT_ref_HX, dT_ref_cond]
-                - dT_ref_HX (float): 냉매-열교환기 온도차 [K]
-                    증발 온도 = 지중 유체 입구 온도 - dT_ref_HX
-                - dT_ref_cond (float): 냉매-저탕조 온도차 [K]
-                    응축 온도 = 저탕조 온도 + dT_ref_cond
-            
-            T_tank_w (float): 저탕조 온도 [°C]
-                현재 타임스텝의 저탕조 온도
-            
-            Q_cond_load (float): 저탕조 목표 열 교환율 [W]
-                응축기가 저탕조에 전달해야 하는 목표 열량
-                이 값을 만족하는 최적 운전점을 탐색
-            
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
-        
-        Returns:
-            dict: 사이클 성능 결과 딕셔너리 (단위 포함)
-                None: 계산 실패 시 (예: h3 == h2인 경우)
-        
-        Notes:
-            - 냉매 유량 계산: m_dot_ref = Q_cond_load / (h2 - h3)
-                목표 열 교환율을 만족하기 위한 필요한 냉매 유량
-            - 응축기 열량: Q_ref_cond = m_dot_ref * (h2 - h3)
-                이 값은 Q_cond_load와 동일해야 함 (계산 검증)
-            - 증발기 열량: Q_ref_evap = m_dot_ref * (h1 - h4)
-                지중열교환기에서 흡수하는 열량
-            - 압축기 전력: E_cmp = m_dot_ref * (h2 - h1)
-                최적화의 목적 함수 (최소화 대상)
+        Q_cond_load <= 0이면 OFF 상태(포화점 기반 P/h/s, Q/E=0) 반환,
+        그 외에는 최적화 변수로 사이클 성능 계산.
         """
+        # OFF 상태: Q_cond_load <= 0
+        if Q_cond_load <= 0:
+            T_tank_w_K = cu.C2K(T_tank_w)
+            den = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
+            alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
+            if alp >= 1.0:
+                T_serv_w_actual = T_tank_w
+            else:
+                T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_tank_w_in_K
+                T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+            P1_off = CP.PropsSI('P', 'T', self.T_b_f_in_K, 'Q', 1, self.ref)
+            h1_off = CP.PropsSI('H', 'P', P1_off, 'Q', 1, self.ref)
+            s1_off = CP.PropsSI('S', 'P', P1_off, 'Q', 1, self.ref)
+            P3_off = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
+            h3_off = CP.PropsSI('H', 'P', P3_off, 'Q', 0, self.ref)
+            s3_off = CP.PropsSI('S', 'P', P3_off, 'Q', 0, self.ref)
+            return {
+                'hp_is_on': False,
+                'converged': True,
+                'T_tank_w [°C]': T_tank_w,
+                'T0 [°C]': T0,
+                'T_mix_w_out [°C]': T_serv_w_actual,
+                'T_tank_w_in [°C]': self.T_tank_w_in,
+                'Ts [°C]': self.Ts,
+                'T_b [°C]': self.Ts,
+                'T_b_f [°C]': self.Ts,
+                'T_b_f_in [°C]': self.Ts,
+                'T_b_f_out [°C]': self.Ts,
+                'dV_mix_w_out [m3/s]': self.dV_mix_w_out if hasattr(self, 'dV_mix_w_out') else 0.0,
+                'dV_tank_w_in [m3/s]': self.dV_tank_w_in if hasattr(self, 'dV_tank_w_in') else 0.0,
+                'dV_mix_w_in_sup [m3/s]': self.dV_mix_w_in_sup if hasattr(self, 'dV_mix_w_in_sup') else 0.0,
+                'dV_b_f [m3/s]': self.dV_b_f_m3s,
+                'P_ref_cmp_in [Pa]': P1_off,
+                'P_ref_cmp_out [Pa]': P3_off,
+                'P_ref_exp_in [Pa]': P3_off,
+                'P_ref_exp_out [Pa]': P1_off,
+                'P_ref_evap_sat [Pa]': P1_off,
+                'P_ref_cond_sat_v [Pa]': P3_off,
+                'P_ref_cond_sat_l [Pa]': P3_off,
+                'h_ref_cmp_in [J/kg]': h1_off,
+                'h_ref_cmp_out [J/kg]': h1_off,
+                'h_ref_exp_in [J/kg]': h3_off,
+                'h_ref_exp_out [J/kg]': h3_off,
+                'h_ref_evap_sat [J/kg]': h1_off,
+                'h_ref_cond_sat_v [J/kg]': h1_off,
+                'h_ref_cond_sat_l [J/kg]': h3_off,
+                's_ref_cmp_in [J/(kg·K)]': s1_off,
+                's_ref_cmp_out [J/(kg·K)]': s1_off,
+                's_ref_exp_in [J/(kg·K)]': s3_off,
+                's_ref_exp_out [J/(kg·K)]': s3_off,
+                's_ref_evap_sat [J/(kg·K)]': s1_off,
+                's_ref_cond_sat_v [J/(kg·K)]': s1_off,
+                's_ref_cond_sat_l [J/(kg·K)]': s3_off,
+                'x1 [J/kg]': 0.0, 'x2 [J/kg]': 0.0, 'x3 [J/kg]': 0.0, 'x4 [J/kg]': 0.0,
+                'T_ref_evap_sat [°C]': cu.K2C(self.T_b_f_in_K),
+                'T_ref_cond_sat_v [°C]': T_tank_w,
+                'T_ref_cond_sat_l [°C]': T_tank_w,
+                'T_ref_cmp_in [°C]': cu.K2C(self.T_b_f_in_K),
+                'T_ref_cmp_out [°C]': T_tank_w,
+                'T_ref_exp_in [°C]': T_tank_w,
+                'T_ref_exp_out [°C]': cu.K2C(self.T_b_f_in_K),
+                'T_cond [°C]': T_tank_w,
+                'Q_b [W]': 0.0, 'Q_ref_cond [W]': 0.0, 'Q_ref_evap [W]': 0.0,
+                'Q_LMTD_cond [W]': 0.0, 'Q_LMTD_evap [W]': 0.0, 'Q_cond_load [W]': 0.0,
+                'E_cmp [W]': 0.0, 'E_pmp [W]': 0.0, 'E_tot [W]': 0.0,
+                'm_dot_ref [kg/s]': 0.0, 'cmp_rpm [rpm]': 0.0,
+            }
+
+        # ON 상태: Q_cond_load > 0
         # ============================================================
         # 1단계: 최적화 변수 언패킹
         # ============================================================
@@ -321,23 +334,11 @@ class GroundSourceHeatPumpBoiler:
         cmp_rps = m_dot_ref / (self.V_disp_cmp * rho_ref_cmp_in)  # 회전수 [1/s]
         
         # ============================================================
-        # 6단계: LMTD 기반 열량 계산 (현실적 제약 조건)
+        # 6단계: 응축기(저탕조 측) 열량 계산 (ASHPB와 동일: 단순 온도차)
         # ============================================================
-        # 응축기(저탕조 측) LMTD 계산
-        # 응축기에서 냉매는 과열 증기(State 2)에서 포화 액체(State 3)로 변화
-        # 저탕조는 일정 온도로 유지됨 (T_tank_w_K)
-        dT1_tank = T2_K - T_tank_w_K  # 응축기 입구 온도차 [K]
-        dT2_tank = T3_K - T_tank_w_K  # 응축기 출구 온도차 [K]
-
-        # LMTD 계산 가능 여부 확인 (0 또는 음수 온도차 방지)
-        if dT1_tank <= 1e-6 or dT2_tank <= 1e-6 or abs(dT1_tank - dT2_tank) < 1e-6:
-            # 물리적으로 불가능한 상태 (온도차가 없음)
-            Q_LMTD_cond = -np.inf
-        else:
-            # 대수 평균 온도차 (LMTD) 계산
-            LMTD_tank = (dT1_tank - dT2_tank) / np.log(dT1_tank / dT2_tank)
-            # LMTD 기반 응축기 열량 계산: Q = UA * LMTD
-            Q_LMTD_cond = self.UA_cond * LMTD_tank
+        # Q = UA * dT (물리적 단순화, ASHPB와 동일)
+        # dT_ref_cond는 최적화 변수로, T_cond_sat - T_tank_w 차이임.
+        Q_LMTD_cond = self.UA_cond * dT_ref_cond
 
         # ============================================================
         # 7단계: 지중열 교환 계산 (증발기 측)
@@ -420,25 +421,25 @@ class GroundSourceHeatPumpBoiler:
         T_b_f_in = cu.K2C(T_b_f_in_K)
         
         result = {
-            'is_on': True,
+            'hp_is_on': True,
             'converged': True,
             
             # === [온도: °C] =======================================
-            # [NEW] Saturation Points
-            'T1_star [°C]': cu.K2C(T1_star_K),
-            'T2_star [°C]': cu.K2C(T2_star_K),
-            'T3_star [°C]': cu.K2C(T3_star_K),
+            # Saturation Points (ASHPB naming)
+            'T_ref_evap_sat [°C]': cu.K2C(T1_star_K),
+            'T_ref_cond_sat_v [°C]': cu.K2C(T2_star_K),
+            'T_ref_cond_sat_l [°C]': cu.K2C(T3_star_K),
             
-            # [Updated] Actual Points
+            # Actual Points (ASHPB naming)
             'T0 [°C]': T0,
-            'T1 [°C]': cu.K2C(T1_K),
-            'T2 [°C]': cu.K2C(T2_K),
-            'T3 [°C]': cu.K2C(T3_K),
-            'T4 [°C]': cu.K2C(T4_K),
+            'T_ref_cmp_in [°C]': cu.K2C(T1_K),
+            'T_ref_cmp_out [°C]': cu.K2C(T2_K),
+            'T_ref_exp_in [°C]': cu.K2C(T3_K),
+            'T_ref_exp_out [°C]': cu.K2C(T4_K),
             'T_cond [°C]': cu.K2C(T3_star_K if not np.isnan(T3_star_K) else T3_K),  # 대표 응축 온도는 포화 온도로 표시
             'T_tank_w [°C]': T_tank_w,
-            'T_serv_w [°C]': self.T_serv_w,
-            'T_sup_w [°C]': self.T_sup_w,
+            'T_mix_w_out [°C]': self.T_mix_w_out,
+            'T_tank_w_in [°C]': self.T_tank_w_in,
             'Ts [°C]': self.Ts,
             'T_b [°C]': T_b,
             'T_b_f [°C]': T_b_f,
@@ -447,18 +448,18 @@ class GroundSourceHeatPumpBoiler:
             
             # === [체적유량: m3/s] ==================================
             'dV_b_f [m3/s]': self.dV_b_f_m3s,
-            'dV_w_serv [m3/s]': self.dV_w_serv if hasattr(self, 'dV_w_serv') else 0.0,
-            'dV_w_sup_tank [m3/s]': self.dV_w_sup_tank if hasattr(self, 'dV_w_sup_tank') else 0.0,
-            'dV_w_sup_mix [m3/s]': self.dV_w_sup_mix if hasattr(self, 'dV_w_sup_mix') else 0.0,
+            'dV_mix_w_out [m3/s]': self.dV_mix_w_out if hasattr(self, 'dV_mix_w_out') else 0.0,
+            'dV_tank_w_in [m3/s]': self.dV_tank_w_in if hasattr(self, 'dV_tank_w_in') else 0.0,
+            'dV_mix_w_in_sup [m3/s]': self.dV_mix_w_in_sup if hasattr(self, 'dV_mix_w_in_sup') else 0.0,
             
             # === [압력: Pa] ========================================
-            'P1 [Pa]': P1,
-            'P2 [Pa]': P2,
-            'P3 [Pa]': P3,
-            'P4 [Pa]': P4,
-            'P1_star [Pa]': P1_star,
-            'P2_star [Pa]': P2_star,
-            'P3_star [Pa]': P3_star,
+            'P_ref_cmp_in [Pa]': P1,
+            'P_ref_cmp_out [Pa]': P2,
+            'P_ref_exp_in [Pa]': P3,
+            'P_ref_exp_out [Pa]': P4,
+            'P_ref_evap_sat [Pa]': P1_star,
+            'P_ref_cond_sat_v [Pa]': P2_star,
+            'P_ref_cond_sat_l [Pa]': P3_star,
             
             # === [질량유량: kg/s] ==================================
             'm_dot_ref [kg/s]': m_dot_ref,
@@ -467,22 +468,22 @@ class GroundSourceHeatPumpBoiler:
             'cmp_rpm [rpm]': cmp_rps * 60,
             
             # === [엔탈피: J/kg] ====================================
-            'h1 [J/kg]': h1,
-            'h2 [J/kg]': h2,
-            'h3 [J/kg]': h3,
-            'h4 [J/kg]': h4,
-            'h1_star [J/kg]': h1_star,
-            'h2_star [J/kg]': h2_star,
-            'h3_star [J/kg]': h3_star,
+            'h_ref_cmp_in [J/kg]': h1,
+            'h_ref_cmp_out [J/kg]': h2,
+            'h_ref_exp_in [J/kg]': h3,
+            'h_ref_exp_out [J/kg]': h4,
+            'h_ref_evap_sat [J/kg]': h1_star,
+            'h_ref_cond_sat_v [J/kg]': h2_star,
+            'h_ref_cond_sat_l [J/kg]': h3_star,
             
             # === [엔트로피: J/(kg·K)] ==============================
-            's1 [J/(kg·K)]': s1,
-            's2 [J/(kg·K)]': s2,
-            's3 [J/(kg·K)]': s3,
-            's4 [J/(kg·K)]': s4,
-            's1_star [J/(kg·K)]': s1_star,
-            's2_star [J/(kg·K)]': s2_star,
-            's3_star [J/(kg·K)]': s3_star,
+            's_ref_cmp_in [J/(kg·K)]': s1,
+            's_ref_cmp_out [J/(kg·K)]': s2,
+            's_ref_exp_in [J/(kg·K)]': s3,
+            's_ref_exp_out [J/(kg·K)]': s4,
+            's_ref_evap_sat [J/(kg·K)]': s1_star,
+            's_ref_cond_sat_v [J/(kg·K)]': s2_star,
+            's_ref_cond_sat_l [J/(kg·K)]': s3_star,
             
             # === [엑서지 단위: J/kg] ===============================
             'x1 [J/kg]': x1,
@@ -509,150 +510,79 @@ class GroundSourceHeatPumpBoiler:
         
         return result
     
-    def _calc_off_state(self, T_tank_w, T0):
+    def analyze_steady(
+        self,
+        T_tank_w,
+        T_b_f_in,
+        dV_mix_w_out=None,
+        Q_cond_load=None,
+        T0=None,
+        return_dict=True
+        ):
         """
-        OFF 상태 결과 포맷팅 함수.
+        정상상태 해석 함수.
         
-        히트펌프가 OFF 상태일 때 사용되는 결과 딕셔너리를 생성합니다.
-        모든 열량 및 전력 값은 0으로 설정하고, P-h 선도 플로팅을 위한
-        기본 사이클 상태값은 포화점 기준으로 계산합니다.
-        
-        호출 관계:
-        - 호출자: _optimize_operation (본 클래스)
-            Q_cond_load가 임계값 이하일 때 호출
-        
-        주요 작업:
-        1. ON 상태 템플릿 생성 (Q_cond_load=0으로 계산)
-        2. 모든 숫자 값을 0으로 설정
-        3. OFF 상태 플래그 및 필수 값 설정
-        4. P-h 선도 플로팅용 포화점 계산
+        주어진 조건에서 지열 히트펌프의 정상상태 성능을 계산합니다.
         
         Args:
             T_tank_w (float): 저탕조 온도 [°C]
-                현재 타임스텝의 저탕조 온도
-            
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
+            T_b_f_in (float): 지중 유체 입구 온도 [°C] (증발기 열원)
+            dV_mix_w_out (float, optional): 급탕 유량 [m³/s]. Q_cond_load가 None이면 필수.
+            Q_cond_load (float, optional): 저탕조 목표 열 교환율 [W]. dV_mix_w_out이 None이면 필수.
+            T0 (float, optional): 엑서지 기준 온도 [°C]. None이면 T_b_f_in 사용.
+            return_dict (bool): True면 dict 반환, False면 DataFrame 반환
         
         Returns:
-            dict: OFF 상태 결과 딕셔너리 (단위 포함)
-                - 모든 열량 및 전력 값: 0.0
-                - is_on: False
-                - P1-4, h1-4, s1-4: 포화점 기준 계산값 (P-h 선도용)
-                - 기타 상태값: 현재 시스템 상태 유지
-        
-        Notes:
-            - P-h 선도 플로팅을 위해 기본 사이클 상태값을 계산합니다
-            - 증발기 측은 지중 유체 입구 온도 기준 포화 증기
-            - 응축기 측은 저탕조 온도 기준 포화 액체
+            dict 또는 pd.DataFrame: 정상상태 해석 결과
         """
-        # 1단계: ON 상태 템플릿 생성
-        # Q_cond_load=0.0으로 계산하여 딕셔너리 구조만 얻음
-        # 실제 계산은 필요 없지만 결과 딕셔너리 구조를 얻기 위해 실행
-        result = self._calc_on_state(
-            optimization_vars=[5.0, 5.0],  # 임의의 값 (계산 결과는 무시됨)
-            T_tank_w=T_tank_w,
-            Q_cond_load=0.0,
-            T0=T0
-        )
+        if dV_mix_w_out is None and Q_cond_load is None:
+            raise ValueError("dV_mix_w_out와 Q_cond_load 중 하나는 반드시 제공되어야 합니다.")
+        if dV_mix_w_out is not None and Q_cond_load is not None:
+            raise ValueError("dV_mix_w_out와 Q_cond_load를 동시에 제공할 수 없습니다.")
         
-        if result is None:
-            return None
-        
-        # 2단계: 모든 숫자 값을 0.0으로 설정
-        # 히트펌프 OFF 상태이므로 모든 열량 및 전력 값은 0
-        for key, value in result.items():
-            if isinstance(value, (int, float)):
-                result[key] = 0.0
-
-        # 3~4단계: OFF 상태에 맞는 필수 값들과 P-h 선도 플로팅값을 result.update에서 한꺼번에 업데이트
+        T0 = T0 if T0 is not None else T_b_f_in
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
-
-        # 실제 서비스 온도 계산 (믹싱 밸브, OFF 상태에서도 일관성 유지)
-        den = max(1e-6, T_tank_w_K - self.T_sup_w_K)
-        alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
         
-        if alp >= 1.0:
-            # 저탕조 온수를 그대로 사용하는 경우 (T_tank_w < T_serv_w 목표값)
-            T_serv_w_actual = T_tank_w
+        self.T_b_f_in = T_b_f_in
+        self.T_b_f_in_K = cu.C2K(T_b_f_in)
+        
+        if dV_mix_w_out is None:
+            dV_mix_w_out = 0.0
+        
+        den = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
+        alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
+        self.dV_mix_w_out = dV_mix_w_out
+        self.dV_tank_w_in = alp * dV_mix_w_out
+        self.dV_mix_w_in_sup = (1 - alp) * dV_mix_w_out
+        
+        if Q_cond_load is None:
+            Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
+            Q_use_loss = c_w * rho_w * self.dV_tank_w_in * (T_tank_w_K - self.T_tank_w_in_K)
+            Q_cond_load = Q_tank_loss + Q_use_loss
+        
+        hp_is_on = (T_tank_w <= self.T_tank_w_lower_bound or
+                    (self.T_tank_w_lower_bound < T_tank_w < self.T_tank_w_upper_bound and Q_cond_load > 0))
+        
+        if Q_cond_load <= 0 or not hp_is_on:
+            result = self._calc_state(optimization_vars=[5.0, 5.0], T_tank_w=T_tank_w, Q_cond_load=0.0, T0=T0)
         else:
-            # 믹싱 밸브로 저탕조 온수와 상수도를 믹싱
-            T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_sup_w_K
-            T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
-
-        # 증발기 측 포화 증기 (State 1, 4)
-        P1_off = CP.PropsSI('P', 'T', self.T_b_f_in_K, 'Q', 1, self.ref)
-        h1_off = CP.PropsSI('H', 'P', P1_off, 'Q', 1, self.ref)
-        s1_off = CP.PropsSI('S', 'P', P1_off, 'Q', 1, self.ref)
-
-        # 응축기 측 포화 액체 (State 2, 3)
-        P3_off = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
-        h3_off = CP.PropsSI('H', 'P', P3_off, 'Q', 0, self.ref)
-        s3_off = CP.PropsSI('S', 'P', P3_off, 'Q', 0, self.ref)
-
-        result.update({
-            'is_on': False,
-            'converged': True,  # OFF 상태는 정상적인 상태이므로 수렴 성공으로 간주
-            
-            'T_tank_w [°C]': T_tank_w,
-            'T0 [°C]': T0,
-            'T_serv_w [°C]': T_serv_w_actual,
-            'T_sup_w [°C]': self.T_sup_w,
-            'Ts [°C]': self.Ts,
-            'T_b [°C]': self.Ts,
-            'T_b_f [°C]': self.Ts,
-            'T_b_f_in [°C]': self.Ts,
-            'T_b_f_out [°C]': self.Ts,
-            
-            'dV_w_serv [m3/s]': self.dV_w_serv if hasattr(self, 'dV_w_serv') else 0.0,
-            'dV_w_sup_tank [m3/s]': self.dV_w_sup_tank if hasattr(self, 'dV_w_sup_tank') else 0.0,
-            'dV_w_sup_mix [m3/s]': self.dV_w_sup_mix if hasattr(self, 'dV_w_sup_mix') else 0.0,
-            'dV_b_f [m3/s]': self.dV_b_f_m3s,
-            
-            'P1 [Pa]': P1_off,
-            'P2 [Pa]': P3_off,
-            'P3 [Pa]': P3_off,
-            'P4 [Pa]': P1_off,
-            
-            'h1 [J/kg]': h1_off,
-            'h2 [J/kg]': h1_off,
-            'h3 [J/kg]': h3_off,
-            'h4 [J/kg]': h3_off,
-            
-            's1 [J/(kg·K)]': s1_off,
-            's2 [J/(kg·K)]': s1_off,
-            's3 [J/(kg·K)]': s3_off,
-            's4 [J/(kg·K)]': s3_off,
-            
-            'x1 [J/kg]': 0.0,
-            'x2 [J/kg]': 0.0,
-            'x3 [J/kg]': 0.0,
-            'x4 [J/kg]': 0.0,
-            
-            'T1 [°C]': cu.K2C(self.T_b_f_in_K),
-            'T2 [°C]': T_tank_w,
-            'T3 [°C]': T_tank_w,
-            'T4 [°C]': cu.K2C(self.T_b_f_in_K),
-            'T_cond [°C]': T_tank_w,
-            
-            # 지중열 관련 값들 (OFF 상태이므로 0)
-            'Q_b [W]': 0.0,
-            'Q_ref_cond [W]': 0.0,
-            'Q_ref_evap [W]': 0.0,
-            'Q_LMTD_cond [W]': 0.0,
-            'Q_LMTD_evap [W]': 0.0,
-            'Q_cond_load [W]': 0.0,
-            'E_cmp [W]': 0.0,
-            'E_pmp [W]': 0.0,
-            'E_tot [W]': 0.0,
-            'm_dot_ref [kg/s]': 0.0,
-            'cmp_rpm [rpm]': 0.0,
-        })
-
-        return result
+            opt_result = self._optimize_operation(T_tank_w=T_tank_w, Q_cond_load=Q_cond_load, T0=T0)
+            if opt_result.success:
+                result = self._calc_state(
+                    optimization_vars=opt_result.x,
+                    T_tank_w=T_tank_w,
+                    Q_cond_load=Q_cond_load,
+                    T0=T0
+                )
+            else:
+                result = self._calc_state(optimization_vars=[5.0, 5.0], T_tank_w=T_tank_w, Q_cond_load=0.0, T0=T0)
+        
+        if return_dict:
+            return result
+        return pd.DataFrame([result])
     
-    def _optimize_operation(self, T_tank_w, Q_cond_load, T0, method='SLSQP', callback=None):
+    def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
         """
         히트펌프 최적 운전점 탐색을 수행하는 내부 메서드.
         
@@ -697,24 +627,9 @@ class GroundSourceHeatPumpBoiler:
         # tolerance 변수 정의
         tolerance = 0.01  # 1%
         
-        # 최적화 변수 경계 조건 및 초기 추정값 설정
+        # 최적화 변수 경계 조건 및 초기 추정값 설정 (prev_opt_x 재사용)
         bounds = [(1.0, 30.0), (1.0, 30.0)]  # [dT_ref_HX, dT_ref_cond]
-        initial_guess = [5.0, 5.0]
-        
-        # 반복 이력 추적을 위한 리스트 초기화
-        iteration_history = []
-        
-        # 콜백 래퍼 함수 생성
-        def _callback_wrapper(xk):
-            """각 반복마다 호출되는 콜백 함수"""
-            iteration_history.append({
-                'iteration': len(iteration_history),
-                'x': np.array(xk).copy(),
-                'dT_ref_HX': xk[0],
-                'dT_ref_cond': xk[1]
-            })
-            if callback is not None:
-                callback(xk)
+        initial_guess = self.prev_opt_x if self.prev_opt_x is not None else [5.0, 5.0]
         
         # 응축기 LMTD 제약 조건 함수 (하한): Q_LMTD_cond - Q_cond_load >= 0
         def _cond_LMTD_constraint_low(x):
@@ -724,7 +639,7 @@ class GroundSourceHeatPumpBoiler:
             최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
             """
             try:
-                perf = self._calc_on_state(
+                perf = self._calc_state(
                     optimization_vars=x,
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load,
@@ -749,7 +664,7 @@ class GroundSourceHeatPumpBoiler:
             최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
             """
             try:
-                perf = self._calc_on_state(
+                perf = self._calc_state(
                     optimization_vars=x,
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load,
@@ -772,27 +687,6 @@ class GroundSourceHeatPumpBoiler:
             {'type': 'ineq', 'fun': _cond_LMTD_constraint_high},  # Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
         ]
         
-        # COBYLA는 bounds를 직접 지원하지 않으므로 제약 조건으로 변환
-        if method == 'COBYLA':
-            def _bound_constraint_low_HX(x):
-                return x[0] - bounds[0][0]  # dT_ref_HX >= 1.0
-            def _bound_constraint_high_HX(x):
-                return bounds[0][1] - x[0]  # dT_ref_HX <= 30.0
-            def _bound_constraint_low_cond(x):
-                return x[1] - bounds[1][0]  # dT_ref_cond >= 1.0
-            def _bound_constraint_high_cond(x):
-                return bounds[1][1] - x[1]  # dT_ref_cond <= 30.0
-            
-            const_funcs.extend([
-                {'type': 'ineq', 'fun': _bound_constraint_low_HX},
-                {'type': 'ineq', 'fun': _bound_constraint_high_HX},
-                {'type': 'ineq', 'fun': _bound_constraint_low_cond},
-                {'type': 'ineq', 'fun': _bound_constraint_high_cond},
-            ])
-            bounds_for_method = None  # COBYLA는 bounds를 사용하지 않음
-        else:
-            bounds_for_method = bounds
-
         # 목적 함수: E_tot (총 전력 소비) 최소화
         def _objective(x):  # x = [dT_ref_HX, dT_ref_cond]
             """
@@ -801,7 +695,7 @@ class GroundSourceHeatPumpBoiler:
             최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
             """
             try:
-                perf = self._calc_on_state(
+                perf = self._calc_state(
                     optimization_vars=x,
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load,
@@ -818,47 +712,26 @@ class GroundSourceHeatPumpBoiler:
             except Exception as e:
                 return 1e6
         
-        # 알고리즘별 옵션 설정
-        if method == 'SLSQP':
+        # SLSQP 옵션
+        if True:  # SLSQP only
             options = {
                 'disp': False,
                 'maxiter': 100,
                 'ftol': 10,      # 함수 값 수렴 허용 오차
                 'eps': 0.01,      # 유한 차분 근사 스텝 크기
             }
-        elif method == 'trust-constr':
-            options = {
-                'disp': False,
-                'maxiter': 100,
-                'gtol': 1e-6,    # 제약 조건 수렴 허용 오차
-                'xtol': 1e-8,    # 변수 수렴 허용 오차
-            }
-        elif method == 'COBYLA':
-            options = {
-                'disp': False,
-                'maxiter': 100,
-            }
-        else:
-            # 기본 옵션
-            options = {
-                'disp': False,
-                'maxiter': 100,
-            }
-        
         # 최적화 실행
         opt_result = minimize(
             _objective,           # 목적 함수 (E_tot = E_cmp + E_pmp 최소화)
             initial_guess,        # 초기 추정값
-            method=method,        # 선택된 알고리즘 사용
-            bounds=bounds_for_method,  # 변수 경계 조건 (COBYLA는 None)
+            method='SLSQP',
+            bounds=bounds,
             constraints=const_funcs,
-            callback=_callback_wrapper if callback is not None else None,
             options=options
         )
         
-        # 반복 이력 결과에 첨부
-        opt_result.iteration_history = iteration_history
-        
+        if opt_result.success:
+            self.prev_opt_x = np.array(opt_result.x).copy()
         return opt_result
     
     def analyze_dynamic(
@@ -869,7 +742,6 @@ class GroundSourceHeatPumpBoiler:
         schedule_entries,
         T0_schedule,
         result_save_csv_path=None,
-        optimization_method='SLSQP',  # 최적화 알고리즘 선택
         ):
         
         """
@@ -885,29 +757,12 @@ class GroundSourceHeatPumpBoiler:
             T0_schedule: 엑서지 분석 기준 온도(=외기온도) 스케줄 [°C]
                 엑서지 계산의 기준점으로 사용되는 외기 온도의 시간별 스케줄
             result_save_csv_path: 결과 CSV 저장 경로
-            optimization_method: 최적화 알고리즘 선택 ('SLSQP', 'trust-constr', 'COBYLA')
         
         Returns:
             pd.DataFrame: 시뮬레이션 타임스텝별 결과 데이터
         """
         
         # --- 0. 실행 조건 판단 ---
-        
-        if simulation_period_sec % dt_s != 0:
-            raise ValueError("simulation_period_sec must be divisible by dt_s")
-        
-        if self.T_tank_w_setpoint < self.T_tank_w_lower_bound:
-            raise ValueError("T_tank_w_setpoint must be greater than T_tank_w_lower_bound")
-        
-        if self.heater_capacity < 0:
-            raise ValueError("heater_capacity must be greater than 0")
-        
-        if self.dV_w_serv_m3s < 0:
-            raise ValueError("dV_w_serv_m3s must be greater than 0")
-        
-        if schedule_entries == []:
-            raise ValueError("schedule_entries must be provided")
-        
         time = np.arange(0, simulation_period_sec, dt_s)
         tN = len(time)
         T0_schedule = np.array(T0_schedule)
@@ -926,11 +781,11 @@ class GroundSourceHeatPumpBoiler:
         self.T_b_f_out = self.Ts # 초기 지중열 교환기 유출수 온도
         self.Q_b = 0.0 # 초기 지중열 교환기 열 유량
         
-        self.dV_w_serv = 0.0 
-        self.dV_w_sup_tank = 0.0 
-        self.dV_w_sup_mix = 0.0 
+        self.dV_mix_w_out = 0.0 
+        self.dV_tank_w_in = 0.0 
+        self.dV_mix_w_in_sup = 0.0 
         
-        self.w_use_frac = _build_schedule_ratios(schedule_entries, self.time)
+        self.w_use_frac = build_schedule_ratios(schedule_entries, self.time)
         
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
         Q_b_unit_pulse = np.zeros(tN)
@@ -946,30 +801,32 @@ class GroundSourceHeatPumpBoiler:
 
             # 제어 상태 결정
             Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
-            den = max(1e-6, T_tank_w_K - self.T_sup_w_K)
-            alp = min(1.0, max(0.0, self.T_serv_w_K - self.T_sup_w_K) / den)
+            den = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
+            alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
 
-            self.dV_w_serv = self.w_use_frac[n] * self.dV_w_serv_m3s 
-            self.dV_w_sup_tank = alp * self.dV_w_serv
-            self.dV_w_sup_mix = (1 - alp) * self.dV_w_serv 
+            self.dV_mix_w_out = self.w_use_frac[n] * self.dV_mix_w_out_max 
+            self.dV_tank_w_in = alp * self.dV_mix_w_out
+            self.dV_mix_w_in_sup = (1 - alp) * self.dV_mix_w_out 
 
-            Q_use_loss = c_w * rho_w * self.dV_w_sup_tank * (T_tank_w_K - self.T_sup_w_K)
+            Q_use_loss = c_w * rho_w * self.dV_tank_w_in * (T_tank_w_K - self.T_tank_w_in_K)
             total_loss = Q_tank_loss + Q_use_loss
             
             # On/Off 결정
             if T_tank_w <= self.T_tank_w_lower_bound: is_on = True
-            elif T_tank_w >= self.T_tank_w_setpoint: is_on = False
+            elif T_tank_w >= self.T_tank_w_upper_bound: is_on = False
             else: is_on = is_on_prev
             
             is_transitioning_off_to_on = (not is_on_prev) and is_on # False to True
-            Q_cond_load_n = self.heater_capacity if is_on else 0.0
+            Q_cond_load_n = self.hp_capacity if is_on else 0.0
             is_on_prev = is_on
             
             # OFF 상태 조기 체크: Q_cond_load_n이 임계값 이하이면 최적화 건너뛰기
             if abs(Q_cond_load_n) <= self.Q_cond_LOAD_OFF_TOL:
-                
-                result = self._calc_off_state(
+                self.prev_opt_x = None  # OFF 시 초기값 재설정
+                result = self._calc_state(
+                    optimization_vars=[5.0, 5.0],
                     T_tank_w=T_tank_w,
+                    Q_cond_load=0.0,
                     T0=T0
                 )
             else:
@@ -978,13 +835,12 @@ class GroundSourceHeatPumpBoiler:
                     T_tank_w=T_tank_w,
                     Q_cond_load=Q_cond_load_n,
                     T0=T0,
-                    method=optimization_method
                 )
                     
                 # opt_result.x로 결과 계산 시도 (성공/실패 무관)
                 result = None
                 try:
-                    result = self._calc_on_state(
+                    result = self._calc_state(
                         optimization_vars=opt_result.x,
                         T_tank_w=T_tank_w,
                         Q_cond_load=Q_cond_load_n,
@@ -1002,7 +858,7 @@ class GroundSourceHeatPumpBoiler:
                         )
                     except Exception:
                         result = {
-                            'is_on': False,
+                            'hp_is_on': False,
                             'converged': False,
                             'Q_ref_cond [W]': 0.0,
                             'Q_ref_evap [W]': 0.0,
@@ -1021,7 +877,7 @@ class GroundSourceHeatPumpBoiler:
                 # OFF→ON 전환 시점: 점진적 전환을 위해 이전 스텝의 지중 온도 값 사용
                 # result는 ON 상태로 계산되었지만, 지중 온도는 점진적으로 업데이트
                 step_results.update(result)
-                step_results['is_on'] = is_on
+                step_results['hp_is_on'] = is_on
                 # 전환 시점임을 표시하는 플래그 추가
                 step_results['is_transitioning'] = True
                 
@@ -1033,7 +889,7 @@ class GroundSourceHeatPumpBoiler:
                 step_results['Q_b [W]'] = 0.0  # 전환 시점에서는 0으로 시작
             else:
                 step_results.update(result)
-                step_results['is_on'] = is_on
+                step_results['hp_is_on'] = is_on
                 step_results['is_transitioning'] = False
 
             # 지중 온도 업데이트
@@ -1045,7 +901,7 @@ class GroundSourceHeatPumpBoiler:
                 Q_b_unit_old = 0.0
             else:
                 # 일반 시점: 정상 계산
-                Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('is_on') else 0.0
+                Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('hp_is_on') else 0.0
             
             if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
                 Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
@@ -1093,7 +949,7 @@ class GroundSourceHeatPumpBoiler:
                         E_uv = self.lamp_power_watts
                         break
             
-            step_results['is_on'] = is_on
+            step_results['hp_is_on'] = is_on
             if self.lamp_power_watts > 0:
                 step_results['E_uv [W]'] = E_uv
             
