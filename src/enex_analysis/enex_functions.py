@@ -33,8 +33,6 @@ This module contains helper functions organized into the following categories:
    - calculate_GSHP_COP: Ground source heat pump COP calculation
    - calc_ref_state: Calculate refrigerant cycle states (with superheating/subcooling support)
    - find_ref_loop_optimal_operation: Find optimal operation point
-   - plot_cycle_diagrams: Plot P-h and T-h diagrams
-
 8. Tank Functions
    - update_tank_temperature: Update tank temperature based on energy balance
 
@@ -2286,338 +2284,12 @@ def find_ref_loop_optimal_operation(
         print(f'최적화 중 오류 발생: {e}')
         return None
 
-def plot_cycle_diagrams(
-    result,
-    refrigerant,
-    show=True,
-    time_step_annotation=None,
-    save_path=None,
-    show_temp_limits=False,
-    temp_limits=None,
-    face_color='#F9F8F6',
-):
-    """
-    계산된 사이클 상태(1,2,3,4)를 바탕으로 P-h 및 T-h 선도를 그립니다.
-    
-    이 함수는 히트펌프 사이클의 열역학적 상태를 시각화합니다:
-    - P-h 선도 (Pressure-Enthalpy): 압력 대 엔탈피 (로그 스케일)
-    - T-h 선도 (Temperature-Enthalpy): 온도 대 엔탈피
-    
-    호출 관계:
-    - 호출자: GroundSourceHeatPumpBoiler.analyze_dynamic, AirSourceHeatPumpBoiler.analyze_dynamic
-    - 사용 데이터: calc_ref_state 결과
-    
-    플로팅 단계:
-    ──────────────────────────────────────────────────────────────────────────
-    1. 냉매 물성 데이터 준비 (포화선, 임계점)
-    2. 사이클 상태점 데이터 추출 (State 1-4)
-    3. Figure 및 Axes 생성 (1행 2열: P-h, T-h)
-    4. 포화선 그리기 (액체선, 증기선)
-    5. 사이클 경로 그리기 (State 1→2→3→4→1)
-    6. 온도 제한선 표시 (선택적)
-    7. 상태점 라벨링 (1, 2, 3, 4)
-    8. 축 설정 및 저장/표시
-    
-    Args:
-        result (dict): 사이클 성능 결과 딕셔너리
-            - P1 [Pa], P2 [Pa], P3 [Pa], P4 [Pa]: 압력 [Pa]
-            - h1 [J/kg], h2 [J/kg], h3 [J/kg], h4 [J/kg]: 엔탈피 [J/kg]
-            - T1 [°C], T2 [°C], T3 [°C], T4 [°C]: 온도 [°C]
-                주의: result 딕셔너리에는 단위가 포함된 키를 사용해야 함
-        
-        refrigerant (str): 냉매 이름 (CoolProp 형식, 예: 'R410A')
-        
-        show (bool, optional): 그래프를 화면에 표시할지 여부 (기본값: True)
-        
-        time_step_annotation (str, optional): 타임스텝 주석 텍스트
-            예: "Time step: 100", "Day 1, Hour 12" 등
-        
-        save_path (str, optional): 그래프 저장 경로
-            제공되면 이미지 파일로 저장 (PNG, DPI 400)
-        
-        show_temp_limits (bool, optional): 온도 제한선 표시 여부 (기본값: False)
-            True일 때 T-h 선도에 온도 제한선 표시
-        
-        temp_limits (list, optional): 온도 제한선 목록 (권장 방식)
-            각 항목은 다음 중 하나의 형태:
-            - 튜플: (name, value) 또는 (name, value, color) 또는 (name, value, color, label)
-            - 딕셔너리: {'name': str, 'value': float, 'color': str (optional), 'label': str (optional)}
-            예:
-                temp_limits=[
-                    ('Tank water', 50.0, 'oc.red4', 'Tank water: 50.0 °C'),
-                    ('GHE inlet', 10.0, 'oc.blue4', 'GHE inlet: 10.0 °C'),
-                    ('GHE outlet', 8.0, 'oc.orange4', 'GHE outlet: 8.0 °C'),
-                ]
-            또는:
-                temp_limits=[
-                    {'name': 'Tank water', 'value': 50.0, 'color': 'oc.red4', 'label': 'Tank water: 50.0 °C'},
-                    {'name': 'GHE inlet', 'value': 10.0, 'color': 'oc.blue4', 'label': 'GHE inlet: 10.0 °C'},
-                ]
-            color이 제공되지 않으면 기본 색상 팔레트에서 자동 할당
-            label이 제공되지 않으면 '{name}: {value:.1f} °C' 형식으로 자동 생성
-        
-        face_color (str, optional): 그래프 배경색 (기본값: '#F9F8F6')
-    
-    Returns:
-        None
-    
-    Raises:
-        ImportError: dartwork_mpl 모듈이 설치되지 않은 경우
-    
-    Notes:
-        - P-h 선도는 압력 축이 로그 스케일
-        - 사이클 경로는 점선으로 표시되고 각 상태점에 마커 표시
-        - 동일 좌표의 상태점은 "1,2" 형태로 그룹 표시
-        - temp_limits가 제공되면 T_tank_w, T_b_f_in, T_b_f_out 파라미터는 무시됨
-    """
-    # ============================================================
-    # 0단계: 의존성 확인
-    # ============================================================
-    if dm is None:
-        raise ImportError("dartwork_mpl 모듈이 필요합니다. pip install dartwork_mpl로 설치하세요.")
-    
-    # ============================================================
-    # 1단계: 색상 및 축 범위 설정
-    # ============================================================
-    # 그래프 색상 정의
-    color1 = 'oc.blue5'   # 포화 액체선
-    color2 = 'oc.red5'    # 포화 증기선
-    color3 = 'black'   # 사이클 경로 마커
-
-    # P-h 선도 축 범위 (압력: 로그 스케일)
-    ymin1, ymax1, yint1 = 100, 10**4, 0  # 압력 [kPa]: 100 ~ 10000
-    
-    # T-h 선도 축 범위 (온도: 선형 스케일)
-    ymin2, ymax2, yint2 = -20, 120, 20  # 온도 [°C]: -20 ~ 120
-    
-    # 공통 X축 범위 (엔탈피)
-    xmin, xmax, xint = 0, 600, 100  # 엔탈피 [kJ/kg]: 0 ~ 600
-
-    # ============================================================
-    # 2단계: 냉매 물성 데이터 준비 (포화선 계산)
-    # ============================================================
-    # 임계점 계산 (참고용)
-    T_critical = cu.K2C(CP.PropsSI('Tcrit', refrigerant))  # 임계 온도 [°C]
-    P_critical = CP.PropsSI('Pcrit', refrigerant) / 1000  # 임계 압력 [kPa] (참고용)
-
-    # 포화선 계산을 위한 온도 범위 설정
-    # 최소 온도부터 임계 온도까지 200개 포인트
-    temps = np.linspace(cu.K2C(CP.PropsSI('Tmin', refrigerant)) + 1, T_critical, 600)
-    
-    # 각 온도에서 포화 액체 및 포화 증기 엔탈피 계산
-    # 단위 변환: J/kg → kJ/kg
-    h_liq = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]  # 포화 액체선
-    h_vap = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 1, refrigerant) / 1000 for T in temps]  # 포화 증기선
-    
-    # 각 온도에서 포화 압력 계산
-    # 단위 변환: Pa → kPa
-    p_sat = [CP.PropsSI('P', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
-
-    # ============================================================
-    # 3단계: 사이클 상태점 데이터 추출
-    # ============================================================
-    # State 1-4의 압력, 엔탈피, 온도 추출
-    # 단위 변환: Pa → kPa, J/kg → kJ/kg
-    p = np.array([result[f'P{i} [Pa]'] for i in range(1, 5)]) * cu.Pa2kPa  # 압력 [kPa]
-    h = np.array([result[f'h{i} [J/kg]'] for i in range(1, 5)]) * cu.J2kJ   # 엔탈피 [kJ/kg]
-    T = np.array([result[f'T{i} [°C]'] for i in range(1, 5)])             # 온도 [°C]
-
-    # ============================================================
-    # 4단계: 사이클 경로 구성 (닫힌 경로)
-    # ============================================================
-    # State 1→2→3→4→1 순서로 닫힌 경로 만들기
-    # 첫 상태점을 끝에 추가하여 경로를 닫음
-    h_cycle = np.concatenate([h, h[:1]])  # [h1, h2, h3, h4, h1]
-    p_cycle = np.concatenate([p, p[:1]])  # [p1, p2, p3, p4, p1]
-    T_cycle = np.concatenate([T, T[:1]])  # [T1, T2, T3, T4, T1]
-
-    # ============================================================
-    # 5단계: Figure 및 Axes 생성
-    # ============================================================
-    # 선 두께 배열 (그래프 요소별로 다른 두께 사용)
-    LW = np.arange(0.5, 3.0, 0.25)
-    
-    # 1행 2열 서브플롯 생성 (P-h 선도, T-h 선도)
-    nrows, ncols = 1, 2
-    fig, axes = plt.subplots(figsize=(dm.cm2in(16), dm.cm2in(6)), nrows=nrows, ncols=ncols)
-    plt.subplots_adjust(wspace=0.5)  # 서브플롯 간 간격
-    ax = axes.flatten()  # 1차원 배열로 변환
-
-    # ============================================================
-    # 6단계: 축별 메타데이터 설정
-    # ============================================================
-    # 각 서브플롯(idx=0: P-h, idx=1: T-h)의 축 라벨 및 스케일
-    xlabels = ["Enthalpy [kJ/kg]", "Enthalpy [kJ/kg]"]  # 공통 X축: 엔탈피
-    ylabels = ["Pressure [kPa]", "Temperature [°C]"]  # Y축: 압력 또는 온도
-    yscales = ["log", "linear"]  # Y축 스케일: 로그 또는 선형
-    xlims   = [(xmin, xmax), (xmin, xmax)]  # X축 범위
-    ylims   = [(ymin1, ymax1), (ymin2, ymax2)]  # Y축 범위
-
-    # 포화선/사이클 Y데이터 선택자
-    # idx=0 (P-h 선도): 포화선은 p_sat, 사이클은 p_cycle
-    # idx=1 (T-h 선도): 포화선은 temps, 사이클은 T_cycle
-    satY_list   = [p_sat, temps]  # 포화선 Y 데이터
-    cycleY_list = [p_cycle, T_cycle]  # 사이클 경로 Y 데이터
-
-    # 상태점 라벨 Y좌표 계산 함수 (축별로 다른 오프셋 적용)
-    def state_y(idx, i):
-        """상태점 라벨 Y좌표 계산"""
-        if idx == 0:  # P-h 선도: 압력 위로 5% 오프셋
-            return p[i] * 1.05
-        else:  # T-h 선도: 온도 위로 고정 오프셋
-            return T[i] + yint2 * 0.1
-
-    # ============================================================
-    # 7단계: 범례 스타일 설정
-    # ============================================================
-    # 공통 범례 스타일 (두 서브플롯 모두 동일)
-    legend_kw = dict(
-        loc='upper left',          # 범례 위치
-        bbox_to_anchor=(0.0, 0.99),  # 범례 앵커 포인트
-        handlelength=1.5,          # 범례 항목 길이
-        labelspacing=0.5,          # 범례 항목 간 간격
-        columnspacing=2,           # 범례 열 간 간격
-        ncol=1,                    # 범례 열 수
-        frameon=False,             # 범례 프레임 없음
-        fontsize=dm.fs(-1.5)       # 범례 폰트 크기
-    )
-
-    # ============================================================
-    # 8단계: 각 서브플롯에 그래프 그리기
-    # ============================================================
-    # 2중 for문으로 P-h 선도(idx=0)와 T-h 선도(idx=1) 생성
-    for r in range(nrows):
-        for c in range(ncols):
-            idx = r * ncols + c  # 서브플롯 인덱스 (0 또는 1)
-            axi = ax[idx]
-
-            # --------------------------------------------
-            # 8-1: 포화선 그리기
-            # --------------------------------------------
-            # 포화 액체선: 저압 영역에서 왼쪽 경계
-            axi.plot(h_liq, satY_list[idx],  color=color1, label='Saturated liquid', 
-                    linewidth=LW[2])
-            
-            # 포화 증기선: 저압 영역에서 오른쪽 경계
-            axi.plot(h_vap, satY_list[idx],  color=color2, label='Saturated vapor',  
-                    linewidth=LW[2])
-            
-            # --------------------------------------------
-            # 8-2: 사이클 경로 그리기
-            # --------------------------------------------
-            # State 1→2→3→4→1 순서의 닫힌 경로
-            # 점선(:)과 원형 마커(o)로 표시
-            axi.plot(h_cycle, cycleY_list[idx], color='oc.gray5', label='Heat pump cycle',
-                     markerfacecolor=color3, markeredgecolor=color3,
-                     linewidth=LW[1], marker='o', linestyle=':', markersize=2)
-
-            # --------------------------------------------
-            # 8-3: 온도 제한선 표시 (T-h 선도만, 선택적)
-            # --------------------------------------------
-            # T-h 선도(idx=1)에만 온도 제한선 표시
-            if show_temp_limits and (idx == 1):
-                # 기본 색상 팔레트 (color가 제공되지 않을 때 사용)
-                colors_default = ['oc.red', 'oc.blue', 'oc.orange', 'oc.green', 'oc.purple', 'oc.yellow']
-                line_colors_default = [colors_default[i] + '4' for i in range(len(colors_default))]
-                text_colors_default = [colors_default[i] + '6' for i in range(len(colors_default))]
-                
-                # temp_limits가 제공되면 사용, 아니면 하위 호환을 위해 기존 파라미터 사용
-                if temp_limits is not None:
-                    # temp_limits 리스트 처리
-                    for i, item in enumerate(temp_limits):
-                        # 딕셔너리 형태인지 튜플 형태인지 확인
-                        if isinstance(item, dict):
-                            name = item.get('name', f'Limit {i+1}')
-                            value = item.get('value')
-                            color = item.get('color', line_colors_default[i % len(line_colors_default)])
-                            label = item.get('label', f'{name}: {value:.1f} °C')
-                        elif isinstance(item, (tuple, list)):
-                            # 튜플 형태: (name, value) 또는 (name, value, color) 또는 (name, value, color, label)
-                            if len(item) >= 2:
-                                name = item[0]
-                                value = item[1]
-                                color = item[2] if len(item) >= 3 else line_colors_default[i % len(line_colors_default)]
-                                label = item[3] if len(item) >= 4 else f'{name}: {value:.1f} °C'
-                            else:
-                                continue  # 잘못된 형식이면 건너뛰기
-                        else:
-                            continue  # 지원하지 않는 형식이면 건너뛰기
-                        
-                        if value is not None:
-                            text_color = text_colors_default[i % len(text_colors_default)] if color == line_colors_default[i % len(line_colors_default)] else color
-                            ax[1].axhline(y=value, color=color, linestyle=':', linewidth=LW[1])
-                            # 텍스트 위치: 값이 높으면 위로, 낮으면 아래로
-                            text_y_offset = 2 if i % 2 == 0 else -2
-                            va = 'bottom' if i % 2 == 0 else 'top'
-                            ax[1].text(xmin + 20, value + text_y_offset,
-                                       label, ha='left', va=va, 
-                                       fontsize=dm.fs(-3), color=text_color)
-
-            # 8-4: 상태점 라벨 표시
-            xdata = h  # 모든 서브플롯에서 X축은 엔탈피
-            ydata = p if idx == 0 else T  # Y축은 서브플롯에 따라 다름
-
-            # 상태점 좌표 그룹핑 (소수점 3자리 반올림으로 동일 좌표 판단)
-            groups = {}
-            for i, (xi, yi) in enumerate(zip(xdata, ydata), start=1):
-                key = (round(float(xi), 3), round(float(yi), 3))
-                groups.setdefault(key, []).append(i)
-
-            # 각 그룹에 대해 라벨 표시
-            for (xg, yg), labels in groups.items():
-                label_text = ",".join(map(str, labels))  # "1,2" 형태
-                # 상태점 위로 3포인트 오프셋하여 라벨 표시
-                axi.annotate(label_text, (xg, yg),
-                             xytext=(0, 3), textcoords='offset points',
-                             ha='center', va='bottom',
-                             fontsize=dm.fs(-1.5))
-
-            axi.set_xlabel(xlabels[idx], fontsize=dm.fs(0), labelpad=6)
-            axi.set_ylabel(ylabels[idx], fontsize=dm.fs(0), labelpad=6)
-            
-            # 눈금 표시 설정
-            axi.tick_params(axis='both', which='major', labelsize=dm.fs(-1), pad=4)
-            
-            # Y축 스케일 설정 (로그 또는 선형)
-            axi.set_yscale(yscales[idx])
-            
-            # 축 범위 설정
-            axi.set_xlim(*xlims[idx])
-            axi.set_ylim(*ylims[idx])
-            
-            # 범례 추가
-            axi.legend(**legend_kw)
-            
-    if time_step_annotation is not None:
-        fig.text(0.97, 0.92, 
-                 time_step_annotation,
-                 ha='right',
-                 va='bottom',
-                 fontweight='bold',
-                 fontsize=dm.fs(0))
-        # 주석 공간 확보를 위해 레이아웃 조정
-        dm.simple_layout(fig, margins=(0.05, 0.05, 0.05, 0.05), bbox=(0, 1, 0, 0.95), verbose=False)
-    else:
-        # 주석 없는 경우 전체 영역 사용
-        dm.simple_layout(fig, margins=(0.05, 0.05, 0.05, 0.05), bbox=(0, 1, 0, 1), verbose=False)
-    
-    if save_path is not None:
-        for axi in axes.flatten():
-            axi.patch.set_alpha(0.0)
-        plt.savefig(save_path, dpi=400, facecolor=face_color)
-    
-    if show:
-        dm.save_and_show(fig)
-    
-    plt.close()
-
 def update_tank_temperature(
     T_tank_w_K,      # 현재 탱크 온도 [K]
     Q_tank_in,       # 탱크 입력 열량 [W]
     total_loss,      # 총 손실 [W] (Q_tank_loss + Q_use_loss)
-    C_tank,          # 탱크 열용량 [J/K]
-    dt,              # 타임스텝 [s]
-):
+    C_tank,
+    dt):
     """
     탱크 온도를 업데이트합니다.
     
@@ -2936,6 +2608,7 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
 
     print("="*50)
 
+#%%
 def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     """Plot T-h diagram on given axis. 
     If csv_path and timestep_idx are provided, draw horizontal lines for tank water temp / outdoor temp for that timestep.
@@ -2957,30 +2630,29 @@ def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     h_liq = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
     h_vap = [CP.PropsSI('H', 'T', cu.C2K(T), 'Q', 1, refrigerant) / 1000 for T in temps]
 
-    # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
-    h1_star = result.get('h1_star [J/kg]', np.nan) * cu.J2kJ
-    h1 = result.get('h1 [J/kg]', np.nan) * cu.J2kJ
-    h2 = result.get('h2 [J/kg]', np.nan) * cu.J2kJ
-    h2_star = result.get('h2_star [J/kg]', np.nan) * cu.J2kJ
-    h3_star = result.get('h3_star [J/kg]', np.nan) * cu.J2kJ
-    h3 = result.get('h3 [J/kg]', np.nan) * cu.J2kJ
-    h4 = result.get('h4 [J/kg]', np.nan) * cu.J2kJ
-    
-    T1_star = result.get('T1_star [°C]', np.nan)
-    T1 = result.get('T1 [°C]', np.nan)
-    T2 = result.get('T2 [°C]', np.nan)
-    T2_star = result.get('T2_star [°C]', np.nan)
-    T3_star = result.get('T3_star [°C]', np.nan)
-    T3 = result.get('T3 [°C]', np.nan)
-    T4 = result.get('T4 [°C]', np.nan)
+    # 7개 상태점 추출 (신규 T_ref_*/h_ref_* 또는 구형 T1/h1 키 지원)
+    h1_star = result.get('h_ref_evap_sat [J/kg]', result.get('h1_star [J/kg]', np.nan)) * cu.J2kJ
+    h1 = result.get('h_ref_cmp_in [J/kg]', result.get('h1 [J/kg]', np.nan)) * cu.J2kJ
+    h2 = result.get('h_ref_cmp_out [J/kg]', result.get('h2 [J/kg]', np.nan)) * cu.J2kJ
+    h2_star = result.get('h_ref_cond_sat_v [J/kg]', result.get('h2_star [J/kg]', np.nan)) * cu.J2kJ
+    h3_star = result.get('h_ref_cond_sat_l [J/kg]', result.get('h3_star [J/kg]', np.nan)) * cu.J2kJ
+    h3 = result.get('h_ref_exp_in [J/kg]', result.get('h3 [J/kg]', np.nan)) * cu.J2kJ
+    h4 = result.get('h_ref_exp_out [J/kg]', result.get('h4 [J/kg]', np.nan)) * cu.J2kJ
+    T1_star = result.get('T_ref_evap_sat [°C]', result.get('T1_star [°C]', np.nan))
+    T1 = result.get('T_ref_cmp_in [°C]', result.get('T1 [°C]', np.nan))
+    T2 = result.get('T_ref_cmp_out [°C]', result.get('T2 [°C]', np.nan))
+    T2_star = result.get('T_ref_cond_sat_v [°C]', result.get('T2_star [°C]', np.nan))
+    T3_star = result.get('T_ref_cond_sat_l [°C]', result.get('T3_star [°C]', np.nan))
+    T3 = result.get('T_ref_exp_in [°C]', result.get('T3 [°C]', np.nan))
+    T4 = result.get('T_ref_exp_out [°C]', result.get('T4 [°C]', np.nan))
 
     # 포화선 그리기
     ax.plot(h_liq, temps, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
     ax.plot(h_vap, temps, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
 
     # 마커 색상 결정
-    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
-    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+    cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
+    cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
 
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
@@ -3113,29 +2785,29 @@ def plot_ph_diagram(ax, result, refrigerant, fs, pad):
     p_sat = [CP.PropsSI('P', 'T', cu.C2K(T), 'Q', 0, refrigerant) / 1000 for T in temps]
 
     # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
-    P1_star = result.get('P1_star [Pa]', np.nan) * cu.Pa2kPa
-    P1 = result.get('P1 [Pa]', np.nan) * cu.Pa2kPa
-    P2 = result.get('P2 [Pa]', np.nan) * cu.Pa2kPa
-    P2_star = result.get('P2_star [Pa]', np.nan) * cu.Pa2kPa
-    P3_star = result.get('P3_star [Pa]', np.nan) * cu.Pa2kPa
-    P3 = result.get('P3 [Pa]', np.nan) * cu.Pa2kPa
-    P4 = result.get('P4 [Pa]', np.nan) * cu.Pa2kPa
+    P1_star = (result.get('P_ref_evap_sat [Pa]') or result.get('P1_star [Pa]', np.nan)) * cu.Pa2kPa
+    P1 = (result.get('P_ref_cmp_in [Pa]') or result.get('P1 [Pa]', np.nan)) * cu.Pa2kPa
+    P2 = (result.get('P_ref_cmp_out [Pa]') or result.get('P2 [Pa]', np.nan)) * cu.Pa2kPa
+    P2_star = (result.get('P_ref_cond_sat_v [Pa]') or result.get('P2_star [Pa]', np.nan)) * cu.Pa2kPa
+    P3_star = (result.get('P_ref_cond_sat_l [Pa]') or result.get('P3_star [Pa]', np.nan)) * cu.Pa2kPa
+    P3 = (result.get('P_ref_exp_in [Pa]') or result.get('P3 [Pa]', np.nan)) * cu.Pa2kPa
+    P4 = (result.get('P_ref_exp_out [Pa]') or result.get('P4 [Pa]', np.nan)) * cu.Pa2kPa
     
-    h1_star = result.get('h1_star [J/kg]', np.nan) * cu.J2kJ
-    h1 = result.get('h1 [J/kg]', np.nan) * cu.J2kJ
-    h2 = result.get('h2 [J/kg]', np.nan) * cu.J2kJ
-    h2_star = result.get('h2_star [J/kg]', np.nan) * cu.J2kJ
-    h3_star = result.get('h3_star [J/kg]', np.nan) * cu.J2kJ
-    h3 = result.get('h3 [J/kg]', np.nan) * cu.J2kJ
-    h4 = result.get('h4 [J/kg]', np.nan) * cu.J2kJ
+    h1_star = (result.get('h_ref_evap_sat [J/kg]') or result.get('h1_star [J/kg]', np.nan)) * cu.J2kJ
+    h1 = (result.get('h_ref_cmp_in [J/kg]') or result.get('h1 [J/kg]', np.nan)) * cu.J2kJ
+    h2 = (result.get('h_ref_cmp_out [J/kg]') or result.get('h2 [J/kg]', np.nan)) * cu.J2kJ
+    h2_star = (result.get('h_ref_cond_sat_v [J/kg]') or result.get('h2_star [J/kg]', np.nan)) * cu.J2kJ
+    h3_star = (result.get('h_ref_cond_sat_l [J/kg]') or result.get('h3_star [J/kg]', np.nan)) * cu.J2kJ
+    h3 = (result.get('h_ref_exp_in [J/kg]') or result.get('h3 [J/kg]', np.nan)) * cu.J2kJ
+    h4 = (result.get('h_ref_exp_out [J/kg]') or result.get('h4 [J/kg]', np.nan)) * cu.J2kJ
 
     # 포화선 그리기
     ax.plot(h_liq, p_sat, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
     ax.plot(h_vap, p_sat, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
     
     # 마커 색상 결정
-    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
-    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+    cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
+    cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
 
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선, P4=P1_star)
@@ -3264,25 +2936,25 @@ def plot_ts_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     ax.plot(s_vap, temps, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
 
     # 7개 상태점 추출 (T1_star, T1, T2, T2_star, T3_star, T3, T4)
-    s1_star = result.get('s1_star [J/(kg·K)]', np.nan) / 1000
-    s1 = result.get('s1 [J/(kg·K)]', np.nan) / 1000
-    s2 = result.get('s2 [J/(kg·K)]', np.nan) / 1000
-    s2_star = result.get('s2_star [J/(kg·K)]', np.nan) / 1000
-    s3_star = result.get('s3_star [J/(kg·K)]', np.nan) / 1000
-    s3 = result.get('s3 [J/(kg·K)]', np.nan) / 1000
-    s4 = result.get('s4 [J/(kg·K)]', np.nan) / 1000
+    s1_star = (result.get('s_ref_evap_sat [J/(kg·K)]') or result.get('s1_star [J/(kg·K)]', np.nan)) / 1000
+    s1 = (result.get('s_ref_cmp_in [J/(kg·K)]') or result.get('s1 [J/(kg·K)]', np.nan)) / 1000
+    s2 = (result.get('s_ref_cmp_out [J/(kg·K)]') or result.get('s2 [J/(kg·K)]', np.nan)) / 1000
+    s2_star = (result.get('s_ref_cond_sat_v [J/(kg·K)]') or result.get('s2_star [J/(kg·K)]', np.nan)) / 1000
+    s3_star = (result.get('s_ref_cond_sat_l [J/(kg·K)]') or result.get('s3_star [J/(kg·K)]', np.nan)) / 1000
+    s3 = (result.get('s_ref_exp_in [J/(kg·K)]') or result.get('s3 [J/(kg·K)]', np.nan)) / 1000
+    s4 = (result.get('s_ref_exp_out [J/(kg·K)]') or result.get('s4 [J/(kg·K)]', np.nan)) / 1000
     
-    T1_star = result.get('T1_star [°C]', np.nan)
-    T1 = result.get('T1 [°C]', np.nan)
-    T2 = result.get('T2 [°C]', np.nan)
-    T2_star = result.get('T2_star [°C]', np.nan)
-    T3_star = result.get('T3_star [°C]', np.nan)
-    T3 = result.get('T3 [°C]', np.nan)
-    T4 = result.get('T4 [°C]', np.nan)
+    T1_star = result.get('T_ref_evap_sat [°C]') or result.get('T1_star [°C]', np.nan)
+    T1 = result.get('T_ref_cmp_in [°C]') or result.get('T1 [°C]', np.nan)
+    T2 = result.get('T_ref_cmp_out [°C]') or result.get('T2 [°C]', np.nan)
+    T2_star = result.get('T_ref_cond_sat_v [°C]') or result.get('T2_star [°C]', np.nan)
+    T3_star = result.get('T_ref_cond_sat_l [°C]') or result.get('T3_star [°C]', np.nan)
+    T3 = result.get('T_ref_exp_in [°C]') or result.get('T3 [°C]', np.nan)
+    T4 = result.get('T_ref_exp_out [°C]') or result.get('T4 [°C]', np.nan)
 
     # 마커 색상 결정
-    cycle_markerfacecolor = color3 if result.get('is_on', False) else color4
-    cycle_markeredgecolor = color3 if result.get('is_on', False) else color4
+    cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
+    cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
 
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
