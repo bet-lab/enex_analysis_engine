@@ -157,91 +157,30 @@ $$X_c = T_0 \cdot S_g$$
 
 ### `GasBoiler`
 
-천연가스 연소를 사용하는 온수 보일러 시스템을 모델링합니다.
+가스 보일러의 성능 계산 및 동적 시뮬레이션을 수행하는 고급 모델입니다. (저탕조 없이 직접 급탕 공급)
 
-#### 입력 파라미터
+#### 정적/동적 해석 메서드
+- `analyze_steady(T0, dV_w_serv, return_dict=True)`: 주어진 외기온도와 온수 수요에서 정상상태 해석
+- `analyze_dynamic(simulation_period_sec, dt_s, schedule_entries, T0_schedule, ...)`: 스케줄을 통한 동적 시뮬레이션 수행 및 결과 저장
 
-**효율 파라미터:**
-- `eta_comb` (float, 기본값: 0.9): 연소 효율 [-]
-
-**온도 파라미터 [°C]:**
-- `T_w_tank` (float, 기본값: 60): 탱크 온수 온도
-- `T_w_sup` (float, 기본값: 10): 공급수 온도
-- `T_w_serv` (float, 기본값: 45): 사용 온수 온도
-- `T0` (float, 기본값: 0): 기준 온도
-- `T_exh` (float, 기본값: 70): 배기가스 온도
-
-**기타 파라미터:** `ElectricBoiler`와 동일
-
-#### 출력 속성
-
-**에너지 항목:**
-- `E_NG` (float): 천연가스 에너지 입력 [W]
-- `Q_exh` (float): 배기가스 열손실 [W]
-- `Q_w_comb_out` (float): 연소실에서 나가는 열전달률 [W]
-
-**엑서지 항목:**
-- `X_NG` (float): 천연가스 엑서지 [W]
-- `X_exh` (float): 배기가스 엑서지 [W]
-- `X_c_comb` (float): 연소실 엑서지 소멸 [W]
-- `X_c_tot` (float): 전체 엑서지 소멸 [W]
-
-**밸런스:** `ElectricBoiler`와 동일한 구조
-
-#### 물리적 의미
-
-천연가스의 엑서지 효율은 다음과 같이 정의됩니다:
-
-$$X_{NG} = \eta_{ex,NG} \cdot E_{NG}$$
-
-여기서 $\eta_{ex,NG} = 0.93$ (LNG 기준, Shukuya 2013).
+#### 주요 출력 속성 (결과 DataFrame 내)
+- **에너지 항목**: `E_NG` (가스 입력), `Q_exh` (배기 손실), `Q_comb_w` (수측 열전달)
+- **엑서지 항목**: `X_NG`, `X_exh`, `X_c_comb` (연소실 엑서지 파괴)
 
 ---
 
-### `HeatPumpBoiler`
+### `AirSourceHeatPumpBoiler`
 
-공기원 히트펌프를 사용하는 온수 보일러 시스템을 모델링합니다.
+공기원 히트펌프 보일러의 성능을 계산하며, `scipy.optimize`를 통한 최적 운전점 탐색과 `CoolProp`을 활용한 정밀한 냉매 물성치(과열도/과냉각도 고려)를 지원하는 고급 모델입니다.
 
-#### 입력 파라미터
+#### 정적/동적 해석 메서드
+- `analyze_steady(T_tank_w, T0, dV_w_serv, Q_cond_load, return_dict=True)`: 압축기 운전 주파수 및 팬 속도를 최적화하여 정상상태 성능 도출
+- `analyze_dynamic(...)`: 시계열 환경/부하 데이터 기반 동적 시뮬레이션
 
-**효율 파라미터:**
-- `eta_fan` (float, 기본값: 0.6): 팬 효율 [-]
-- `COP` (float, 기본값: 2.5): 히트펌프 성능계수 [-]
-
-**압력 파라미터:**
-- `dP` (float, 기본값: 200): 압력 차이 [Pa]
-
-**온도 파라미터 [°C]:**
-- `T0` (float, 기본값: 0): 기준 온도
-- `T_a_ext_out` (float, 기본값: -5): 외부 유닛 공기 출구 온도
-- `T_r_ext` (float, 기본값: -10): 외부 유닛 냉매 온도
-- `T_w_tank` (float, 기본값: 60): 탱크 온수 온도
-- `T_r_tank` (float, 기본값: 65): 탱크 냉매 온도
-- `T_w_serv` (float, 기본값: 45): 사용 온수 온도
-- `T_w_sup` (float, 기본값: 10): 공급수 온도
-
-**기타 파라미터:** `ElectricBoiler`와 동일
-
-#### 출력 속성
-
-**에너지 항목:**
-- `E_cmp` (float): 압축기 입력 전력 [W]
-- `E_fan` (float): 외부 팬 입력 전력 [W]
-- `Q_r_tank` (float): 탱크로의 냉매 열전달률 [W]
-- `Q_r_ext` (float): 외부 유닛에서의 냉매 열전달률 [W]
-- `Q_a_ext_in` (float): 외부 유닛 공기 입구 열전달률 [W]
-- `Q_a_ext_out` (float): 외부 유닛 공기 출구 열전달률 [W]
-- `dV_a_ext` (float): 외부 유닛 공기 유량 [m³/s]
-
-**엑서지 항목:**
-- `X_cmp` (float): 압축기 엑서지 입력 [W]
-- `X_fan` (float): 팬 엑서지 입력 [W]
-- `X_r_tank` (float): 탱크 냉매 엑서지 [W]
-- `X_r_ext` (float): 외부 냉매 엑서지 [W]
-- `X_c_ext` (float): 외부 유닛 엑서지 소멸 [W]
-- `X_c_r` (float): 냉매 루프 엑서지 소멸 [W]
-
-**밸런스:** 서브시스템별로 구성 (외부 유닛, 냉매 루프, 온수 탱크, 혼합 밸브)
+#### 주요 출력 속성
+- **에너지 항목**: `E_cmp` (압축기 전력), `E_fan_ou` (팬 전력), `Q_cond_load` (응축기 열전달) 
+- **엑서지 항목**: 압축기, 응축기, 증발기 팽창밸브 각 구간의 엑서지 파괴량 (postprocess_exergy 메서드를 통해 표출)
+- **성능 지표**: `COP`
 
 ---
 
@@ -293,69 +232,16 @@ $$S_{sol} = k_D \cdot I_{DN}^{0.9} + k_d \cdot I_{dH}^{0.9}$$
 
 ### `GroundSourceHeatPumpBoiler`
 
-지열 히트펌프를 사용하는 온수 보일러 시스템을 모델링합니다.
+지열원 히트펌프 보일러의 성능을 계산하는 모델입니다. g-function을 기반으로 한 지중 열교환기(Borehole) 모델링과 사이클 최적 운전점 탐색 기능을 포함합니다.
 
-#### 입력 파라미터
+#### 정적/동적 해석 메서드
+- `analyze_steady(T_tank_w, T_b_f_in, dV_mix_w_out, ...)`: 지열 루프 온도 조건에서 히트펌프 정상상태 해석
+- `analyze_dynamic(...)`: g-function 중첩 원리를 적용한 지중 온도 변화 및 장기 동적 시뮬레이션
 
-**시간 파라미터:**
-- `time` (float, 기본값: 10): 시뮬레이션 시간 [h]
-
-**보어홀 파라미터:**
-- `D_b` (float, 기본값: 0): 보어홀 깊이 [m]
-- `H_b` (float, 기본값: 200): 보어홀 높이 [m]
-- `r_b` (float, 기본값: 0.08): 보어홀 반경 [m]
-- `R_b` (float, 기본값: 0.108): 유효 보어홀 열저항 [mK/W]
-
-**유체 파라미터:**
-- `dV_f` (float, 기본값: 24): 순환수 유량 [L/min]
-- `E_pmp` (float, 기본값: 200): 펌프 입력 전력 [W]
-
-**지반 파라미터:**
-- `k_g` (float, 기본값: 2.0): 지반 열전도율 [W/mK]
-- `c_g` (float, 기본값: 800): 지반 비열 [J/kgK]
-- `rho_g` (float, 기본값: 2000): 지반 밀도 [kg/m³]
-- `T_g` (float, 기본값: 11): 지반 온도 [°C]
-
-**온도 파라미터 [°C]:**
-- `T_r_tank` (float, 기본값: 65): 탱크 냉매 온도
-- `dT_r_exch` (float, 기본값: -5): 열교환기 온도 차이 [K]
-- 기타: `HeatPumpBoiler`와 유사
-
-#### 출력 속성
-
-**보어홀 관련:**
-- `Q_bh` (float): 보어홀 단위 길이당 열전달률 [W/m]
-- `g_i` (float): g-function 값 [mK/W]
-- `T_b` (float): 보어홀 벽 온도 [K]
-- `T_f` (float): 보어홀 내 유체 온도 [K]
-- `T_f_in` (float): 유체 입구 온도 [K]
-- `T_f_out` (float): 유체 출구 온도 [K]
-
-**냉매 관련:**
-- `COP` (float): 계산된 COP [-]
-- `T_r_exch` (float): 열교환기 냉매 온도 [K]
-
-**엑서지 항목:**
-- `X_g` (float): 지반 엑서지 [W]
-- `X_b` (float): 보어홀 벽 엑서지 [W]
-- `X_f_in` (float): 유체 입구 엑서지 [W]
-- `X_f_out` (float): 유체 출구 엑서지 [W]
-- `X_pmp` (float): 펌프 엑서지 입력 [W]
-- `X_c_g` (float): 지반 엑서지 소멸 [W]
-- `X_c_GHE` (float): 지열 열교환기 엑서지 소멸 [W]
-- `X_c_exch` (float): 열교환기 엑서지 소멸 [W]
-
-**밸런스:** 서브시스템별로 구성 (지반, 지열 열교환기, 열교환기, 냉매 루프, 온수 탱크, 혼합 밸브)
-
-#### 물리적 의미
-
-COP는 수정된 카르노 사이클 기반 공식으로 계산됩니다:
-
-$$\text{COP} = \frac{1}{1 - \frac{T_g}{T_{cond}} + \frac{\Delta T \cdot \hat{\theta}}{T_{cond}}}$$
-
-여기서 $\Delta T = T_g - T_{evap}$, $\hat{\theta}$는 무차원 평균 유체 온도입니다.
-
-g-function은 보어홀의 시간 의존 열저항을 계산하는 데 사용됩니다.
+#### 주요 출력 속성
+- **에너지 항목**: `E_cmp`, `E_pmp` (지중 순환 펌프), `Q_evap`, `Q_cond`
+- **지중 상태**: `T_b_f_in`, `T_b_f_out` (지중 루프 입출구 온도), `T_b_wall` (보어홀 벽면 온도)
+- **엑서지 항목**: 지중열교환기 및 사이클 각 콤포넌트들의 엑서지 파괴량
 
 ---
 
@@ -835,3 +721,40 @@ X_c_tank: 555.56 [W]
 
 6. **동적 모델**: `ElectricHeater`와 같은 동적 모델은 시간 이력을 리스트로 저장하므로, 메모리 사용량에 주의하세요.
 
+
+## 신재생 에너지 시스템 및 열저장 모델
+
+### `PV_to_Converter`
+
+태양광 패널(PV Cell), 충전 컨트롤러, 배터리, DC/AC 인버터로 이어지는 전체 시스템의 에너지, 엔트로피, 엑서지 밸런스를 계산합니다.
+
+#### 입력 파라미터 (단위: K 및 무차원)
+- `A_pv`, `alp_pv`, `eta_pv`: PV 패널 면적, 흡수율, 효율
+- `I_DN`, `I_dH`: 직달 및 확산 일사량 [W/m²]
+- `eta_ctrl`, `eta_batt`, `eta_DC_AC`: 각 전력 변환기기의 효율
+- `T_ctrl`, `T_batt`, `T_DC_AC`: 각 기기의 운전 온도 [K]
+
+#### 메서드
+- `system_update()`: 제공된 일사량과 온도를 기반으로 밸런스 속성들을 업데이트
+
+#### 출력 속성
+- `E_pv0`, `E_pv1`, `E_pv2`, `E_pv3`: 각 단계별 생산/전달된 에너지 [W]
+- 각 컴포넌트별 소멸된 엑서지(`X_c_pv`, `X_c_ctrl`, `X_c_batt`, `X_c_DC_AC`)
+
+---
+
+### `StratifiedTankTDMA`
+
+1차원 열성층화(Thermal Stratification) 온수 탱크 모델로, TDMA (Tri-Diagonal Matrix Algorithm)를 활용하여 노드별 온도를 계산합니다. 부력에 의한 자연 대류를 유효 열전도율(Effective Thermal Conductivity)로 반영합니다.
+
+#### 입력 파라미터
+- `H`, `N`, `r0`: 탱크 높이, 층(노드) 개수, 내부 반경
+- `x_shell`, `x_ins`, `k_shell`, `k_ins`: 탱크 벽면 및 단열 두께/열전도율
+- `h_w`, `h_o`, `C_d_mix`: 내/외부 열전달 계수 및 혼합 계수
+
+#### 주요 메서드
+- `update_tank_temp(T, dt, T_in, dV_use, T_amb, T0, ...)`: 시간 간격 `dt` 동안 탱크 온도 프로파일(numpy 배열 `T`)을 업데이트
+- `effective_conductivity(T_upper, T_lower)`: 역전층 발생 시 혼합 효과를 모사하기 위한 유효 열전도율 계산
+- `info(as_dict, precision)`: 탱크 설정 및 현재 상태 반환
+
+---

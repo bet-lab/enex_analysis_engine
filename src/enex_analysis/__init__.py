@@ -7,4 +7,5 @@ from .GasBoiler import *
 from .AirSourceHeatPumpBoiler import *
 from .GroundSourceHeatPumpBoiler import *
 from .Tank_stratification_model import *
+from .PV_to_Converter import *
 from .enex_functions import * 

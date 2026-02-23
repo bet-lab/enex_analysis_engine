@@ -877,3 +877,75 @@ verify_balance(boiler, 'hot water tank', 'energy')
 
 이 문서의 예시들을 참고하여 ENEX Analysis Engine을 효과적으로 활용하시기 바랍니다. 추가 질문이나 예시가 필요하시면 이슈를 제기해 주세요.
 
+
+---
+
+## 고급 최적화 및 신규 컴포넌트 예시
+
+### 예시 18: 최적화 기반 공기원 히트펌프 보일러 정상상태 해석
+
+`AirSourceHeatPumpBoiler`는 `scipy.optimize`를 활용하여 능동적으로 최적의 압축기 작동 주파수와 팬 속도를 찾아냅니다.
+
+```python
+from enex_analysis import AirSourceHeatPumpBoiler
+
+# R134a 냉매와 5kW급 용량을 갖는 ASHPB 생성
+ashpb = AirSourceHeatPumpBoiler(ref='R134a', hp_capacity=5000)
+
+# 외기 10도, 저탕조 50도, 급탕 0.1 L/s, 목표 열량 4kW 조건에서 최적 운전점 탐색
+result = ashpb.analyze_steady(T_tank_w=50, T0=10, dV_w_serv=0.0001, Q_cond_load=4000)
+
+print(f"Optimal COP: {result['COP']:.2f}")
+print(f"Compressor Power: {result['E_cmp']:.2f} W")
+print(f"Fan Power: {result['E_fan_ou']:.2f} W")
+print(f"Condenser Heat Rate: {result['Q_LMTD_cond']:.2f} W")
+```
+
+### 예시 19: 태양광 발전 및 전력 변환 밸런스 분석
+
+`PV_to_Converter` 모델을 이용해 태양광 에너지가 배터리와 인버터를 거쳐 사용 가능한 AC로 도달할 때까지의 에너지 파괴를 추적합니다.
+
+```python
+from enex_analysis import PV_to_Converter
+
+pv_sys = PV_to_Converter()
+# 기본 내장된 파라미터로(예: I_DN=500, I_dH=150) 시스템 밸런스 계산
+pv_sys.system_update()
+
+print(f"PV Cell Output Power: {pv_sys.E_pv0:.2f} W")
+print(f"Final AC Output Power: {pv_sys.E_pv3:.2f} W")
+print(f"Exergy Destroyed in PV Panel: {pv_sys.X_c_pv:.2f} W")
+print(f"Exergy Destroyed in DC/AC Converter: {pv_sys.X_c_DC_AC:.2f} W")
+```
+
+### 예시 20: 1차원 열성층화 온수 탱크(TDMA) 시뮬레이션
+
+부력으로 인한 혼합을 유효 열전도율로 반영하는 `StratifiedTankTDMA`를 활용하여 탱크의 수직 온도 분포를 시뮬레이션합니다.
+
+```python
+import numpy as np
+from enex_analysis import StratifiedTankTDMA
+
+# 10개 층 단위로 분할된 1m 높이 탱크 생성 (용적, 단열 정보 등 포함)
+tank = StratifiedTankTDMA(
+    H=1.0, N=10, r0=0.2, x_shell=0.01, x_ins=0.05, 
+    k_shell=50, k_ins=0.03, h_w=100, h_o=10, C_d_mix=1.0
+)
+
+# 초기 탱크 온도를 20도(293.15 K)로 일정하게 설정
+T_nodes = np.ones(10) * 293.15
+
+# 10분(600초) 간, 하단(10번 노드)에서 3kW로 가열하며 
+# 0.1 L/s 속도로 급탕을 사용할 때 온도 분포 계산
+T_nodes_next = tank.update_tank_temp(
+    T=T_nodes, dt=600, T_in=283.15, dV_use=0.0001, 
+    T_amb=293.15, T0=273.15, 
+    heater_node=10, heater_capacity=3000
+)
+
+print("10분 후 탱크 층별 온도 [K]:")
+print(np.round(T_nodes_next, 1))
+
+# 현재 탱크의 요약 정보 출력
+tank.info(precision=2)
+```

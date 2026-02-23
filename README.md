@@ -34,6 +34,8 @@ These balances are calculated consistently across all components, enabling syste
 ### Analysis Features
 
 - **Automatic balance calculation**: Set parameters, run `system_update()`, get all balances
+- **Steady-State & Dynamic Simulation**: Advanced models support `analyze_steady()` and `analyze_dynamic()` with schedules
+- **Optimal Operation Search**: Built-in optimization algorithms to find optimal operating conditions
 - **Subsystem-level analysis**: Detailed balances for each subsystem (e.g., combustion chamber, heat exchanger, mixing valve)
 - **Performance metrics**: Exergy efficiency, COP, and other key performance indicators
 - **Visualization support**: Built-in functions for displaying balance results
@@ -48,10 +50,10 @@ The library provides models for a wide range of energy conversion systems, organ
 ### Domestic Hot Water (DHW) Systems
 
 - **`ElectricBoiler`**: Electric resistance heating system with hot water storage tank
-- **`GasBoiler`**: Natural gas combustion boiler with hot water storage
-- **`HeatPumpBoiler`**: Air-source heat pump for hot water production
+- **`GasBoiler`**: Advanced natural gas combustion boiler (supports dynamic schedules)
+- **`AirSourceHeatPumpBoiler`**: Air-source heat pump for hot water production (features CoolProp integration and optimal operation search)
 - **`SolarAssistedGasBoiler`**: Hybrid system combining solar thermal collectors with gas backup
-- **`GroundSourceHeatPumpBoiler`**: Ground-source heat pump for hot water production
+- **`GroundSourceHeatPumpBoiler`**: Ground-source heat pump for hot water production (features g-function borehole model)
 
 ### Heat Pump Systems
 
@@ -60,9 +62,14 @@ The library provides models for a wide range of energy conversion systems, organ
 - **`GroundSourceHeatPump_cooling`**: Ground-source heat pump in cooling mode
 - **`GroundSourceHeatPump_heating`**: Ground-source heat pump in heating mode
 
+### Renewable Energy Systems
+
+- **`PV_to_Converter`**: Photovoltaic system with charge controller, battery, and DC/AC converter
+
 ### Dynamic System Models
 
 - **`ElectricHeater`**: Dynamic heat transfer analysis for electric heating elements
+- **`StratifiedTankTDMA`**: 1D Stratified hot-water tank model using TDMA and effective thermal conductivity
 
 ### Auxiliary Components
 
@@ -164,11 +171,16 @@ enex_analysis_engine/
 ├── src/
 │   └── enex_analysis/
 │       ├── __init__.py           # Package initialization
+│       ├── AirSourceHeatPumpBoiler.py
 │       ├── balance_helpers.py    # Balance calculation utilities
 │       ├── calc_util.py          # Unit conversion utilities
 │       ├── constants.py          # Physical constants
 │       ├── enex_engine.py        # Core system models
-│       └── enex_functions.py     # Shared functions for calc modules
+│       ├── enex_functions.py     # Shared functions for calc modules
+│       ├── GasBoiler.py          # Advanced Gas Boiler model
+│       ├── GroundSourceHeatPumpBoiler.py
+│       ├── PV_to_Converter.py    # PV system model
+│       └── Tank_stratification_model.py # 1D Stratified Tank model
 ├── docs/                         # Sphinx documentation
 ├── pyproject.toml                # Project configuration
 ├── uv.lock                       # Dependency lock file
@@ -180,6 +192,8 @@ enex_analysis_engine/
 ### Key Modules
 
 - **`enex_engine.py`**: Contains the core energy system classes (Boilers, Heat Pumps, etc.).
+- **`AirSourceHeatPumpBoiler.py`**, **`GasBoiler.py`**, **`GroundSourceHeatPumpBoiler.py`**: Advanced dynamic models for building energy systems.
+- **`Tank_stratification_model.py`**, **`PV_to_Converter.py`**: Specialized physical models for thermal storage and renewable generation.
 - **`calc_util.py`**: Unit conversion constants (e.g., `C2K`, `h2s`, `W2kW`).
 - **`enex_functions.py`**: Shared helper functions used across different engines.
 - **`balance_helpers.py`**: Utilities for calculating and formatting thermodynamic balances.
