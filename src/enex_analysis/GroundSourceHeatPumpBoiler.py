@@ -1,3 +1,15 @@
+"""Ground source heat pump boiler — physics-based cycle model.
+
+Resolves a vapour-compression refrigerant cycle coupled to a borehole heat
+exchanger (BHE) on the evaporator side and a lumped-capacitance hot-water
+tank on the condenser side.  At each time step the model finds the
+minimum-power operating point via SLSQP optimisation over two temperature
+differences (evaporator and condenser approach ΔT).
+
+Borehole thermal response is tracked with the Finite Line Source (FLS)
+g-function, enabling long-term ground temperature drift.
+"""
+
 #%%
 import numpy as np
 import math
@@ -11,80 +23,78 @@ import CoolProp.CoolProp as CP
 from tqdm import tqdm
 import pandas as pd
 
-# Import constants from constants.py
 from .constants import *
-
-# Import functions from enex_functions.py
 from .enex_functions import *
 
 @dataclass
 class GroundSourceHeatPumpBoiler:
-    '''
-    물리적 원리에 기반한 지열워 히트펌프 성능 계산 및 최적 운전점 탐색 클래스.
-    '''
+    """Ground source heat pump boiler with BHE and lumped-tank model.
+
+    The refrigerant cycle is resolved via CoolProp with user-specified
+    superheat / subcool margins.  An SLSQP optimiser minimises total
+    electrical input (``E_cmp + E_pmp``) subject to LMTD heat-exchanger
+    constraints.
+    """
     def __init__(
         self,
 
-        # 1. 냉매/사이클/압축기 파라미터 -------------------------------
+        # 1. Refrigerant / cycle / compressor -------------------------
         refrigerant    = 'R410A',
-        V_disp_cmp     = 0.0005,
-        eta_cmp_isen   = 0.7,
+        V_disp_cmp     = 0.0005,        # [m³] Compressor displacement
+        eta_cmp_isen   = 0.7,           # [-]  Isentropic efficiency
 
-        # 2. 열교환기 파라미터 -----------------------------------------
-        UA_cond_design = 500,   # W/K
-        UA_evap_design = 500,   # W/K
+        # 2. Heat exchanger -------------------------------------------
+        UA_cond_design = 500,           # [W/K] Condenser design UA
+        UA_evap_design = 500,           # [W/K] Evaporator design UA
 
-        # 3. 탱크/제어/부하 파라미터 -----------------------------------
-        #    (온도/제어 관련)
-        T0                     = 0.0,    # [°C] 기준 외기 온도
-        Ts                     = 16.0,   # [°C] 지중 온도/초기값
-        T_tank_w_upper_bound   = 65.0,   # [°C] 저탕조 설정 온도
-        T_tank_w_lower_bound   = 55.0,   # [°C] 저탕조 하한 온도
-        T_mix_w_out            = 40.0,   # [°C] 서비스 급탕 온도
-        T_tank_w_in            = 15.0,   # [°C] 급수(상수도) 온도
+        # 3. Tank / control / load ------------------------------------
+        T0                     = 0.0,   # [°C] Dead-state (ambient) temp
+        Ts                     = 16.0,  # [°C] Undisturbed ground temp
+        T_tank_w_upper_bound   = 65.0,  # [°C] Tank upper setpoint
+        T_tank_w_lower_bound   = 55.0,  # [°C] Tank lower setpoint
+        T_mix_w_out            = 40.0,  # [°C] Service water delivery temp
+        T_tank_w_in            = 15.0,  # [°C] Mains water supply temp
 
-        hp_capacity            = 8000.0,    # [W] 히트펌프 최대 용량
-        dV_mix_w_out_max       = 0.0001,    # [m³/s] 최대 급탕 유량
+        hp_capacity            = 8000.0,   # [W]   HP rated capacity
+        dV_mix_w_out_max       = 0.0001,   # [m³/s] Max service flow rate
 
-        #   (탱크/보온 관련)
-        r0       = 0.2,   # [m] 탱크 반지름
-        H        = 0.8,   # [m] 탱크 높이
-        x_shell  = 0.01,  # [m] 탱크 외벽 두께
-        x_ins    = 0.05,  # [m] 단열재 두께
-        k_shell  = 25,    # [W/mK] 탱크 외벽 열전도도
-        k_ins    = 0.03,  # [W/mK] 단열재 열전도도
-        h_o      = 15,    # [W/m²K] 외부 대류 열전달계수
+        # Tank / insulation
+        r0       = 0.2,    # [m]     Tank inner radius
+        H        = 0.8,    # [m]     Tank height
+        x_shell  = 0.01,   # [m]     Shell thickness
+        x_ins    = 0.05,   # [m]     Insulation thickness
+        k_shell  = 25,     # [W/m·K] Shell conductivity
+        k_ins    = 0.03,   # [W/m·K] Insulation conductivity
+        h_o      = 15,     # [W/m²·K] External convective coefficient
 
-        # 4. 지중/보어홀/유체 파라미터 -------------------------------
-        #   (보어홀)
-        D_b = 0,          # [m] 보어홀 깊이 (unused/option)
-        H_b = 200,        # [m] 보어홀 유효 길이
-        r_b = 0.08,       # [m] 보어홀 반지름
-        R_b = 0.108,      # [mK/W] 유효 보어홀 열저항
+        # 4. Borehole heat exchanger ----------------------------------
+        D_b = 0,           # [m]     Borehole depth (reserved)
+        H_b = 200,         # [m]     Borehole effective length
+        r_b = 0.08,        # [m]     Borehole radius
+        R_b = 0.108,       # [m·K/W] Effective borehole thermal resistance
 
-        #   (유체)
-        dV_b_f_lpm = 24,  # [L/min] 지중 유체 유량
+        # Ground-loop fluid
+        dV_b_f_lpm = 24,   # [L/min] Borehole fluid flow rate
 
-        #   (토양)
-        k_s   = 2.0,      # [W/mK] 토양 열전도도
-        c_s   = 800,      # [J/kgK] 토양 비열
-        rho_s = 2000,     # [kg/m³] 토양 밀도
+        # Soil properties
+        k_s   = 2.0,       # [W/m·K] Soil thermal conductivity
+        c_s   = 800,       # [J/kg·K] Soil specific heat
+        rho_s = 2000,      # [kg/m³] Soil density
 
-        #   (순환 펌프)
-        E_pmp = 200,      # [W] 펌프 소비전력
+        # Circulation pump
+        E_pmp = 200,       # [W] Pump electrical power
 
-        # 5. UV 램프 파라미터 -----------------------------------------
-        lamp_power_watts = 0, # [W] 램프 소비 전력
-        uv_lamp_exposure_duration_min = 0, # [min] 1회 UV램프 노출 기준시간
-        num_switching_per_3hour = 1, # [개] 3시간 당 on 횟수
+        # 5. UV lamp --------------------------------------------------
+        lamp_power_watts = 0,                # [W]   Lamp power
+        uv_lamp_exposure_duration_min = 0,    # [min] UV exposure per cycle
+        num_switching_per_3hour = 1,          # [-]   Switching count / 3 h
 
-        # 6. 과열도 및 과냉각도 설정 (Default 3도)
-        dT_superheat = 3.0,  # [K] 증발기 출구 과열도 (State 1* -> 1)
-        dT_subcool   = 3.0,  # [K] 응축기 출구 과냉각도 (State 3* -> 3)
+        # 6. Superheat / subcool --------------------------------------
+        dT_superheat = 3.0,  # [K] Evaporator outlet superheat
+        dT_subcool   = 3.0,  # [K] Condenser outlet subcool
         ):
 
-        # --- 1. 기본 물성/상수 ---
-        # 열용량, 물 밀도 등 전역 상수는 상단 import 혹은 별도 config로 관리 권장
+        # --- 1. Tank geometry and thermal properties ---
         self.tank_physical = {
             'r0': r0, 'H': H, 'x_shell': x_shell, 'x_ins': x_ins,
             'k_shell': k_shell, 'k_ins': k_ins, 'h_o': h_o,
@@ -92,7 +102,7 @@ class GroundSourceHeatPumpBoiler:
         self.UA_tank = calc_simple_tank_UA(**self.tank_physical)
         self.C_tank = c_w * rho_w * (math.pi * r0**2 * H)
 
-        # --- 2. 냉매/사이클/압축기 파라미터 ---
+        # --- 2. Refrigerant / cycle / compressor ---
         self.ref_params = {
             'refrigerant': refrigerant,
             'V_disp_cmp': V_disp_cmp,
@@ -102,20 +112,19 @@ class GroundSourceHeatPumpBoiler:
         self.V_disp_cmp = V_disp_cmp
         self.eta_cmp_isen = eta_cmp_isen
 
-        # --- 3. 열교환기 파라미터 ---
+        # --- 3. Heat exchanger UA values ---
         self.heat_exchanger = {
             'UA_cond_design': UA_cond_design,
             'UA_evap_design': UA_evap_design,
         }
         self.UA_cond_design = UA_cond_design
         self.UA_evap_design = UA_evap_design
-        self.UA_cond = UA_cond_design  # alias for internal use
-        self.UA_evap = UA_evap_design  # alias for internal use
+        self.UA_cond = UA_cond_design
+        self.UA_evap = UA_evap_design
 
-        # --- 4. 탱크/제어/부하 파라미터 (온도/제어/유량/설정) ---
+        # --- 4. Control and load parameters ---
         self.control_params = {
-            'T0': T0,
-            'Ts': Ts,
+            'T0': T0, 'Ts': Ts,
             'T_tank_w_upper_bound': T_tank_w_upper_bound,
             'T_tank_w_lower_bound': T_tank_w_lower_bound,
             'T_mix_w_out': T_mix_w_out,
@@ -124,28 +133,27 @@ class GroundSourceHeatPumpBoiler:
             'dV_mix_w_out_max': dV_mix_w_out_max,
         }
         self.Ts = Ts
-        self.T_b_f_in = Ts   # 초기값, 시뮬레이션 진행중 갱신
+        self.T_b_f_in = Ts   # Initial value; updated during simulation
 
         self.hp_capacity = hp_capacity
         self.dV_mix_w_out_max = dV_mix_w_out_max
         self.T_tank_w_upper_bound = T_tank_w_upper_bound
         self.T_tank_w_lower_bound = T_tank_w_lower_bound
 
-        # --- 5. UV 램프 파라미터 ---
+        # --- 5. UV lamp parameters ---
         self.lamp_power_watts = lamp_power_watts
         self.uv_lamp_exposure_duration_min = uv_lamp_exposure_duration_min
         self.num_switching_per_3hour = num_switching_per_3hour
-        # UV 램프 관련 계산 상수
-        self.period_3hour_sec = 3 * cu.h2s  # 3시간을 초 단위로 변환
-        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s  # 분을 초로 변환
+        self.period_3hour_sec = 3 * cu.h2s                                # 3 h → s
+        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s
 
-        # --- 6. 과열/과냉각 변수 저장 ---
+        # --- 6. Superheat / subcool ---
         self.dT_superheat = dT_superheat
         self.dT_subcool = dT_subcool
         self.T_tank_w_in = T_tank_w_in
         self.T_mix_w_out = T_mix_w_out
 
-        # --- 5. 탱크/보어홀/지중/유체 파라미터 ---
+        # --- 7. Borehole heat exchanger ---
         self.borehole = {
             'D_b': D_b, 'H_b': H_b, 'r_b': r_b, 'R_b': R_b,
         }
@@ -156,33 +164,48 @@ class GroundSourceHeatPumpBoiler:
 
         self.k_s    = k_s
         self.c_s    = c_s
-        self.alp_s  = k_s / (c_s * rho_s)  # 토양 열확산계수 [m²/s]
+        self.alp_s  = k_s / (c_s * rho_s)   # Soil thermal diffusivity [m²/s]
         self.rho_s  = rho_s
         self.E_pmp  = E_pmp
-        
-        # ============================================================
-        # 6단계: 단위 변환 및 추가 상수 설정
-        # ============================================================
-        # 온도 단위 변환: °C → K (냉매 계산용)
+
+        # --- Unit conversions (°C → K, L/min → m³/s) ---
         self.T0_K       = cu.C2K(T0)
         self.Ts_K       = cu.C2K(self.Ts)
         self.T_b_f_in_K = cu.C2K(self.T_b_f_in)
         self.T_tank_w_in_K  = cu.C2K(T_tank_w_in)
         self.T_mix_w_out_K = cu.C2K(T_mix_w_out)
         self.dV_b_f_m3s = dV_b_f_lpm * cu.L2m3/cu.m2s  
-        
-        self.Q_cond_LOAD_OFF_TOL = 500.0     # [W] 이하면 완전 OFF
 
-        # 최적화 초기값 재사용
+        self.Q_cond_LOAD_OFF_TOL = 500.0   # [W] Below this → full OFF
+
+        # Warm-start: reuse previous optimisation result
         self.prev_opt_x = None
         
     def _calc_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
-        """
-        지열원 히트펌프 보일러(GSHPB)의 사이클 성능을 계산하는 메서드.
-        ON/OFF 상태를 구분하지 않고 단일 진입점으로 처리 (ASHPB와 동일).
-        
-        Q_cond_load <= 0이면 OFF 상태(포화점 기반 P/h/s, Q/E=0) 반환,
-        그 외에는 최적화 변수로 사이클 성능 계산.
+        """Evaluate refrigerant cycle performance for a given operating point.
+
+        Handles both ON and OFF states in a single entry point.
+        When ``Q_cond_load <= 0`` the method returns a zero-load result
+        with saturation-point thermodynamic properties.
+
+        Parameters
+        ----------
+        optimization_vars : list of float
+            ``[dT_ref_HX, dT_ref_cond]`` — evaporator and condenser
+            approach temperature differences [K].
+        T_tank_w : float
+            Current tank water temperature [°C].
+        Q_cond_load : float
+            Target condenser heat rate [W].  ≤ 0 → OFF state.
+        T0 : float
+            Dead-state temperature for exergy analysis [°C].
+
+        Returns
+        -------
+        dict or None
+            Result dictionary with cycle state points, heat rates,
+            electrical inputs, and borehole temperatures.
+            ``None`` if the cycle is physically infeasible.
         """
         # OFF 상태: Q_cond_load <= 0
         if Q_cond_load <= 0:
@@ -252,172 +275,107 @@ class GroundSourceHeatPumpBoiler:
                 'm_dot_ref [kg/s]': 0.0, 'cmp_rpm [rpm]': 0.0,
             }
 
-        # ON 상태: Q_cond_load > 0
-        # ============================================================
-        # 1단계: 최적화 변수 언패킹
-        # ============================================================
-        dT_ref_HX = optimization_vars[0]      # 냉매-열교환기 온도차 [K]
-        dT_ref_cond = optimization_vars[1]    # 냉매-저탕조 온도차 [K]
+        # --- Step 1: Unpack optimisation variables ---
+        dT_ref_HX = optimization_vars[0]       # Evaporator approach ΔT [K]
+        dT_ref_cond = optimization_vars[1]     # Condenser approach ΔT [K]
+
+        # --- Step 2: Temperature conversions and evap/cond temperatures ---
+        T_tank_w_K = cu.C2K(T_tank_w)
+        T0_K = cu.C2K(T0)
+        T_b_f_in_K = self.T_b_f_in_K           # BHE fluid inlet [K] (from previous step)
+
+        T_evap_K = T_b_f_in_K - dT_ref_HX      # Evaporation temperature [K]
+        T_cond_K = T_tank_w_K + dT_ref_cond    # Condensation temperature [K]
         
-        # ============================================================
-        # 2단계: 온도 단위 변환 및 증발/응축 온도 계산
-        # ============================================================
-        T_tank_w_K = cu.C2K(T_tank_w)         # 저탕조 온도 [K]
-        T0_K = cu.C2K(T0)                     # 기준 온도 [K]
-        T_b_f_in_K = self.T_b_f_in_K          # 지중 유체 입구 온도 [K] (이전 타임스텝 값 사용)
-        
-        # 증발 온도 계산: 지중 유체 입구 온도에서 냉매-열교환기 온도차를 뺌
-        T_evap_K = T_b_f_in_K - dT_ref_HX     # 증발 온도 [K]
-        
-        # 응축 온도 계산: 저탕조 온도에 냉매-저탕조 온도차를 더함
-        T_cond_K = T_tank_w_K + dT_ref_cond   # 응축 온도 [K]
-        
-        # ============================================================
-        # 3단계: 공통 사이클 상태 계산
-        # ============================================================
+        # --- Step 3: Common cycle state calculation ---
         cycle_states = calc_ref_state(
-            T_evap_K=T_evap_K,
-            T_cond_K=T_cond_K,
-            refrigerant=self.ref,
-            eta_cmp_isen=self.eta_cmp_isen,
-            T0_K=T0_K,
-            P0=101325,
-            dT_superheat=self.dT_superheat,
-            dT_subcool=self.dT_subcool
+            T_evap_K=T_evap_K, T_cond_K=T_cond_K,
+            refrigerant=self.ref, eta_cmp_isen=self.eta_cmp_isen,
+            T0_K=T0_K, P0=101325,
+            dT_superheat=self.dT_superheat, dT_subcool=self.dT_subcool
         )
-        
-        # State 1의 밀도 (냉매 유량 계산에 사용)
-        rho_ref_cmp_in = cycle_states['rho']
-        
-        # ============================================================
-        # 4단계: 사이클 상태값 추출
-        # ============================================================
-        T1_K = cycle_states['T1_K']  # State 1 온도 [K]
-        P1 = cycle_states['P1']      # State 1 압력 [Pa]
-        h1 = cycle_states['h1']      # State 1 엔탈피 [J/kg]
-        s1 = cycle_states['s1']      # State 1 엔트로피 [J/(kg·K)]
-        
-        T2_K = cycle_states['T2_K']  # State 2 온도 [K]
-        P2 = cycle_states['P2']      # State 2 압력 [Pa]
-        h2 = cycle_states['h2']      # State 2 엔탈피 [J/kg]
-        s2 = cycle_states['s2']      # State 2 엔트로피 [J/(kg·K)]
-        
-        T3_K = cycle_states['T3_K']  # State 3 온도 [K]
-        P3 = cycle_states['P3']      # State 3 압력 [Pa]
-        h3 = cycle_states['h3']      # State 3 엔탈피 [J/kg]
-        s3 = cycle_states['s3']      # State 3 엔트로피 [J/(kg·K)]
-        
-        T4_K = cycle_states['T4_K']  # State 4 온도 [K]
-        P4 = cycle_states['P4']      # State 4 압력 [Pa]
-        h4 = cycle_states['h4']      # State 4 엔탈피 [J/kg]
-        s4 = cycle_states['s4']      # State 4 엔트로피 [J/(kg·K)]
-        
-        # 계산 불가능한 경우 체크 (h3 == h2인 경우 0으로 나누기 방지)
-        if (h3 - h2) == 0:
+
+        rho_ref_cmp_in = cycle_states['rho']  # Density at compressor inlet
+
+        # --- Step 4: Extract state-point properties ---
+        T1_K = cycle_states['T1_K'];  P1 = cycle_states['P1']
+        h1 = cycle_states['h1'];      s1 = cycle_states['s1']
+        T2_K = cycle_states['T2_K'];  P2 = cycle_states['P2']
+        h2 = cycle_states['h2'];      s2 = cycle_states['s2']
+        T3_K = cycle_states['T3_K'];  P3 = cycle_states['P3']
+        h3 = cycle_states['h3'];      s3 = cycle_states['s3']
+        T4_K = cycle_states['T4_K'];  P4 = cycle_states['P4']
+        h4 = cycle_states['h4'];      s4 = cycle_states['s4']
+
+        if (h3 - h2) == 0:  # Guard against division by zero
             return None
+
+        # --- Step 5: Refrigerant mass flow and cycle performance ---
+        m_dot_ref = Q_cond_load / (h2 - h3)   # [kg/s]
+        Q_ref_cond = m_dot_ref * (h2 - h3)    # Condenser heat [W]
+        Q_ref_evap = m_dot_ref * (h1 - h4)    # Evaporator heat (from ground) [W]
+        E_cmp = m_dot_ref * (h2 - h1)         # Compressor power [W]
+        cmp_rps = m_dot_ref / (self.V_disp_cmp * rho_ref_cmp_in)  # [rev/s]
         
-        # ============================================================
-        # 5단계: 냉매 유량 및 성능 데이터 계산
-        # ============================================================
-        # 냉매 유량 계산: 목표 열 교환율을 만족하기 위한 필요한 유량
-        # Q_cond_load = m_dot_ref * (h2 - h3)
-        m_dot_ref = Q_cond_load / (h2 - h3)  # 냉매 유량 [kg/s]
-        
-        # 사이클 열량 및 전력 계산
-        Q_ref_cond = m_dot_ref * (h2 - h3)  # 응축기 열량 [W] (Q_cond_load와 동일해야 함)
-        Q_ref_evap = m_dot_ref * (h1 - h4)  # 증발기 열량 [W] (지중열 교환량)
-        E_cmp = m_dot_ref * (h2 - h1)       # 압축기 전력 [W] (목적 함수)
-        
-        # 압축기 회전수 계산
-        # m_dot_ref = V_disp_cmp * rho_ref_cmp_in * cmp_rps * eta_vol
-        # 여기서는 eta_vol = 1로 가정
-        cmp_rps = m_dot_ref / (self.V_disp_cmp * rho_ref_cmp_in)  # 회전수 [1/s]
-        
-        # ============================================================
-        # 6단계: 응축기(저탕조 측) 열량 계산 (ASHPB와 동일: 단순 온도차)
-        # ============================================================
-        # Q = UA * dT (물리적 단순화, ASHPB와 동일)
-        # dT_ref_cond는 최적화 변수로, T_cond_sat - T_tank_w 차이임.
+        # --- Step 6: Condenser heat transfer (simplified ΔT model) ---
         Q_LMTD_cond = self.UA_cond * dT_ref_cond
 
-        # ============================================================
-        # 7단계: 지중열 교환 계산 (증발기 측)
-        # ============================================================
-        # 대향류(Counter-flow) 열교환기 모델
-        # 지중 유체가 냉매로부터 열을 흡수하여 온도 상승
-        
-        # 지중열 교환량 계산 (증발기 열량 - 펌프 전력)
-        Q_b = Q_ref_evap - self.E_pmp  # 지중열 교환량 [W]
-        Q_b_unit = Q_b / self.H_b      # 단위 길이당 열량 [W/m]
-        
-        # 지중 유체 출구 온도 계산 (에너지 보존)
-        # Q_ref_evap = m_dot_fluid * c_w * (T_out - T_in)
+        # --- Step 7: Borehole heat exchange (evaporator side) ---
+        Q_b = Q_ref_evap - self.E_pmp           # Net ground heat extraction [W]
+        Q_b_unit = Q_b / self.H_b               # Per-unit-length heat rate [W/m]
+
+        # BHE fluid outlet temperature (energy conservation)
         T_b_f_out_K = T_b_f_in_K + Q_ref_evap / (c_w * rho_w * self.dV_b_f_m3s)
-        T_b_f_out = cu.K2C(T_b_f_out_K)  # 유출수 온도 [°C]
-        
-        # 지중 유체 평균 온도
-        T_b_f = (cu.K2C(T_b_f_in_K) + T_b_f_out) / 2  # 유체 평균 온도 [°C]
-        
-        # 토양 온도 계산 (보어홀 열저항 고려)
-        T_b = T_b_f + Q_b_unit * self.R_b  # 토양 온도 [°C]
+        T_b_f_out = cu.K2C(T_b_f_out_K)
 
-        # 증발기(지중열 측) LMTD 계산
-        # 지중 유체는 T_b_f_in → T_b_f_out로 온도 하강
-        # 냉매는 State 4(저온) → State 1(고온)로 온도 상승
-        dT1_HX = T_b_f_in_K - T1_K   # 증발기 입구 온도차 [K] (유체 입구 - 냉매 출구)
-        dT2_HX = T_b_f_out_K - T4_K  # 증발기 출구 온도차 [K] (유체 출구 - 냉매 입구)
+        # Mean fluid temperature and borehole wall temperature
+        T_b_f = (cu.K2C(T_b_f_in_K) + T_b_f_out) / 2
+        T_b = T_b_f + Q_b_unit * self.R_b
 
-        # LMTD 계산 가능 여부 확인
+        # Evaporator LMTD (counter-flow: ground fluid vs refrigerant)
+        dT1_HX = T_b_f_in_K - T1_K              # Fluid inlet − refrigerant outlet
+        dT2_HX = T_b_f_out_K - T4_K             # Fluid outlet − refrigerant inlet
+
         if dT1_HX <= 1e-6 or dT2_HX <= 1e-6 or abs(dT1_HX - dT2_HX) < 1e-6:
-            # 물리적으로 불가능한 상태
-            Q_LMTD_evap = np.inf
+            Q_LMTD_evap = np.inf                 # Physically infeasible
         else:
-            # 대수 평균 온도차 (LMTD) 계산
             LMTD_HX = (dT1_HX - dT2_HX) / np.log(dT1_HX / dT2_HX)
-            # LMTD 기반 증발기 열량 계산: Q = UA * LMTD
             Q_LMTD_evap = self.UA_evap * LMTD_HX
-        
-        # ============================================================
-        # 8단계: 엑서지 계산
-        # ============================================================
-        # 기준 상태(T0_K, P0) 대비 각 상태점의 엑서지 계산
-        P0 = 101325           # 기준 압력 [Pa] (대기압)
-        h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, self.ref)  # 기준 엔탈피 [J/kg]
-        s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, self.ref)  # 기준 엔트로피 [J/kgK]
-        
-        # 기본 엑서지 값 (단위 질량당)
+
+        # --- Step 8: Specific exergy at each state point ---
+        P0 = 101325
+        h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, self.ref)
+        s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, self.ref)
+
         x1 = (h1-h0) - T0_K*(s1 - s0)
         x2 = (h2-h0) - T0_K*(s2 - s0)
         x3 = (h3-h0) - T0_K*(s3 - s0)
         x4 = (h4-h0) - T0_K*(s4 - s0)
-        
-        # 포화점 물성치 추출
+
+        # Saturation-point properties
         T1_star_K = cycle_states.get('T1_star_K', np.nan)
         T2_star_K = cycle_states.get('T2_star_K', np.nan)
         T3_star_K = cycle_states.get('T3_star_K', np.nan)
         P2_star = cycle_states.get('P2_star', P2)
-        
-        # 포화점 엔탈피, 엔트로피, 엑서지 계산
-        P1_star = P1  # 증발기 포화 압력
+
+        P1_star = P1
         h1_star = CP.PropsSI('H', 'P', P1_star, 'Q', 1, self.ref)
         s1_star = CP.PropsSI('S', 'P', P1_star, 'Q', 1, self.ref)
         x1_star = (h1_star-h0) - T0_K*(s1_star - s0)
-        
+
         h2_star = cycle_states.get('h2_star', np.nan)
         s2_star = cycle_states.get('s2_star', np.nan)
         if np.isnan(h2_star) or np.isnan(s2_star):
             h2_star = CP.PropsSI('H', 'P', P2_star, 'Q', 1, self.ref)
             s2_star = CP.PropsSI('S', 'P', P2_star, 'Q', 1, self.ref)
         x2_star = (h2_star-h0) - T0_K*(s2_star - s0)
-        
-        P3_star = P3  # 응축기 포화 압력
+
+        P3_star = P3
         h3_star = CP.PropsSI('H', 'P', P3_star, 'Q', 0, self.ref)
         s3_star = CP.PropsSI('S', 'P', P3_star, 'Q', 0, self.ref)
         x3_star = (h3_star-h0) - T0_K*(s3_star - s0)
-        
-        # ============================================================
-        # 9단계: 최종 결과 딕셔너리 생성 (단위 포함)
-        # ============================================================
+
+        # --- Step 9: Assemble result dictionary ---
         T_b_f_in = cu.K2C(T_b_f_in_K)
         
         result = {
@@ -519,21 +477,28 @@ class GroundSourceHeatPumpBoiler:
         T0=None,
         return_dict=True
         ):
-        """
-        정상상태 해석 함수.
-        
-        주어진 조건에서 지열 히트펌프의 정상상태 성능을 계산합니다.
-        
-        Args:
-            T_tank_w (float): 저탕조 온도 [°C]
-            T_b_f_in (float): 지중 유체 입구 온도 [°C] (증발기 열원)
-            dV_mix_w_out (float, optional): 급탕 유량 [m³/s]. Q_cond_load가 None이면 필수.
-            Q_cond_load (float, optional): 저탕조 목표 열 교환율 [W]. dV_mix_w_out이 None이면 필수.
-            T0 (float, optional): 엑서지 기준 온도 [°C]. None이면 T_b_f_in 사용.
-            return_dict (bool): True면 dict 반환, False면 DataFrame 반환
-        
-        Returns:
-            dict 또는 pd.DataFrame: 정상상태 해석 결과
+        """Run a steady-state analysis at the given operating point.
+
+        Exactly one of ``dV_mix_w_out`` or ``Q_cond_load`` must be provided.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Tank water temperature [°C].
+        T_b_f_in : float
+            Borehole fluid inlet temperature [°C].
+        dV_mix_w_out : float, optional
+            Service water flow rate [m³/s].  Used to compute Q_cond_load.
+        Q_cond_load : float, optional
+            Target condenser heat rate [W].
+        T0 : float, optional
+            Dead-state temperature [°C].  Defaults to ``T_b_f_in``.
+        return_dict : bool
+            If True return dict; else single-row DataFrame.
+
+        Returns
+        -------
+        dict or pd.DataFrame
         """
         if dV_mix_w_out is None and Q_cond_load is None:
             raise ValueError("dV_mix_w_out와 Q_cond_load 중 하나는 반드시 제공되어야 합니다.")
@@ -583,46 +548,23 @@ class GroundSourceHeatPumpBoiler:
         return pd.DataFrame([result])
     
     def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
-        """
-        히트펌프 최적 운전점 탐색을 수행하는 내부 메서드.
-        
-        이 메서드는 analyze_dynamic에서 사용되는 최적화 로직을 담당합니다.
-        응축기 제약조건만 포함하여 최적화를 수행합니다.
-        
-        Args:
-            T_tank_w (float): 저탕조 온도 [°C]
-                현재 타임스텝의 저탕조 온도
-            
-            Q_cond_load (float): 저탕조 목표 열 교환율 [W]
-                응축기가 저탕조에 전달해야 하는 목표 열량
-            
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
-            
-            method (str): 최적화 알고리즘 선택
-                - 'SLSQP': Sequential Least Squares Programming (기본값)
-                - 'trust-constr': Trust-region constrained optimization
-                - 'COBYLA': Constrained Optimization BY Linear Approximation
-                기본값: 'SLSQP'
-            
-            callback (callable, optional): 각 반복마다 호출되는 콜백 함수
-                콜백 함수는 현재 변수 벡터 x를 인자로 받습니다.
-                기본값: None
-        
-        Returns:
-            scipy.optimize.OptimizeResult: 최적화 결과 객체
-                - x: 최적화된 변수 [dT_ref_HX, dT_ref_cond]
-                - success: 최적화 성공 여부
-                - iteration_history: 반복 이력 리스트 (각 반복의 변수 값)
-                - 기타 최적화 메타데이터
-        
-        Notes:
-            - 최적화 변수: [dT_ref_HX, dT_ref_cond]
-                - dT_ref_HX: 냉매-열교환기 온도차 [K]
-                - dT_ref_cond: 냉매-저탕조 온도차 [K]
-            - 제약 조건:
-                - Q_cond_load <= Q_LMTD_cond <= Q_cond_load * (1 + tolerance) (응축기 열전달 능력 범위)
-            - 목적 함수: E_tot (E_cmp + E_pmp) 최소화
+        """Find minimum-power operating point via SLSQP.
+
+        Optimisation variables are ``[dT_ref_HX, dT_ref_cond]``.
+        The condenser LMTD constraint ensures heat-exchanger feasibility.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Tank water temperature [°C].
+        Q_cond_load : float
+            Target condenser heat rate [W].
+        T0 : float
+            Dead-state temperature [°C].
+
+        Returns
+        -------
+        scipy.optimize.OptimizeResult
         """
         # tolerance 변수 정의
         tolerance = 0.01  # 1%
@@ -743,23 +685,27 @@ class GroundSourceHeatPumpBoiler:
         T0_schedule,
         result_save_csv_path=None,
         ):
-        
-        """
-        동적 시뮬레이션을 실행합니다.
-        
-        Args:
-            simulation_period_sec: 총 시뮬레이션 시간 [초]
-            dt_s: 타임스텝 [초]
-            T_tank_w_init_C: 저탕조 초기 온도 [°C]
-            schedule_entries: 급탕 사용 스케줄
-                [(시작시간_str, 종료시간_str, 사용비율_float), ...]
-                예: [("6:00", "6:30", 0.5), ("6:30", "7:00", 0.9)]
-            T0_schedule: 엑서지 분석 기준 온도(=외기온도) 스케줄 [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도의 시간별 스케줄
-            result_save_csv_path: 결과 CSV 저장 경로
-        
-        Returns:
-            pd.DataFrame: 시뮬레이션 타임스텝별 결과 데이터
+        """Run a time-stepping dynamic simulation with BHE g-function.
+
+        Parameters
+        ----------
+        simulation_period_sec : int
+            Total simulation duration [s].
+        dt_s : int
+            Time step size [s].
+        T_tank_w_init_C : float
+            Initial tank temperature [°C].
+        schedule_entries : list of tuple
+            DHW schedule ``(start_str, end_str, fraction)``.
+        T0_schedule : array-like
+            Dead-state temperature per step [°C].
+        result_save_csv_path : str, optional
+            CSV output path.
+
+        Returns
+        -------
+        pd.DataFrame
+            Per-timestep results.
         """
         
         # --- 0. 실행 조건 판단 ---

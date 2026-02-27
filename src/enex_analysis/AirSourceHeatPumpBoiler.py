@@ -1,3 +1,17 @@
+"""Air source heat pump boiler — physics-based cycle model.
+
+Resolves a vapour-compression refrigerant cycle coupled to an outdoor-air
+evaporator with a VSD fan and a lumped-capacitance hot-water tank.
+At each time step the model finds the minimum-power operating point
+(compressor + fan) via SLSQP optimisation over two approach temperature
+differences.
+
+Optional subsystems include:
+- Solar Thermal Collector (STC) with tank-circuit or mains-preheat placement
+- UV disinfection lamp with periodic switching
+- Tank water-level management
+"""
+
 import math
 from dataclasses import dataclass
 
@@ -14,263 +28,191 @@ from .enex_functions import *
 
 @dataclass
 class AirSourceHeatPumpBoiler:
-    '''
-    공기원 히트펌프 보일러 성능 계산 및 최적 운전점 탐색 클래스.
-    (수정됨: 과열도(Superheating) 및 과냉각도(Subcooling) 고려 모델)
-    '''
+    """Air source heat pump boiler with outdoor-air evaporator and VSD fan.
+
+    The refrigerant cycle is resolved via CoolProp with user-specified
+    superheat / subcool margins.  An SLSQP optimiser minimises total
+    electrical input (``E_cmp + E_ou_fan``) subject to condenser and
+    evaporator heat-transfer constraints.
+    """
     def __init__(
         self,
 
-        # 1. 냉매/사이클/압축기 파라미터 -------------------------------
+        # 1. Refrigerant / cycle / compressor -------------------------
         ref         = 'R134a',
-        V_disp_cmp  = 0.0002,
-        eta_cmp_isen = 0.8,
+        V_disp_cmp  = 0.0002,            # [m³] Compressor displacement
+        eta_cmp_isen = 0.8,              # [-]  Isentropic efficiency
 
-        # [NEW] 과열도 및 과냉각도 설정 (Default 3도)
-        dT_superheat = 3.0,  # [K] 증발기 출구 과열도 (State 1* -> 1)
-        dT_subcool   = 3.0,  # [K] 응축기 출구 과냉각도 (State 3* -> 3)
+        dT_superheat = 3.0,              # [K] Evaporator outlet superheat
+        dT_subcool   = 3.0,              # [K] Condenser outlet subcool
 
-        # 2. 열교환기 파라미터 -----------------------------------------
-        UA_cond_design = 2000.0,   # 응축기 열전달 계수 [W/K]
-        UA_evap_design = 1000.0,   # 증발기 열전달 계수 [W/K]
+        # 2. Heat exchanger -------------------------------------------
+        UA_cond_design = 2000.0,         # [W/K] Condenser design UA
+        UA_evap_design = 1000.0,         # [W/K] Evaporator design UA
 
-        # 3. 실외기 팬 파라미터 ---------------------------------------
-        dV_ou_fan_a_design   = 1.5,     # 실외기 설계 풍량 [m3/s] (정풍량)
-        dP_ou_fan_design      = 90.0,    # 실외기 설계 정압 [Pa]
-        A_cross_ou        = 0.25 ** 2 * np.pi,  # [m2] (정의된 값 사용)
-        eta_ou_fan_design = 0.6,     # 실외기 팬 효율 [-]
+        # 3. Outdoor unit fan -----------------------------------------
+        dV_ou_fan_a_design   = 1.5,      # [m³/s] Design airflow
+        dP_ou_fan_design      = 90.0,    # [Pa]   Design static pressure
+        A_cross_ou        = 0.25 ** 2 * np.pi,  # [m²] Cross-section area
+        eta_ou_fan_design = 0.6,         # [-] Fan design efficiency
 
-        # 4. 탱크/제어/부하 파라미터 -----------------------------------
-        T_tank_w_upper_bound = 65.0,   # [°C] 저탕조 설정 온도
-        T_tank_w_lower_bound = 60.0,   # [°C] 저탕조 하한 온도
-        T_mix_w_out          = 40.0,   # [°C] 서비스 급탕 온도
-        T_tank_w_in          = 15.0,   # [°C] 급수(상수도) 온도
+        # 4. Tank / control / load ------------------------------------
+        T_tank_w_upper_bound = 65.0,     # [°C] Tank upper setpoint
+        T_tank_w_lower_bound = 60.0,     # [°C] Tank lower setpoint
+        T_mix_w_out          = 40.0,     # [°C] Service water delivery temp
+        T_tank_w_in          = 15.0,     # [°C] Mains water supply temp
 
-        hp_capacity   = 15000.0,   # [W] 히터 최대 용량
-        dV_mix_w_out_max = 0.0045,    # [m3/s] 최대 급탕 유량
+        hp_capacity   = 15000.0,         # [W]     HP rated capacity
+        dV_mix_w_out_max = 0.0045,       # [m³/s]  Max service flow rate
 
-        #   (탱크/보온 관련)
-        r0       = 0.2,      # [m] 탱크 반지름
-        H        = 1.2,      # [m] 탱크 높이
-        x_shell  = 0.005,    # [m] 탱크 외벽 두께
-        x_ins    = 0.05,     # [m] 단열재 두께
-        k_shell  = 25,       # [W/mK] 탱크 외벽 열전도도
-        k_ins    = 0.03,     # [W/mK] 단열재 열전도도
-        h_o      = 15,       # [W/m2K] 외부 대류 열전달계수
+        # Tank insulation
+        r0       = 0.2,                  # [m]     Tank inner radius
+        H        = 1.2,                  # [m]     Tank height
+        x_shell  = 0.005,               # [m]     Shell thickness
+        x_ins    = 0.05,                # [m]     Insulation thickness
+        k_shell  = 25,                  # [W/m·K] Shell conductivity
+        k_ins    = 0.03,                # [W/m·K] Insulation conductivity
+        h_o      = 15,                  # [W/m²·K] External convective coefficient
         
-        # 5. UV 램프 파라미터 -----------------------------------------
-        lamp_power_watts = 0, # [W] 램프 소비 전력
-        uv_lamp_exposure_duration_min = 0, # [min] 1회 UV램프 노출 기준시간
-        num_switching_per_3hour = 1, # [개] 3시간 당 on 횟수
+        # 5. UV lamp --------------------------------------------------
+        lamp_power_watts = 0,            # [W] Lamp power
+        uv_lamp_exposure_duration_min = 0,  # [min] UV exposure per cycle
+        num_switching_per_3hour = 1,      # [-] Switching count / 3 h
         
-        # 6. 저탕조 수위 관리 파라미터 ---------------------------------
-        tank_always_full = True,  # [bool] True: 항상 100% 수위 유지, False: 수위 하한 기반 리필
-        tank_level_lower_bound = 0.5,  # [float] 수위 하한 [0~1] (tank_always_full=False일 때만 사용)
-        tank_level_upper_bound = 1.0,  # [float] 수위 상한 [0~1] (리필 종료 조건, tank_always_full=False일 때만 사용)
-        dV_tank_w_in_refill = 0.001,  # [m³/s] 리필 시 상수도 유량 (tank_always_full=False일 때만 사용)
-        prevent_simultaneous_flow = False, #[bool] True: 입/출수 동시 발생 방지 (always_full=True일 때도 적용)
+        # 6. Tank water level management ------------------------------
+        tank_always_full = True,
+        tank_level_lower_bound = 0.5,
+        tank_level_upper_bound = 1.0,
+        dV_tank_w_in_refill = 0.001,     # [m³/s] Refill flow rate
+        prevent_simultaneous_flow = False,
         
-        # 7. 히트펌프 운전 구간 제어 -----------------------------------
-        hp_on_schedule = [(0.0, 24.0)],  # [list] (시작 시, 종료 시) 구간 목록. 해당 구간에만 HP 운전 허용
+        # 7. HP operating schedule ------------------------------------
+        hp_on_schedule = [(0.0, 24.0)],  # (start_h, end_h) active windows
         
-        # 8. STC (Solar Thermal Collector) 파라미터 -------------------
-        A_stc = 0.0,  # [m2] STC 집열판 면적 (0이면 STC 미사용)
-        A_stc_pipe = 2.0,  # [m2] STC 파이프 면적
-        alpha_stc = 0.95,  # [-] 흡수율
-        h_o_stc = 15,  # [W/m2K] 외부 대류 열전달계수
-        h_r_stc = 2,  # [W/m2K] 공기층 복사 열전달계수
-        k_ins_stc = 0.03,  # [W/mK] 단열재 열전도도
-        x_air_stc = 0.01,  # [m] 공기층 두께
-        x_ins_stc = 0.05,  # [m] 단열재 두께
+        # 8. Solar Thermal Collector (STC) ----------------------------
+        A_stc = 0.0,                     # [m²] Collector area (0 = disabled)
+        A_stc_pipe = 2.0,                # [m²] Pipe surface area
+        alpha_stc = 0.95,                # [-] Absorptivity
+        h_o_stc = 15,                    # [W/m²·K] External convective coeff
+        h_r_stc = 2,                     # [W/m²·K] Radiative coeff
+        k_ins_stc = 0.03,               # [W/m·K]  Insulation conductivity
+        x_air_stc = 0.01,               # [m] Air gap thickness
+        x_ins_stc = 0.05,               # [m] Insulation thickness
         
-        # 9. STC 펌프 파라미터 -----------------------------------------
-        preheat_start_hour = 6,  # [시] STC 순환 시작 시간
-        preheat_end_hour = 18,  # [시] STC 순환 종료 시간
-        dV_stc_w = 0.001,  # [m³/s] STC 유량
-        E_stc_pump = 50.0,  # [W] 펌프 출력
+        # 9. STC pump -------------------------------------------------
+        preheat_start_hour = 6,
+        preheat_end_hour = 18,
+        dV_stc_w = 0.001,                # [m³/s] STC loop flow rate
+        E_stc_pump = 50.0,               # [W] STC pump power
         
-        # 10. STC 배치 선택 -------------------------------------------
-        stc_placement = 'tank_circuit',  # ['tank_circuit' | 'mains_preheat'] STC 배치 위치
+        # 10. STC placement -------------------------------------------
+        stc_placement = 'tank_circuit',  # 'tank_circuit' | 'mains_preheat'
         
-        # Reference:ASHRAE Standard 90.1 - 2022 (325 page)
+        # ASHRAE 90.1-2022 VSD coefficients (p. 325)
         vsd_coeffs_ou = {
-            'c1': 0.0013,
-            'c2': 0.1470,
-            'c3': 0.9506,
-            'c4': -0.0998,
-            'c5': 0.0,
+            'c1': 0.0013, 'c2': 0.1470, 'c3': 0.9506,
+            'c4': -0.0998, 'c5': 0.0,
         },
     
         ):
-        '''
-        AirSourceHeatPumpBoiler 초기화.
-        '''
 
-        # --- 1. 냉매/사이클/압축기 파라미터 ---
+        # --- 1. Refrigerant / cycle / compressor ---
         self.ref = ref
         self.V_disp_cmp = V_disp_cmp
         self.eta_cmp_isen = eta_cmp_isen
-        
-        # [NEW] 과열/과냉각 변수 저장
         self.dT_superheat = dT_superheat
         self.dT_subcool = dT_subcool
-
         self.hp_capacity = hp_capacity
 
-        # --- 2. 열교환기 파라미터 ---
+        # --- 2. Heat exchanger UA ---
         self.UA_cond_design = UA_cond_design
         self.UA_evap_design = UA_evap_design
 
-        # --- 3. 실외기 팬 파라미터 ---
+        # --- 3. Outdoor unit fan ---
         self.dV_ou_fan_a_design = dV_ou_fan_a_design
         self.dP_ou_fan_design = dP_ou_fan_design
         self.eta_ou_fan_design = eta_ou_fan_design
         self.A_cross_ou = A_cross_ou
-        
-        # 팬 설계 전력 계산 (정풍량 기준)
-        self.E_ou_fan_design = (self.dV_ou_fan_a_design * self.dP_ou_fan_design) / (self.eta_ou_fan_design)
-        
-        # VSD Curve 계수 VSD(Variable Speed Drive)
+        self.E_ou_fan_design = (self.dV_ou_fan_a_design * self.dP_ou_fan_design) / self.eta_ou_fan_design
         self.vsd_coeffs_ou = vsd_coeffs_ou
-        
-        # 팬 파라미터 딕셔너리
         self.fan_params_ou = {
             'fan_design_flow_rate': self.dV_ou_fan_a_design,
             'fan_design_power': self.E_ou_fan_design
         }
-        
-        # --- 4. 탱크 물리 파라미터 ---
+
+        # --- 4. Tank geometry and thermal properties ---
         self.tank_physical = {
             'r0': r0, 'H': H, 'x_shell': x_shell, 'x_ins': x_ins,
             'k_shell': k_shell, 'k_ins': k_ins, 'h_o': h_o,
         }
         self.UA_tank = calc_simple_tank_UA(**self.tank_physical)
-        self.V_tank_full = math.pi * r0**2 * H  # [m³] 저탕조 전체 체적
-        self.C_tank = c_w * rho_w * self.V_tank_full  # [J/K] 저탕조 열용량 (100% 수위 기준)
-        
+        self.V_tank_full = math.pi * r0**2 * H             # [m³]
+        self.C_tank = c_w * rho_w * self.V_tank_full       # [J/K]
+
         self.dV_mix_w_out_max = dV_mix_w_out_max
         self.T_tank_w_upper_bound = T_tank_w_upper_bound
         self.T_tank_w_lower_bound = T_tank_w_lower_bound
         self.T_tank_w_in = T_tank_w_in
         self.T_mix_w_out = T_mix_w_out
-        
         self.T_tank_w_in_K = cu.C2K(T_tank_w_in)
         self.T_mix_w_out_K = cu.C2K(T_mix_w_out)
-        
-        # --- 5. UV 램프 파라미터 ---
+
+        # --- 5. UV lamp ---
         self.lamp_power_watts = lamp_power_watts
         self.uv_lamp_exposure_duration_min = uv_lamp_exposure_duration_min
         self.num_switching_per_3hour = num_switching_per_3hour
-        # UV 램프 관련 계산 상수
-        self.period_3hour_sec = 3 * cu.h2s  # 3시간을 초 단위로 변환
-        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s  # 분을 초로 변환
-        
-        # --- 6. 저탕조 수위 관리 파라미터 ---
+        self.period_3hour_sec = 3 * cu.h2s
+        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s
+
+        # --- 6. Tank water level management ---
         self.tank_always_full = tank_always_full
         self.tank_level_lower_bound = tank_level_lower_bound
         self.tank_level_upper_bound = tank_level_upper_bound
         self.dV_tank_w_in_refill = dV_tank_w_in_refill
         self.prevent_simultaneous_flow = prevent_simultaneous_flow
-        
-        # --- 7. 히트펌프 운전 구간 제어 ---
+
+        # --- 7. HP operating schedule ---
         self.hp_on_schedule = hp_on_schedule
-        
-        
-        # --- 8. STC & 9. STC Pump & 10. STC Placement ---
+
+        # --- 8–10. STC + STC pump + placement ---
         self._setup_stc_parameters(
             A_stc, A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
             preheat_start_hour, preheat_end_hour, dV_stc_w, E_stc_pump, stc_placement
         )
 
-
-        # [NEW] 최적화 초기값 저장을 위한 변수
+        # Warm-start: reuse previous optimisation result
         self.prev_opt_x = None
-        
-        # [NEW] Flow Rate Synchronization
+
+        # Flow-rate synchronisation variables
         self.dV_tank_w_in = 0.0
         self.dV_tank_w_out = 0.0
         self.dV_mix_w_in_sup = 0.0
         self.dV_mix_w_out = 0.0
 
     def _calc_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
-        """
-        공기원 히트펌프 보일러(ASHPB)의 사이클 성능을 계산하는 메서드.
-        
-        이 메서드는 최적화 변수(optimization_vars)를 받아 히트펌프 사이클 성능을 계산합니다.
-        최적화 과정에서 반복적으로 호출되어 목적 함수와 제약 조건을 평가하는 데 사용됩니다.
-        
-        주요 작업:
-        1. 최적화 변수 언패킹 (온도차 추출)
-        2. 증발 및 응축 온도 계산
-        3. 공통 사이클 상태 계산
-        4. 냉매 유량 및 성능 데이터 계산
-        5. LMTD 기반 열량 계산 (응축기, 증발기)
-        6. 팬 전력 계산
-        7. 엑서지 계산
-        8. 최종 결과 딕셔너리 생성
-        
-        호출 관계:
-        - 호출자: find_ref_loop_optimal_operation (enex_functions.py)
-        - 호출 함수: 
-            - calc_ref_state (enex_functions.py)
-            - calc_HX_perf_for_target_heat (enex_functions.py)
-            - calc_lmtd_fluid_and_constant_temp (enex_functions.py)
-            - calc_fan_power_from_dV_fan (enex_functions.py)
-        
-        데이터 흐름:
-        ──────────────────────────────────────────────────────────────────────────
-        [optimization_vars, T_tank_w, Q_cond_load, T0]
-            ↓
-        증발/응축 포화 온도 계산 (T_evap_sat_K, T_cond_sat_K)
-            ↓
-        calc_ref_state (과열도/과냉각도 적용)
-            ↓ [State 1-4 물성치, T1_star_K, T3_star_K]
-        냉매 유량 계산 (m_dot_ref)
-            ↓
-        성능 데이터 계산 (Q_ref_cond, Q_ref_evap, E_cmp)
-            ↓
-        LMTD 기반 열량 계산 및 팬 전력 계산
-            ↓
-        [포맷팅된 결과 딕셔너리]
-        
-        Args:
-            optimization_vars (list): 최적화 변수 배열 [dT_ref_evap, dT_ref_cond]
-                - dT_ref_evap (float): 냉매-실외 공기 온도차 [K]
-                    증발 온도 = 실외 공기 온도 - dT_ref_evap
-                - dT_ref_cond (float): 냉매-저탕조 온도차 [K]
-                    응축 온도 = 저탕조 온도 + dT_ref_cond
-            
-            T_tank_w (float): 저탕조 온도 [°C]
-                현재 타임스텝의 저탕조 온도
-            
-            Q_cond_load (float): 저탕조 목표 열 교환율 [W]
-                응축기가 저탕조에 전달해야 하는 목표 열량
-                이 값을 만족하는 최적 운전점을 탐색
-            
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
-        
-        Returns:
-            dict: 사이클 성능 결과 딕셔너리
-                - 사이클 상태값 (P1-4, T1-4, h1-4, s1-4, x1-4)
-                - 열량 (Q_ref_cond, Q_ref_evap, Q_LMTD_cond)
-                - 전력 (E_cmp, E_fan_ou)
-                - 유량 (m_dot_ref, dV_fan_ou, dV_w_serv , dV_w_sup_tank, dV_w_sup_mix)
-                - 온도 (T0, T1-4, T_tank_w, T_serv_w, T_sup_w, T_a_ou_mid)
-                - 기타 (cmp_rpm, hp_is_on)
-                None: 계산 실패 시 (예: h3 == h2인 경우)
-        
-        Notes:
-            - 냉매 유량 계산: m_dot_ref = Q_cond_load / (h2 - h3)
-                목표 열 교환율을 만족하기 위한 필요한 냉매 유량
-            - 응축기 열량: Q_ref_cond = m_dot_ref * (h2 - h3)
-                이 값은 Q_cond_load와 동일해야 함 (계산 검증)
-            - 증발기 열량: Q_ref_evap = m_dot_ref * (h1 - h4)
-                실외 공기로부터 흡수하는 열량
-            - 압축기 전력: E_cmp = m_dot_ref * (h2 - h1)
-                최적화의 목적 함수 (최소화 대상)
-            - LMTD 계산은 열교환기 물리적 제약 조건을 반영
-            - Q_LMTD_cond와 Q_ref_cond는 최적화에서 일치해야 함
+        """Evaluate refrigerant cycle performance for a given operating point.
+
+        Called repeatedly by the SLSQP optimiser.  The method resolves the
+        full cycle (States 1\u20134 with superheat/subcool), computes required
+        refrigerant flow for the target ``Q_cond_load``, evaluates outdoor
+        HX airflow and fan power, and assembles a result dictionary.
+
+        Parameters
+        ----------
+        optimization_vars : list of float
+            ``[dT_ref_cond, dT_ref_evap]`` \u2014 condenser and evaporator
+            approach temperature differences [K].
+        T_tank_w : float
+            Current tank water temperature [\u00b0C].
+        Q_cond_load : float
+            Target condenser heat rate [W].
+        T0 : float
+            Dead-state / outdoor-air temperature [\u00b0C].
+
+        Returns
+        -------
+        dict or None
+            Cycle performance dictionary.  ``None`` if infeasible.
         """
         
         # 1단계: 최적화 변수 (온도차) -> 포화 온도 계산
@@ -516,37 +458,25 @@ class AirSourceHeatPumpBoiler:
         return result
     
     def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
-        """
-        히트펌프 최적 운전점 탐색을 수행하는 내부 메서드.
-        
-        이 메서드는 analyze_steady와 analyze_dynamic에서 공통으로 사용되는
-        최적화 로직을 담당합니다. SLSQP 알고리즘을 사용하여 E_tot (총 전력 소비)를 최소화합니다.
-        
-        Args:
-            T_tank_w (float): 저탕조 온도 [°C]
-                현재 타임스텝의 저탕조 온도
-            
-            Q_cond_load (float): 저탕조 목표 열 교환율 [W]
-                응축기가 저탕조에 전달해야 하는 목표 열량
-            
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
-        
-        Returns:
-            scipy.optimize.OptimizeResult: 최적화 결과 객체
-                - x: 최적화된 변수 [dT_ref_cond, dT_ref_evap]
-                - success: 최적화 성공 여부
-                - 기타 최적화 메타데이터
-        
-        Notes:
-            - 최적화 알고리즘: SLSQP (Sequential Least Squares Programming)
-            - 최적화 변수: [dT_ref_cond, dT_ref_evap]
-                - dT_ref_cond: 냉매-저탕조 온도차 [K]
-                - dT_ref_evap: 냉매-실외 공기 온도차 [K]
-            - 제약 조건:
-                - Q_cond_load <= Q_LMTD_cond <= Q_cond_load * (1 + tolerance) (응축기 열전달 능력 범위)
-                - Q_ref_evap * (1 - tolerance) <= Q_LMTD_evap <= Q_ref_evap * (1 + tolerance) (증발기 열전달 밸런스 범위)
-            - 목적 함수: E_tot (E_cmp + E_fan_ou) 최소화
+        """Find minimum-power operating point via SLSQP.
+
+        Optimisation variables are ``[dT_ref_cond, dT_ref_evap]``.
+        Four inequality constraints ensure condenser and evaporator heat
+        transfer feasibility within a tight tolerance band.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Tank water temperature [\u00b0C].
+        Q_cond_load : float
+            Target condenser heat rate [W].
+        T0 : float
+            Dead-state / outdoor-air temperature [\u00b0C].
+
+        Returns
+        -------
+        scipy.optimize.OptimizeResult
+            Contains ``x`` (optimal variables) and ``success`` flag.
         """
         # 요구사항 A: tolerance 변수 정의
         tolerance = 0.001  # 0.1%
@@ -697,37 +627,30 @@ class AirSourceHeatPumpBoiler:
         self,
         T_tank_w,
         T0,
-        dV_w_serv=None,  # 급탕 유량 [m3/s], None이면 0으로 가정
-        Q_cond_load=None,  # 저탕조 목표 열 교환율 [W], None이면 0으로 가정
-        return_dict=True  # True면 dict 반환, False면 DataFrame 반환
+        dV_w_serv=None,
+        Q_cond_load=None,
+        return_dict=True
         ):
-        """
-        정상상태 해석 함수.
-        
-        주어진 조건에서 히트펌프의 정상상태 성능을 계산합니다.
-        
-        두 가지 사용 모드를 지원합니다:
-        1. dV_w_serv 제공: 급탕 유량 기반으로 열 손실을 계산하여 Q_cond_load를 자동 결정
-        2. Q_cond_load 제공: 직접 주어진 응축기 열량으로 성능 계산
-        
-        Args:
-            T_tank_w (float): 저탕조 온도 [°C]
-            T0 (float): 엑서지 분석 기준 온도(=외기온도) [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도
-            dV_w_serv (float, optional): 급탕 유량 [m3/s]. 
-                Q_cond_load가 None인 경우 필수. 제공된 경우 열 손실을 계산하여 
-                Q_cond_load를 자동 결정합니다.
-            Q_cond_load (float, optional): 저탕조 목표 열 교환율 [W].
-                dV_w_serv가 None인 경우 필수. 직접 주어진 응축기 열량으로 성능을 계산합니다.
-            return_dict (bool): True면 dict 반환, False면 DataFrame 반환
-        
-        Returns:
-            dict 또는 pd.DataFrame: 정상상태 해석 결과
-                - run_simulation과 동일한 형식의 결과 딕셔너리
-                - 최적화 실패 시 OFF 상태 결과 반환
-        
-        Raises:
-            ValueError: dV_w_serv와 Q_cond_load가 둘 다 None이거나, 둘 다 값이 주어진 경우
+        """Run a steady-state analysis at the given operating point.
+
+        Exactly one of ``dV_w_serv`` or ``Q_cond_load`` must be provided.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Tank water temperature [\u00b0C].
+        T0 : float
+            Dead-state / outdoor-air temperature [\u00b0C].
+        dV_w_serv : float, optional
+            Service water flow rate [m\u00b3/s].
+        Q_cond_load : float, optional
+            Target condenser heat rate [W].
+        return_dict : bool
+            If True return dict; else single-row DataFrame.
+
+        Returns
+        -------
+        dict or pd.DataFrame
         """
         # 입력 검증
         if dV_w_serv is None and Q_cond_load is None:
@@ -848,25 +771,33 @@ class AirSourceHeatPumpBoiler:
         tank_level_init = 1.0,    
         result_save_csv_path=None,
         ):
-        
-        """
-        동적 시뮬레이션을 실행합니다.
-        
-        Args:
-            simulation_period_sec: 총 시뮬레이션 시간 [초]
-            dt_s: 타임스텝 [초]
-            T_tank_w_init_C: 저탕조 초기 온도 [°C]
-            schedule_entries: 급탕 사용 스케줄
-                [(시작시간_str, 종료시간_str, 사용비율_float), ...]
-                예: [("6:00", "6:30", 0.5), ("6:30", "7:00", 0.9)]
-            T0_schedule: 엑서지 분석 기준 온도(=외기온도) 스케줄 [°C]
-                엑서지 계산의 기준점으로 사용되는 외기 온도의 시간별 스케줄
-            I_DN_schedule: 직달일사 스케줄 [W/m2] (optional, STC 사용 시 필수)
-            I_dH_schedule: 확산일사 스케줄 [W/m2] (optional, STC 사용 시 필수)
-            result_save_csv_path: 결과 CSV 저장 경로
-        
-        Returns:
-            pd.DataFrame: 시뮬레이션 타임스텝별 결과 데이터
+        """Run a time-stepping dynamic simulation.
+
+        Parameters
+        ----------
+        simulation_period_sec : int
+            Total simulation duration [s].
+        dt_s : int
+            Time step size [s].
+        T_tank_w_init_C : float
+            Initial tank temperature [\u00b0C].
+        schedule_entries : list of tuple
+            DHW schedule ``(start_str, end_str, fraction)``.
+        T0_schedule : array-like
+            Dead-state temperature per step [\u00b0C].
+        I_DN_schedule : array-like, optional
+            Direct-normal irradiance per step [W/m\u00b2] (required if STC active).
+        I_dH_schedule : array-like, optional
+            Diffuse-horizontal irradiance per step [W/m\u00b2].
+        tank_level_init : float
+            Initial tank water level [0\u20131].
+        result_save_csv_path : str, optional
+            CSV output path.
+
+        Returns
+        -------
+        pd.DataFrame
+            Per-timestep results.
         """
         
         time = np.arange(0, simulation_period_sec, dt_s)

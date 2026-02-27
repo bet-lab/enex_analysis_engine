@@ -165,198 +165,134 @@ class StratifiedTankTDMA:
         self.C = c_w * rho_w
         self.C_d_mix = C_d_mix
         
-        # 물성값 속성 (유효 열전도율 계산용)
-        self.g = g  # 중력가속도 [m/s²]
-        self.beta = beta  # 물의 체적팽창계수 [1/K]
-        self.nu = mu_w / rho_w  # 동점성계수 [m²/s]
-        self.alpha = k_w / (rho_w * c_w)  # 열확산율 [m²/s]
-        self.Pr = (mu_w / rho_w) / (k_w / (rho_w * c_w))  # Prandtl 수 [-]
-        self.k_molecular = k_w  # 분자 열전도율 [W/m·K]
-        self.Ra_critical = 1708  # 안정 성층 임계 Rayleigh 수 (수평 평판 간 유체)
+        # Water transport properties (for effective conductivity calculation)
+        self.g = g                                          # Gravitational acceleration [m/s²]
+        self.beta = beta                                    # Volumetric expansion coefficient [1/K]
+        self.nu = mu_w / rho_w                              # Kinematic viscosity [m²/s]
+        self.alpha = k_w / (rho_w * c_w)                    # Thermal diffusivity [m²/s]
+        self.Pr = (mu_w / rho_w) / (k_w / (rho_w * c_w))   # Prandtl number [-]
+        self.k_molecular = k_w                              # Molecular thermal conductivity [W/m·K]
+        self.Ra_critical = 1708                             # Critical Rayleigh number (horizontal layer)
         
     def effective_conductivity(self, T_upper, T_lower):
-        """
-        온도 구배에 따른 유효 열전도율(effective thermal conductivity)을 계산합니다.
-        
-        이 메서드는 성층화된 탱크 내에서 인접한 두 노드 간의 열전달을 모델링합니다.
-        순수 분자 전도와 부력 구동 자연 대류를 통합적으로 고려하여 유효 열전도율을 계산합니다.
-        
-        원리:
-        -----
-        유체 내에서 온도 구배가 존재할 때, 두 가지 메커니즘이 열전달에 기여합니다:
-        1. 분자 전도 (Molecular conduction): 확산에 의한 열전달
-        2. 자연 대류 (Natural convection): 부력에 의한 유체 운동으로 인한 열전달
-        
-        안정 성층 (Stable stratification, dT < 0):
-        - 위쪽 노드가 더 뜨거워 밀도 구배가 안정적일 때
-        - 대류가 억제되고 주로 분자 전도만 발생
-        - Nu ≈ 1.0에 가까우며, 약한 확산만 고려
-        
-        불안정 성층 (Unstable stratification, dT > 0):
-        - 아래쪽 노드가 더 뜨거워 밀도 구배가 불안정할 때
-        - 부력에 의해 자연 대류가 발생하여 열전달이 강화됨
-        - Rayleigh 수에 따라 대류 강도가 결정됨
-        - Nu > 1.0으로 증가하여 유효 열전도율이 분자 전도보다 큼
-        
-        수식:
-        -----
-        Rayleigh 수 (Ra):
-            Ra = (g * beta * |ΔT| * L_char³) / (ν * α)
-        
-        여기서:
-            g: 중력가속도 [m/s²]
-            beta: 체적팽창계수 [1/K]
-            ΔT: 온도 차이 [K] (|T_lower - T_upper|)
-            L_char: 특성 길이 [m] (노드 높이 dh)
-            ν: 동점성계수 [m²/s]
-            α: 열확산율 [m²/s]
-        
-        Nusselt 수 (Nu):
-            - 안정 성층 (dT < 0): Nu = 1.0 + 0.1 * (Ra/Ra_critical)^0.25 (Ra > 0일 때)
-            - 불안정 성층 (dT > 0):
-                * Ra < 1e3: Nu = 1.0 (주로 전도)
-                * 1e3 ≤ Ra < 1e7: Nu = 0.2 * Ra^0.25 (층류 대류)
-                * Ra ≥ 1e7: Nu = 0.1 * Ra^0.33 (난류 대류)
-        
-        유효 열전도율:
-            k_eff = k_molecular * Nu
-        
-        참고 문헌:
-        ---------
-        - Incropera & DeWitt, "Fundamentals of Heat and Mass Transfer", 7th ed.
-        - Bejan, "Convection Heat Transfer", 4th ed.
-        - 수평 평판 간 유체의 자연 대류에 대한 실험적 상관식
-        
-        Parameters:
-        -----------
+        """Calculate effective thermal conductivity between two adjacent nodes.
+
+        Integrates molecular conduction and buoyancy-driven natural convection
+        into a single effective conductivity using the Rayleigh–Nusselt approach.
+
+        Stable stratification (dT < 0, upper warmer):
+            Convection is suppressed; heat transfer is primarily by conduction.
+            Nu ≈ 1.0 with a small correction term.
+
+        Unstable stratification (dT > 0, lower warmer):
+            Buoyancy drives natural convection, enhancing heat transfer.
+            - Ra < 1e3:  Nu = 1.0 (conduction-dominated)
+            - Ra < 1e7:  Nu = 0.2 · Ra^0.25 (laminar convection)
+            - Ra ≥ 1e7:  Nu = 0.1 · Ra^0.33 (turbulent convection)
+
+        Parameters
+        ----------
         T_upper : float
-            상단 노드의 온도 [K]
+            Temperature of the upper node [K].
         T_lower : float
-            하단 노드의 온도 [K]
-        
-        Returns:
-        --------
+            Temperature of the lower node [K].
+
+        Returns
+        -------
         k_eff : float
-            유효 열전도율 [W/m·K]
+            Effective thermal conductivity [W/m·K].
+
+        References
+        ----------
+        Incropera & DeWitt, *Fundamentals of Heat and Mass Transfer*, 7th ed.
+        Bejan, *Convection Heat Transfer*, 4th ed.
         """
-        # 기본 분자 열전도율
-        k_molecular = self.k_molecular  # W/m·K
-        
-        # 온도 차이 계산
-        dT = T_lower - T_upper  # [K]
-        
-        # 특성 길이 (노드 높이)
-        L_char = self.dh  # [m]
-        
-        # Rayleigh 수 계산
-        # Ra = (g * beta * |dT| * L_char³) / (nu * alpha)
-        # Rayleigh 수는 부력과 점성력의 비율을 나타내며, 자연 대류의 강도를 결정
+        k_molecular = self.k_molecular                     # Molecular conductivity [W/m·K]
+        dT = T_lower - T_upper                              # Temperature difference [K]
+        L_char = self.dh                                    # Characteristic length = node height [m]
+
+        # Rayleigh number: ratio of buoyancy to viscous forces
         Ra = abs(self.g * self.beta * dT * L_char**3) / (self.nu * self.alpha)
-        
-        # 안정 성층 (위가 더 뜨거움, dT < 0)
-        # 이 경우 대류가 억제되고 주로 분자 전도만 발생
+
+        # Stable stratification (upper warmer, dT < 0) — convection suppressed
         if dT < 0:
-            # 안정 성층에서는 대류가 거의 발생하지 않지만,
-            # 약한 확산 효과를 고려하여 Nu를 1.0보다 약간 크게 설정
-            # Ra_critical (약 1708)을 기준으로 정규화하여 작은 보정항 추가
             if Ra > 0:
-                # 안정 성층에서도 작은 온도 구배가 있을 수 있으므로
-                # 매우 약한 대류 효과를 고려 (0.25 지수는 실험적 상관식)
+                # Small correction for residual diffusion
                 Nu = 1.0 + 0.1 * (Ra / self.Ra_critical)**0.25
             else:
-                # dT = 0인 경우 순수 전도
-                Nu = 1.0
-        
-        # 불안정 성층 (아래가 더 뜨거움, dT > 0)
-        # 이 경우 부력에 의해 자연 대류가 발생하여 열전달이 강화됨
+                Nu = 1.0  # Pure conduction (dT ≈ 0)
+
+        # Unstable stratification (lower warmer, dT > 0) — buoyancy-driven convection
         else:
             if Ra < 1e3:
-                # 매우 작은 Ra에서는 대류 효과가 미미하여 주로 전도만 발생
-                Nu = 1.0
+                Nu = 1.0                  # Conduction-dominated
             elif Ra < 1e7:
-                # 중간 정도의 Ra에서 층류 대류 발생
-                # 실험적 상관식: Nu ∝ Ra^0.25 (층류 영역)
-                # 계수 0.2는 수직 평판이나 수평 평판 간 유체에 대한 실험적 값
-                Nu = 0.2 * Ra**0.25
+                Nu = 0.2 * Ra**0.25       # Laminar convection
             else:
-                # 높은 Ra에서 난류 대류 발생
-                # 실험적 상관식: Nu ∝ Ra^0.33 (난류 영역)
-                # 계수 0.1은 난류 영역에서의 실험적 값
-                Nu = 0.1 * Ra**0.33
-        
-        # 유효 열전도율 계산
-        # Nusselt 수는 유효 열전도율과 분자 열전도율의 비율을 나타냄
-        # Nu = k_eff / k_molecular 이므로, k_eff = k_molecular * Nu
+                Nu = 0.1 * Ra**0.33       # Turbulent convection
+
+        # Effective conductivity: k_eff = k_molecular · Nu
         k_eff = k_molecular * Nu
-        
+
         return k_eff
         
-    # --- 추가: 유틸리티 헬퍼 (클래스 바깥에 둬도 됨) -----------------------------
+    # ═══ Time-stepping ═════════════════════════════════════════════════════
+
     def update_tank_temp(self,
              T , dt, T_in, dV_use, T_amb, T0,
              heater_node=None, heater_capacity=None,
              loop_outlet_node=None, loop_inlet_node=None,
              dV_loop=0.0, Q_loop=0.0):
-        """
-        주어진 시간 간격 dt 동안 탱크의 온도를 업데이트합니다.
-        
-        Parameters:
-        -----------
+        """Advance node temperatures by one time step using the TDMA scheme.
+
+        Parameters
+        ----------
         T : np.ndarray
-            현재 노드 온도 배열 [K]
+            Current node temperature array [K], shape (N,).
         dt : float
-            시간 간격 [s]
+            Time step size [s].
         T_in : float
-            유입수 온도 [K]
+            Inlet (mains) water temperature [K].
         dV_use : float
-            온수 사용에 의해 유입/유출되는 물의 부피 [m³/s]
+            Draw-off volumetric flow rate [m³/s].
         T_amb : float
-            주변 온도 [K]
-        T_0 : float
-            기준(환경) 온도 [K]
-        heater_node_arr : np.ndarray, optional
-            히터가 설치된 노드 번호 배열 (1부터 N까지), 기본값은 None (히터 없음)
-        heater_capacity_arr : np.ndarray, optional
-            각 heater node array에 대응되는 히터 출력 [W], 기본값은 0.0
+            Ambient temperature [K].
+        T0 : float
+            Dead-state (reference) temperature for exergy [K].
+        heater_node : int, optional
+            1-based node index where the heater is located.
+        heater_capacity : float, optional
+            Heater thermal output [W].
         loop_outlet_node : int, optional
-            외부 루프 유출 노드 번호 (1부터 N까지), 기본값은 None (루프 없음)
+            1-based node index where the external loop exits the tank.
         loop_inlet_node : int, optional
-            외부 루프 유입 노드 번호 (1부터 N까지), 기본값은 None (루프 없음)
+            1-based node index where the external loop enters the tank.
         dV_loop : float, optional
-            외부 루프를 통한 부피 유량 [m³/s], 기본값은 0.0
+            External loop volumetric flow rate [m³/s].
         Q_loop : float, optional
-            외부 루프를 통한 열 유량 [W], 기본값은 0.0
-            
-        Returns:
-        --------
+            Heat input from the external loop [W].
+
+        Returns
+        -------
         np.ndarray
-            다음 시간 단계의 노드 온도 배열 [K]
+            Updated node temperatures for the next time step [K].
         """
-        self.T0 = T0  # 기준 온도 저장
+        self.T0 = T0  # Store dead-state temperature
         N = self.N
         UA = self.UA
         G_use = c_w * rho_w * dV_use
         eps = 1e-12
         G_loop = c_w * rho_w * max(dV_loop, 0.0) 
 
-        # ---- 유효 열전도율 계산 (노드 간) ------------------------------------------------
-        # 각 노드 쌍(i, i+1)에 대해 유효 열전도율 계산
-        # k_eff[i]는 노드 i와 노드 i+1 사이의 유효 열전도율
+        # ---- Effective conductivity between adjacent nodes -------------------------
         k_eff = np.zeros(N - 1)
         for i in range(N - 1):
-            # 노드 i (상단)와 노드 i+1 (하단) 사이의 유효 열전도율 계산
-            # T[i]는 상단 노드, T[i+1]는 하단 노드
             k_eff[i] = self.effective_conductivity(T[i], T[i+1])
-        
-        # 노드 간 유효 전도 계수 계산: K_eff = k_eff * A / dh
-        # K_eff[i]는 노드 i와 노드 i+1 사이의 유효 전도 계수 [W/K]
+
+        # Effective conduction coefficient [W/K]: K_eff = k_eff · A / dh
         K_eff = k_eff * self.A / self.dh
             
-        # ---- TDMA 계수 기본 구성 ----------------------------------------------------
-        '''
-        TDMA 계수 (a, b, c, d) 및 heat source term (S) 초기화
-        유효 열전도율 방식: 전도와 대류를 통합적으로 고려한 K_eff 사용
-        '''
+        # ---- Assemble TDMA coefficients (a, b, c, d) + source term S ---------------
         a = np.zeros(N); b = np.zeros(N); c = np.zeros(N); d = np.zeros(N)
         S = np.zeros(N)
         
@@ -365,69 +301,61 @@ class StratifiedTankTDMA:
             if 0 <= idx < N:
                 S[idx] = heater_capacity
 
-        # 최상단 노드 (0) TDMA 계수 별도 계산
-        # 노드 0과 노드 1 사이의 유효 전도 계수: K_eff[0]
+        # Top node (index 0)
         a[0] = 0
         b[0] = self.C * self.V/dt + G_use + K_eff[0] + UA[0]
         c[0] = -(K_eff[0] + G_use)
         d[0] = self.C * self.V*T[0]/dt + UA[0]*T_amb + S[0]
         
-        # 중간 노드 (1~N-2) TDMA 계수 계산
+        # Interior nodes (1 … N-2)
         for i in range(1, N-1):
-            # 노드 i-1과 노드 i 사이의 유효 전도 계수: K_eff[i-1] (위쪽)
-            # 노드 i와 노드 i+1 사이의 유효 전도 계수: K_eff[i] (아래쪽)
-            K_eff_upper = K_eff[i-1]
-            K_eff_lower = K_eff[i]
+            K_eff_upper = K_eff[i-1]   # Conduction to node above
+            K_eff_lower = K_eff[i]     # Conduction to node below
             
             a[i] = -K_eff_upper
             b[i] = self.C * self.V/dt + G_use + K_eff_upper + K_eff_lower + UA[i]
             c[i] = -(K_eff_lower + G_use)
             d[i] = self.C * self.V*T[i]/dt + UA[i]*T_amb + S[i]
         
-        # 최하단 노드 (N-1) TDMA 계수 별도 계산
-        # 노드 N-2와 노드 N-1 사이의 유효 전도 계수: K_eff[N-2]
+        # Bottom node (index N-1)
         a[N-1] = -K_eff[N-2]
         b[N-1] = self.C * self.V/dt + G_use + K_eff[N-2] + UA[N-1]
         c[N-1] = 0
         d[N-1] = self.C * self.V*T[N-1]/dt + UA[N-1]*T_amb + S[N-1] + G_use*T_in
 
-        # ---- self 변수화 --------------------------------------------------------------
+        # ---- Cache flow variables on instance --------------------------------------
         self.G_use = G_use
         self.G_loop = G_loop
-        self.k_eff = k_eff  # 유효 열전도율 배열 [W/m·K]
-        self.K_eff = K_eff  # 유효 전도 계수 배열 [W/K]
+        self.k_eff = k_eff   # Effective conductivity array [W/m·K]
+        self.K_eff = K_eff   # Effective conduction coefficient array [W/K]
         
-        # ---- 외부 루프(지정 구간 강제 대류) 반영 ------------------------------------
+        # ---- External loop (forced advection across node range) ---------------------
         if (G_loop > 0.0) and (loop_outlet_node is not None) and (loop_inlet_node is not None):
             out_idx = int(loop_outlet_node) - 1
             in_idx  = int(loop_inlet_node)  - 1
             if 0 <= out_idx < N and 0 <= in_idx < N and out_idx != in_idx:
-                # 루프 스트림 유입 온도 (outlet 측 온도 기준)
-                T_stream_out = T[out_idx]                           # n 시점 사용(안정적)
+                # Loop stream return temperature (based on outlet node + Q_loop)
+                T_stream_out = T[out_idx]                           # Use explicit (time n) value
                 T_loop_in = T_stream_out + Q_loop / max(G_loop, eps)
-                # (선택) 비현실적 고온 방지용 소프트 클램프 예시:
-                # T_loop_in = min(T_loop_in, T_stream_out + 50.0)
 
                 _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in)
 
-        # ---- 선형계 풀이 ------------------------------------------------------------
+        # ---- Solve tri-diagonal system ---------------------------------------------
         T_next = TDMA(a, b, c, d)
 
         return T_next
     
     def info(self, as_dict: bool = False, precision: int = 3):
-        """
-        현재 탱크/모델 설정을 요약해서 보여줍니다.
+        """Print or return a summary of tank geometry and thermal properties.
 
         Parameters
         ----------
         as_dict : bool
-            True면 dict로 반환, False면 사람이 읽기 좋은 문자열을 print 후 None 반환
+            If True, return as dict; otherwise print a formatted summary.
         precision : int
-            표시 유효숫자(소수 자리) 제어
+            Number of significant digits for display.
         """
 
-        # 파생량 계산
         H      = float(self.H)
         D      = float(self.D)
         N      = int(self.N)
@@ -437,7 +365,7 @@ class StratifiedTankTDMA:
         V_tot  = V_node * N
         C_node = float(self.C * self.V)
         C_tot  = C_node * N
-        K_ax   = float(self.K)            # 축방향 전도 등가전달계수 [W/K] (층간)
+        K_ax   = float(self.K)            # Axial conduction coefficient [W/K]
         UA_arr = np.asarray(self.UA, dtype=float)
         UA_sum = float(UA_arr.sum())
         UA_min = float(UA_arr.min()) if UA_arr.size else np.nan

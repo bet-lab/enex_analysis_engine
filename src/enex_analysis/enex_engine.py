@@ -93,10 +93,9 @@ class Fan:
         return power
 
     def show_graph(self):
-        """
-        유량(flow rate) 대비 압력(pressure) 및 효율(efficiency) 그래프를 출력.
-        - 원본 데이터는 점(dot)으로 표시.
-        - 커브 피팅된 곡선은 선(line)으로 표시.
+        """Plot flow-rate vs pressure and efficiency curves for all fans.
+
+        Raw datapoints are shown as dots; cubic curve fits as lines.
         """
         fig, axes = plt.subplots(1, 2, figsize=(dm.cm2in(15), dm.cm2in(5)))
 
@@ -136,19 +135,14 @@ class Fan:
 
 @dataclass
 class Pump:
-    """
-    Pump 클래스: 펌프의 성능 데이터를 저장하고 분석하는 클래스.
-    
-    - 유량(flow rate)과 효율(efficiency) 데이터를 보유.
-    - 효율 데이터를 기반으로 곡선 피팅(curve fitting)을 수행하여 예측 값 계산.
-    - 주어진 압력 차이(dP_pmp)와 유량(V_pmp)을 이용하여 펌프의 전력 소비량 계산.
+    """Pump performance dataclass with curve-fit interpolation.
+
+    Stores flow-rate vs efficiency data for two reference pumps.
+    Provides cubic curve-fit prediction of efficiency and power draw.
     """
 
     def __post_init__(self):
-        """
-        클래스 초기화 후 자동 실행되는 메서드.
-        두 개의 펌프의 유량 및 효율 데이터를 저장.
-        """
+        """Store flow-rate and efficiency data for two reference pumps."""
         self.pump1 = {
             'flow rate'  : np.array([2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6])/cu.h2s, # m3/s
             'efficiency' : [0.255, 0.27, 0.3, 0.33, 0.34, 0.33, 0.32, 0.3, 0.26], # [-]
@@ -160,35 +154,44 @@ class Pump:
         self.pump_list = [self.pump1, self.pump2]
         
     def get_efficiency(self, pump, dV_pmp):
-        """
-        주어진 유량(V_pmp)에 대해 3차 곡선 피팅을 통해 펌프 효율을 예측.
-        
-        :param pump: 선택한 펌프 (self.pump1 또는 self.pump2)
-        :param V_pmp: 유량 (m3/h)
-        :return: 예측된 펌프 효율
+        """Return pump efficiency via cubic curve fit.
+
+        Parameters
+        ----------
+        pump : dict
+            Reference pump data (``self.pump1`` or ``self.pump2``).
+        dV_pmp : float
+            Volume flow rate [m³/s].
         """
         self.efficiency_coeffs, _ = curve_fit(cubic_function, pump['flow rate'], pump['efficiency'])
         eff = cubic_function(dV_pmp, *self.efficiency_coeffs)
         return eff
 
     def get_power(self, pump, V_pmp, dP_pmp):
-        """
-        주어진 유량(V_pmp)과 압력 차이(dP_pmp)를 이용하여 펌프의 전력 소비량을 계산.
-        
-        :param pump: 선택한 펌프 (self.pump1 또는 self.pump2)
-        :param V_pmp: 유량 (m3/h)
-        :param dP_pmp: 펌프 압력 차이 (Pa)
-        :return: 펌프의 소비 전력 (W)
+        """Compute pump power consumption.
+
+        Parameters
+        ----------
+        pump : dict
+            Reference pump data.
+        V_pmp : float
+            Volume flow rate [m³/s].
+        dP_pmp : float
+            Pressure rise [Pa].
+
+        Returns
+        -------
+        float
+            Electrical power draw [W].
         """
         efficiency = self.get_efficiency(pump, V_pmp)
         power = (V_pmp * dP_pmp) / efficiency
         return power
 
     def show_graph(self):
-        """
-        유량(flow rate) 대비 효율(efficiency) 그래프를 출력.
-        - 원본 데이터는 점(dot)으로 표시.
-        - 커브 피팅된 곡선은 선(line)으로 표시.
+        """Plot flow-rate vs efficiency curves for all pumps.
+
+        Raw datapoints are shown as dots; cubic curve fits as lines.
         """
         fig, ax = plt.subplots(figsize=(dm.cm2in(10), dm.cm2in(5)))
 
