@@ -1,0 +1,54 @@
+% ═══════════════════════════════════════════════════════════════════
+% §7  지열원 히트펌프 급탕기 (동적 모델)
+% Source: GroundSourceHeatPumpBoiler.py
+% ═══════════════════════════════════════════════════════════════════
+\section{지열원 히트펌프 급탕기}
+\label{sec:gshpb}
+
+본 절은 \texttt{GroundSourceHeatPumpBoiler.py}의 동적 GSHPB 모델을 기술한다. ASHPB(\ref{sec:ashpb}절)의 증기압축 프레임워크를 공유하되, 공기열원 증발기를 지중 결합 보어홀 열교환기로 대체한다.
+
+\subsection{가정}
+\begin{enumerate}
+  \item 지중 온도는 깊이 방향으로 균일하고 일정하다 (비교란 지중 온도 $T_g$).
+  \item 보어홀 열교환기는 유한선원(FLS) g-함수로 모델링한다.
+  \item 지중 루프 유체 물성은 평균 브라인 온도에서 평가한다.
+  \item 응축기 모델은 ASHPB와 동일하다 (침수 코일, $UA\cdot\Delta T$).
+\end{enumerate}
+
+\subsection{지중 결합 증발기}
+
+지중으로부터의 채열량:
+\begin{equation}\label{eq:gshp-Qground}
+  Q_\text{ground} = \frac{T_g - T_\text{brine,in}}{R_b + R_g(t)}
+\end{equation}
+여기서 $R_b$는 보어홀 열저항, $R_g(t)$는 g-함수(식~\ref{eq:fls-g})로부터 산출되는 시간 의존 지중 열저항이다:
+\begin{equation}\label{eq:gshp-Rg}
+  R_g(t) = \frac{g(t)}{2\pi k_s H}
+\end{equation}
+$k_s$는 지중 열전도도, $H$는 보어홀 깊이이다.
+
+\subsection{수정 COP 상관식}
+
+COP는 지중 루프 브라인 온도를 이용한 Carnot 수정 공식에 기반한다:
+\begin{equation}\label{eq:gshp-COP}
+  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_\text{brine}}
+\end{equation}
+여기서 $\eta_\text{Carnot}$은 실제 사이클 손실을 반영하는 계수(통상 0.4--0.6)이다~\cite{sarbu2019}.
+
+\subsection{브라인 루프 에너지 수지}
+
+\begin{equation}\label{eq:gshp-brine}
+  T_\text{brine,out} = T_\text{brine,in} - \frac{Q_\text{evap}}{\dot{m}_\text{brine}\,c_\text{brine}}
+\end{equation}
+
+\subsection{엑서지 분석}
+
+엑서지 수지 구조는 ASHPB(\ref{sec:ashpb}절)와 유사하며, 실외기가 지중 결합 루프로 대체된다:
+\begin{equation}\label{eq:gshp-Xground}
+  X_\text{ground} = Q_\text{ground}\left(1 - \frac{T_0}{T_g}\right)
+\end{equation}
+
+전체 엑서지 효율:
+\begin{equation}\label{eq:gshp-etaX}
+  \eta_{X,\text{sys}} = \frac{X_\text{w,out} - X_\text{w,in}}{X_\text{cmp} + X_\text{pump,brine}}
+\end{equation}

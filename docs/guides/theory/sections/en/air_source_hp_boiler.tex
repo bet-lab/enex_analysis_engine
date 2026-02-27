@@ -1,0 +1,100 @@
+% ═══════════════════════════════════════════════════════════════════
+% §6  Air Source Heat Pump Boiler (Dynamic Model)
+% Source: AirSourceHeatPumpBoiler.py
+% ═══════════════════════════════════════════════════════════════════
+\section{Air source heat pump boiler}
+\label{sec:ashpb}
+
+This section describes the dynamic ASHPB model implemented in \texttt{AirSourceHeatPumpBoiler.py}. It integrates a vapour-compression refrigerant cycle, physics-based heat exchangers, an SLSQP optimiser, and a storage tank with hysteresis control.
+
+\subsection{Assumptions}
+\begin{enumerate}
+  \item The refrigerant cycle operates in quasi-steady state within each time step.
+  \item Refrigerant properties are computed via CoolProp (real-fluid EOS).
+  \item Superheat $\Delta T_\text{sh}$ and subcooling $\Delta T_\text{sc}$ are constant.
+  \item The compressor follows a displacement-based mass flow model with isentropic efficiency.
+  \item The condenser is a submerged coil (\emph{UA}$\cdot\Delta T$ model, not LMTD).
+  \item The evaporator uses an air-side energy balance (cross-flow).
+\end{enumerate}
+
+\subsection{Refrigerant cycle state points}
+
+Saturation temperatures are set by the source/sink conditions:
+\begin{align}
+  T_\text{eva,sat} &= T_0 - \Delta T_\text{ref,evap}  \label{eq:ashp-Teva}\\
+  T_\text{cond,sat} &= T_\text{w,tank} + \Delta T_\text{ref,cond} \label{eq:ashp-Tcond}
+\end{align}
+where $\Delta T_\text{ref,evap}$ and $\Delta T_\text{ref,cond}$ are the SLSQP optimisation variables.
+
+Compressor inlet (superheated):
+\begin{equation}\label{eq:ashp-cmp-in}
+  T_\text{cmp,in} = T_\text{eva,sat} + \Delta T_\text{sh}
+  \,,\quad
+  h_\text{cmp,in} = h(T_\text{cmp,in},\,P_\text{eva})
+\end{equation}
+
+Compressor outlet (isentropic + efficiency):
+\begin{equation}\label{eq:ashp-cmp-out}
+  h_\text{cmp,out} = h_\text{cmp,in} + \frac{h_\text{cmp,out,s} - h_\text{cmp,in}}{\eta_\text{isen}}
+\end{equation}
+
+\subsection{Heat exchanger models}
+
+\paragraph{Condenser (submerged coil).}
+\begin{equation}\label{eq:ashp-Qcond}
+  Q_\text{cond} = UA_\text{cond}\,\Delta T_\text{ref,cond}
+\end{equation}
+
+\paragraph{Evaporator (air-side energy balance).}
+\begin{equation}\label{eq:ashp-Qevap}
+  Q_\text{evap} = \rho_a\,c_a\,\dot{V}_\text{fan}\,(T_\text{a,in} - T_\text{a,out})
+\end{equation}
+The fan flow rate $\dot{V}_\text{fan}$ is determined by matching the air-side capacity to the refrigerant-side evaporation duty $Q_\text{ref,evap} = \dot{m}_\text{ref}(h_\text{eva,out} - h_\text{exp,out})$.
+
+\subsection{Compressor model}
+
+Mass flow rate from displacement volume:
+\begin{equation}\label{eq:ashp-mdot}
+  \dot{m}_\text{ref} = \rho_\text{cmp,in}\,V_\text{disp}\,\frac{n_\text{cmp}}{60}
+\end{equation}
+where $n_\text{cmp}$ [RPM] is determined by the condenser heat balance.
+
+Power use:
+\begin{equation}\label{eq:ashp-Ecmp}
+  E_\text{cmp} = \dot{m}_\text{ref}\,(h_\text{cmp,out} - h_\text{cmp,in})
+\end{equation}
+
+\subsection{SLSQP optimisation}
+
+\paragraph{Objective.}
+Minimise total power use:
+\begin{equation}\label{eq:ashp-obj}
+  \min_{\Delta T_\text{ref,cond},\,\Delta T_\text{ref,evap}} \;
+  E_\text{tot} = E_\text{cmp} + E_\text{fan,ou}
+\end{equation}
+
+\paragraph{Constraints.}
+\begin{itemize}
+  \item Heat balance: $Q_\text{cond} = \dot{m}_\text{ref}(h_\text{cmp,out} - h_\text{exp,in})$
+  \item Minimum/maximum fan flow: $0.1\,\dot{V}_\text{design} \le \dot{V}_\text{fan} \le \dot{V}_\text{design}$
+  \item Compressor speed bounds: $n_\text{min} \le n_\text{cmp} \le n_\text{max}$
+\end{itemize}
+
+\subsection{Exergy analysis}
+
+Subsystem exergy balances follow the input--destruction--output pattern~\cite{tsatsaronis2007}:
+
+\paragraph{Refrigerant loop.}
+\begin{equation}\label{eq:ashp-Xr}
+  X_\text{cmp} - X_\text{c,r} = X_\text{r,iu} + X_\text{r,ou}
+\end{equation}
+
+\paragraph{Indoor unit (condenser side).}
+\begin{equation}\label{eq:ashp-Xiu}
+  X_\text{r,iu} - X_\text{c,iu} = X_\text{w,out} - X_\text{w,in}
+\end{equation}
+
+\paragraph{Overall exergy efficiency.}
+\begin{equation}\label{eq:ashp-etaX}
+  \eta_{X,\text{sys}} = \frac{X_\text{w,out} - X_\text{w,in}}{X_\text{cmp} + X_\text{fan,iu} + X_\text{fan,ou}}
+\end{equation}

@@ -1,0 +1,92 @@
+% ═══════════════════════════════════════════════════════════════════
+% §4  정상상태 급탕 시스템 모델
+% Source: enex_engine.py
+% ═══════════════════════════════════════════════════════════════════
+\section{정상상태 급탕 시스템 모델}
+\label{sec:enex-engine}
+
+본 절은 \texttt{enex\_engine.py}의 정상상태 급탕 시스템 모델에 대한 에너지, 엔트로피, 엑서지 수지를 제시한다. 각 모델은 \emph{온수 저탕조}와 \emph{혼합 밸브}로 구성되며, 열원의 종류에 따라 모델이 구분된다.
+
+\subsection{공통 시스템 경계}
+\label{sec:dhw-common}
+
+모든 급탕 모델은 두 구성 요소의 경계를 공유한다:
+\begin{enumerate}
+  \item \textbf{온수 저탕조}: 열을 입력받아 $T_\text{tank}$의 물을 저장하고, 주위로 열손실이 발생한다.
+  \item \textbf{혼합 밸브}: 고온의 저탕조 물과 저온의 급수를 혼합하여 급탕 온도 $T_\text{serv}$로 공급한다.
+\end{enumerate}
+
+혼합비 $\alpha$는 저탕조 취수 비율을 결정한다:
+\begin{equation}\label{eq:dhw-alpha}
+  \alpha = \frac{T_\text{serv} - T_\text{sup}}{T_\text{tank} - T_\text{sup}}
+  \,,\quad
+  \dot{V}_\text{sup,tank} = \alpha\,\dot{V}_\text{serv}
+  \,,\quad
+  \dot{V}_\text{sup,mix} = (1 - \alpha)\,\dot{V}_\text{serv}
+\end{equation}
+
+\subsection{공통 열역학 정식화}
+
+\paragraph{물 유동의 에너지.}
+\begin{equation}\label{eq:dhw-Q}
+  Q_w = \rho_w c_w \dot{V}\,(T - T_0)
+\end{equation}
+
+\paragraph{물 유동의 엔트로피.}
+\begin{equation}\label{eq:dhw-S}
+  \dot{S}_w = \rho_w c_w \dot{V}\,\ln\frac{T}{T_0}
+\end{equation}
+
+\paragraph{물 유동의 엑서지 (비압축성 유체).}
+\begin{equation}\label{eq:dhw-X}
+  X_w = \rho_w c_w \dot{V}\left[(T - T_0) - T_0\,\ln\frac{T}{T_0}\right]
+\end{equation}
+
+\paragraph{저탕조 열손실.}
+\begin{equation}\label{eq:dhw-Ql}
+  Q_\text{l,tank} = U_\text{tank}\,(T_\text{tank} - T_0)
+\end{equation}
+여기서 $U_\text{tank}$ [W/K]은 원통형 외피 및 단열재의 열저항으로부터 산출된다.
+
+\paragraph{엔트로피 생성 및 엑서지 파괴.}
+각 구성 요소 $k$에 대해:
+\begin{equation}\label{eq:dhw-Sg}
+  \dot{S}_{\text{g},k} = \sum \dot{S}_\text{out} - \sum \dot{S}_\text{in}
+  \,,\qquad
+  X_{\text{c},k} = \dot{S}_{\text{g},k}\,T_0
+\end{equation}
+
+\subsection{전기 보일러}
+
+열 입력은 전기 소비 전력과 동일하다:
+\begin{equation}\label{eq:eb-energy}
+  E_\text{heater} = Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}
+\end{equation}
+전기는 순수 일($T_\text{source} \to \infty$)이므로 $\dot{S}_\text{heater} = 0$이고 $X_\text{heater} = E_\text{heater}$이다.
+
+\subsection{가스 보일러}
+
+가스 입력은 연소 비가역성을 수반한다:
+\begin{align}
+  Q_\text{gas} &= \frac{Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}}{\eta_\text{gas}} \label{eq:gb-Qgas} \\
+  \dot{S}_\text{gas} &= \frac{Q_\text{gas}}{T_\text{ad}} \label{eq:gb-Sgas} \\
+  X_\text{gas} &= Q_\text{gas}\left(1 - \frac{T_0}{T_\text{ad}}\right) \label{eq:gb-Xgas}
+\end{align}
+여기서 $\eta_\text{gas}$는 버너 효율, $T_\text{ad}$는 천연가스의 단열 화염 온도이다.
+
+\subsection{히트펌프 급탕기}
+
+히트펌프 모델은 ASHP COP 상관식을 사용한다 (\ref{sec:enex-functions}절 참조):
+\begin{align}
+  \text{COP} &= f(T_0,\,T_\text{tank}) \label{eq:hpb-COP}\\
+  E_\text{hp} &= \frac{Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}}{\text{COP}} \label{eq:hpb-Ehp}\\
+  Q_\text{evap} &= Q_\text{cond} - E_\text{hp} \label{eq:hpb-Qevap}
+\end{align}
+팬 및 압축기 전력은 일 입력($\dot{S} = 0$)으로 모델링된다.
+
+\subsection{엑서지 효율 (전 모델 공통)}
+
+\begin{equation}\label{eq:dhw-Xeff}
+  \eta_X = \frac{X_\text{w,serv}}{X_\text{input}}
+\end{equation}
+여기서 $X_\text{input}$은 모델 유형에 따라 $X_\text{heater}$, $X_\text{gas}$, 또는 $X_\text{hp} + X_\text{fan}$이다.

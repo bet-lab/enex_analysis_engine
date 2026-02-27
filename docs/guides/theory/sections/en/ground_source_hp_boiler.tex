@@ -1,0 +1,54 @@
+% ═══════════════════════════════════════════════════════════════════
+% §7  Ground Source Heat Pump Boiler (Dynamic Model)
+% Source: GroundSourceHeatPumpBoiler.py
+% ═══════════════════════════════════════════════════════════════════
+\section{Ground source heat pump boiler}
+\label{sec:gshpb}
+
+This section describes the dynamic GSHPB model in \texttt{GroundSourceHeatPumpBoiler.py}. The model shares the vapour-compression framework of the ASHPB (Section~\ref{sec:ashpb}) but replaces the air-source evaporator with a ground-coupled borehole heat exchanger.
+
+\subsection{Assumptions}
+\begin{enumerate}
+  \item Ground temperature is uniform and constant at depth (undisturbed ground temperature $T_g$).
+  \item The borehole heat exchanger is modelled via the finite line source (FLS) g-function.
+  \item Fluid properties in the ground loop are evaluated at the mean brine temperature.
+  \item The condenser model is identical to the ASHPB (submerged coil, $UA\cdot\Delta T$).
+\end{enumerate}
+
+\subsection{Ground-coupled evaporator}
+
+The heat extraction from the ground:
+\begin{equation}\label{eq:gshp-Qground}
+  Q_\text{ground} = \frac{T_g - T_\text{brine,in}}{R_b + R_g(t)}
+\end{equation}
+where $R_b$ is the borehole thermal resistance and $R_g(t)$ is the time-dependent ground thermal resistance computed from the g-function (Eq.~\ref{eq:fls-g}):
+\begin{equation}\label{eq:gshp-Rg}
+  R_g(t) = \frac{g(t)}{2\pi k_s H}
+\end{equation}
+with $k_s$ the ground thermal conductivity and $H$ the borehole depth.
+
+\subsection{Modified COP correlation}
+
+The COP is based on a Carnot-modified formula using the ground-loop brine temperature:
+\begin{equation}\label{eq:gshp-COP}
+  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_\text{brine}}
+\end{equation}
+where $\eta_\text{Carnot}$ accounts for real-cycle losses (typically 0.4--0.6)~\cite{sarbu2019}.
+
+\subsection{Brine loop energy balance}
+
+\begin{equation}\label{eq:gshp-brine}
+  T_\text{brine,out} = T_\text{brine,in} - \frac{Q_\text{evap}}{\dot{m}_\text{brine}\,c_\text{brine}}
+\end{equation}
+
+\subsection{Exergy analysis}
+
+The exergy balance structure is analogous to the ASHPB (Section~\ref{sec:ashpb}), with the outdoor unit replaced by the ground-coupled loop:
+\begin{equation}\label{eq:gshp-Xground}
+  X_\text{ground} = Q_\text{ground}\left(1 - \frac{T_0}{T_g}\right)
+\end{equation}
+
+The overall exergy efficiency:
+\begin{equation}\label{eq:gshp-etaX}
+  \eta_{X,\text{sys}} = \frac{X_\text{w,out} - X_\text{w,in}}{X_\text{cmp} + X_\text{pump,brine}}
+\end{equation}

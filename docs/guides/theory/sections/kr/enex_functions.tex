@@ -1,0 +1,63 @@
+% ═══════════════════════════════════════════════════════════════════
+% §5  열역학 상관식 및 유틸리티 함수
+% Source: enex_functions.py
+% ═══════════════════════════════════════════════════════════════════
+\section{열역학 상관식 및 유틸리티 함수}
+\label{sec:enex-functions}
+
+본 절은 상위 모델에서 참조되는 \texttt{enex\_functions.py}의 주요 상관식과 알고리즘을 문서화한다.
+
+\subsection{COP 상관식}
+
+\paragraph{공기열원 히트펌프 --- 냉방 모드.}
+외기 온도 $T_0$ [°C]의 함수로 표현된 경험적 회귀식:
+\begin{equation}\label{eq:cop-ashp-cool}
+  \text{COP}_\text{cool} = a_0 + a_1 T_0 + a_2 T_0^2
+\end{equation}
+계수는 제조사 카탈로그 데이터에서 적합하였다.
+
+\paragraph{공기열원 히트펌프 --- 난방 모드.}
+유사한 다항식 형태:
+\begin{equation}\label{eq:cop-ashp-heat}
+  \text{COP}_\text{heat} = b_0 + b_1 T_0 + b_2 T_0^2
+\end{equation}
+
+\paragraph{지열원 히트펌프.}
+지중 온도 $T_g$와 응축 온도 $T_\text{cond}$를 이용한 수정 Carnot COP~\cite{sarbu2019}:
+\begin{equation}\label{eq:cop-gshp}
+  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_g}
+\end{equation}
+여기서 $\eta_\text{Carnot}$은 경험적 Carnot 효율 계수(통상 0.4--0.6)이다.
+
+\subsection{마찰 계수 (Darcy--Weisbach)}
+
+Colebrook--White 음함수 방정식~\cite{colebrook1939}:
+\begin{equation}\label{eq:colebrook}
+  \frac{1}{\sqrt{f}} = -2\,\log_{10}\!\left(\frac{\varepsilon/D}{3.7} + \frac{2.51}{\text{Re}\,\sqrt{f}}\right)
+\end{equation}
+Swamee--Jain 초기 추정값에서 출발하여 반복적으로 풀이한다.
+
+\subsection{자연대류 (수직 평판)}
+
+Churchill \& Chu 상관식~\cite{churchill1975}:
+\begin{equation}\label{eq:churchill-chu}
+  \overline{\text{Nu}}_L = \left[0.825 + \frac{0.387\,\text{Ra}_L^{1/6}}{\left(1 + (0.492/\text{Pr})^{9/16}\right)^{8/27}}\right]^2
+\end{equation}
+
+\subsection{유한선원 (FLS) g-함수}
+
+보어홀 열교환기의 지중 열응답~\cite{eskilson1987}:
+\begin{equation}\label{eq:fls-g}
+  g(t) = \frac{1}{2H}\int_0^H \int_0^H
+    \frac{\text{erfc}\!\left(\dfrac{\sqrt{(z-z')^2 + r_b^2}}{2\sqrt{\alpha_s\,t}}\right)}{\sqrt{(z-z')^2 + r_b^2}}\;dz'\,dz
+\end{equation}
+여기서 $H$는 보어홀 깊이, $r_b$는 보어홀 반경, $\alpha_s$는 지중 열확산율이다.
+
+\subsection{TDMA (Thomas 알고리즘)}
+
+삼중대각 시스템 $a_i T_{i-1} + b_i T_i + c_i T_{i+1} = d_i$를 전진 소거 및 후진 대입으로 풀이한다:
+\begin{align}
+  c'_i &= \begin{cases} c_0/b_0 & i = 0 \\ c_i\,/\,(b_i - a_i\,c'_{i-1}) & i > 0 \end{cases} \label{eq:tdma-c}\\
+  d'_i &= \begin{cases} d_0/b_0 & i = 0 \\ (d_i - a_i\,d'_{i-1})\,/\,(b_i - a_i\,c'_{i-1}) & i > 0 \end{cases} \label{eq:tdma-d}\\
+  T_i  &= \begin{cases} d'_{N-1} & i = N-1 \\ d'_i - c'_i\,T_{i+1} & i < N-1 \end{cases} \label{eq:tdma-T}
+\end{align}

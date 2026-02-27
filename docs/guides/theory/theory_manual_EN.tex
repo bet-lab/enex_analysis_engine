@@ -1,0 +1,68 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage[margin=25mm]{geometry}
+\usepackage{graphicx}
+\usepackage{nomencl}
+
+% --- Metadata ---
+\title{\textbf{enex\_analysis\_engine}\\[4pt]Theory Manual}
+\author{Building Energy \& Exergy Analysis Laboratory}
+\date{\today}
+
+% --- Document ---
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document presents the mathematical formulations implemented in the \texttt{enex\_analysis\_engine} Python package.
+Each section covers one simulation module, specifying the governing equations, modelling assumptions, and literature references.
+Equations are numbered consistently with the source code variable names to facilitate cross-referencing.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §2  PV-to-Converter
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/pv_converter}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §3  Stratified Storage Tank
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/tank_stratification}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §4  Steady-State DHW Models
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/enex_engine}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §5  Thermodynamic Correlations
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/enex_functions}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §6  Air Source Heat Pump Boiler
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/air_source_hp_boiler}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% §7  Ground Source Heat Pump Boiler
+%% ═══════════════════════════════════════════════════════════════════
+\input{sections/en/ground_source_hp_boiler}
+
+%% ═══════════════════════════════════════════════════════════════════
+%% Bibliography
+%% ═══════════════════════════════════════════════════════════════════
+\bibliographystyle{elsarticle-num}
+\bibliography{theory_manual}
+
+\end{document}

@@ -1,0 +1,124 @@
+% ═══════════════════════════════════════════════════════════════════
+% §2  PV-to-Converter 엑서지 캐스케이드
+% Source: PV_to_Converter.py
+% ═══════════════════════════════════════════════════════════════════
+\section{PV-to-Converter 엑서지 캐스케이드}
+\label{sec:pv-converter}
+
+본 절은 \texttt{PV\_to\_Converter.py}에 구현된 4단계 태양광 발전 변환 모델을 기술한다. 변환 체인의 각 구성 요소에 대해 에너지, 엔트로피, 엑서지 수지를 추적한다.
+
+\subsection{시스템 개요}
+
+PV 시스템은 4단계 직렬 변환 체인으로 모델링된다:
+\begin{enumerate}
+  \item \textbf{PV 셀} — 태양 복사를 DC 전력으로 변환한다.
+  \item \textbf{충전 제어기} — 배터리로의 전압/전류를 조절한다.
+  \item \textbf{배터리} — 전기에너지를 저장 및 방출한다.
+  \item \textbf{DC/AC 인버터} — DC를 계통 품질의 AC 전력으로 변환한다.
+\end{enumerate}
+
+\subsection{가정}
+\label{sec:pv-assumptions}
+
+\begin{enumerate}
+  \item 각 단계는 균일한 표면 온도에서 운전된다.
+  \item 전기는 순수 일(work)로 취급한다 ($T_\text{source} \to \infty$). 따라서 엔트로피율은 0이다.
+  \item 모든 손실은 구성 요소 표면 온도에서 환경으로 방열된다.
+  \item 태양복사의 엔트로피는 Petela--Landsberg--Press 계수로 추산한다~\cite{petela1964}.
+\end{enumerate}
+
+\subsection{단계 1: PV 셀}
+\label{sec:pv-stage1}
+
+\paragraph{태양 입사.}
+패널 표면의 전일사량:
+\begin{equation}\label{eq:pv-I-sol}
+  I_\text{sol} = I_\text{DN} + I_\text{dH}
+\end{equation}
+여기서 $I_\text{DN}$은 직달일사, $I_\text{dH}$는 확산일사이다 [W/m$^2$].
+
+\paragraph{PV 표면 온도.}
+흡수판의 정상상태 에너지 수지로부터:
+\begin{equation}\label{eq:pv-Tpv}
+  T_\text{pv} = T_0 + \frac{I_\text{sol}\,(\alpha_\text{pv} - \eta_\text{pv})}{2\,h_o}
+\end{equation}
+여기서 $\alpha_\text{pv}$는 표면 흡수율, $\eta_\text{pv}$는 PV 효율, $h_o$는 대류--복사 복합 열전달 계수 [W/(m$^2$\,K)]이다. 계수 2는 전면 및 후면 양면의 방열을 반영한다.
+
+\paragraph{에너지 수지.}
+\begin{align}
+  E_\text{pv0} &= A_\text{pv}\,\eta_\text{pv}\,I_\text{sol}     \label{eq:pv-Epv0} \\
+  Q_\text{l,pv} &= 2\,A_\text{pv}\,h_o\,(T_\text{pv} - T_0)     \label{eq:pv-Qlpv}
+\end{align}
+
+\paragraph{엔트로피 수지.}
+태양복사의 엔트로피는 Petela 계수를 이용하여 추산한다:
+\begin{equation}\label{eq:pv-s-sol}
+  s_\text{sol} = k_D\,I_\text{DN}^{0.9} + k_d\,I_\text{dH}^{0.9}
+\end{equation}
+여기서 $k_D$, $k_d$는 각각 직달 및 확산복사에 대한 경험 계수이다.
+
+엔트로피 유동:
+\begin{align}
+  \dot{S}_\text{sol}  &= A_\text{pv}\,\alpha_\text{pv}\,s_\text{sol}   \label{eq:pv-Ssol}  \\
+  \dot{S}_\text{pv0}  &= 0 \quad (\text{전기: } T \to \infty)            \label{eq:pv-Spv0}  \\
+  \dot{S}_\text{l,pv} &= \frac{Q_\text{l,pv}}{T_\text{pv}}             \label{eq:pv-Slpv}  \\
+  \dot{S}_\text{g,pv} &= \dot{S}_\text{pv0} + \dot{S}_\text{l,pv} - \dot{S}_\text{sol} \label{eq:pv-Sgpv}
+\end{align}
+
+\paragraph{엑서지 수지.}
+\begin{align}
+  X_\text{sol}  &= A_\text{pv}\,\alpha_\text{pv}\,(I_\text{sol} - s_\text{sol}\,T_0)  \label{eq:pv-Xsol}  \\
+  X_\text{pv0}  &= E_\text{pv0}                                                         \label{eq:pv-Xpv0}  \\
+  X_\text{l,pv} &= \left(1 - \frac{T_0}{T_\text{pv}}\right) Q_\text{l,pv}             \label{eq:pv-Xlpv}  \\
+  X_\text{c,pv} &= \dot{S}_\text{g,pv}\,T_0                                             \label{eq:pv-Xcpv}
+\end{align}
+
+\subsection{단계 2--4: 제어기, 배터리, DC/AC 인버터}
+\label{sec:pv-stages234}
+
+각 후속 단계 $k$ ($k \in \{\text{ctrl}, \text{batt}, \text{DC/AC}\}$)는 동일한 패턴을 따른다. $\eta_k$와 $T_k$는 각각 구성 요소의 효율과 표면 온도를 나타낸다.
+
+\paragraph{에너지 수지.}
+\begin{align}
+  E_\text{out} &= \eta_k\,E_\text{in}          \label{eq:pv-generic-E}  \\
+  Q_{\text{l},k} &= (1 - \eta_k)\,E_\text{in}   \label{eq:pv-generic-Ql}
+\end{align}
+
+\paragraph{엔트로피 수지.}
+\begin{align}
+  \dot{S}_\text{out}  &= 0                                                 \label{eq:pv-generic-Sout}  \\
+  \dot{S}_{\text{l},k}  &= \frac{Q_{\text{l},k}}{T_k}                     \label{eq:pv-generic-Sl}    \\
+  \dot{S}_{\text{g},k}  &= \dot{S}_\text{out} + \dot{S}_{\text{l},k} - \dot{S}_\text{in}  \label{eq:pv-generic-Sg}
+\end{align}
+
+\paragraph{엑서지 수지.}
+\begin{align}
+  X_\text{out}        &= E_\text{out}                                       \label{eq:pv-generic-Xout}  \\
+  X_{\text{l},k}      &= Q_{\text{l},k} - \dot{S}_{\text{l},k}\,T_0       \label{eq:pv-generic-Xl}    \\
+  X_{\text{c},k}      &= \dot{S}_{\text{g},k}\,T_0                         \label{eq:pv-generic-Xc}
+\end{align}
+
+\subsection{코드--수식 대응 표}
+
+\begin{table}[h!]
+\centering
+\caption{PV-to-Converter 변수 대응 관계.}
+\label{tab:pv-mapping}
+\begin{tabular}{@{}lll@{}}
+\toprule
+수식 기호 & Python 속성 & 단위 \\
+\midrule
+$I_\text{sol}$         & \texttt{self.I\_sol}       & W/m$^2$ \\
+$T_\text{pv}$          & \texttt{self.T\_pv}        & K       \\
+$E_\text{pv0}$         & \texttt{self.E\_pv0}       & W       \\
+$E_\text{pv1}$         & \texttt{self.E\_pv1}       & W       \\
+$E_\text{pv2}$         & \texttt{self.E\_pv2}       & W       \\
+$E_\text{pv3}$         & \texttt{self.E\_pv3}       & W       \\
+$X_\text{c,pv}$        & \texttt{self.X\_c\_pv}     & W       \\
+$X_\text{c,ctrl}$      & \texttt{self.X\_c\_ctrl}   & W       \\
+$X_\text{c,batt}$      & \texttt{self.X\_c\_batt}   & W       \\
+$X_\text{c,DC/AC}$     & \texttt{self.X\_c\_DC\_AC} & W       \\
+$k_D,\,k_d$            & \texttt{constants.k\_D, k\_d} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

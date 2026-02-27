@@ -1,0 +1,63 @@
+% ═══════════════════════════════════════════════════════════════════
+% §5  Thermodynamic Correlations & Utility Functions
+% Source: enex_functions.py
+% ═══════════════════════════════════════════════════════════════════
+\section{Thermodynamic correlations and utility functions}
+\label{sec:enex-functions}
+
+This section documents the key correlations and algorithms in \texttt{enex\_functions.py} that are referenced by higher-level models.
+
+\subsection{COP correlations}
+
+\paragraph{Air source heat pump --- cooling mode.}
+Empirical regression as a function of outdoor temperature $T_0$ [°C]:
+\begin{equation}\label{eq:cop-ashp-cool}
+  \text{COP}_\text{cool} = a_0 + a_1 T_0 + a_2 T_0^2
+\end{equation}
+with coefficients fitted from manufacturer catalogue data.
+
+\paragraph{Air source heat pump --- heating mode.}
+Similar polynomial form:
+\begin{equation}\label{eq:cop-ashp-heat}
+  \text{COP}_\text{heat} = b_0 + b_1 T_0 + b_2 T_0^2
+\end{equation}
+
+\paragraph{Ground source heat pump.}
+Modified Carnot COP with ground temperature $T_g$ and condenser temperature $T_\text{cond}$~\cite{sarbu2019}:
+\begin{equation}\label{eq:cop-gshp}
+  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_g}
+\end{equation}
+where $\eta_\text{Carnot}$ is an empirical Carnot efficiency factor (typically 0.4--0.6).
+
+\subsection{Friction factor (Darcy--Weisbach)}
+
+The Colebrook--White implicit equation~\cite{colebrook1939}:
+\begin{equation}\label{eq:colebrook}
+  \frac{1}{\sqrt{f}} = -2\,\log_{10}\!\left(\frac{\varepsilon/D}{3.7} + \frac{2.51}{\text{Re}\,\sqrt{f}}\right)
+\end{equation}
+Solved iteratively with the Swamee--Jain initial estimate.
+
+\subsection{Natural convection (vertical plate)}
+
+Churchill \& Chu correlation~\cite{churchill1975}:
+\begin{equation}\label{eq:churchill-chu}
+  \overline{\text{Nu}}_L = \left[0.825 + \frac{0.387\,\text{Ra}_L^{1/6}}{\left(1 + (0.492/\text{Pr})^{9/16}\right)^{8/27}}\right]^2
+\end{equation}
+
+\subsection{Finite line source (FLS) g-function}
+
+The ground thermal response for borehole heat exchangers~\cite{eskilson1987}:
+\begin{equation}\label{eq:fls-g}
+  g(t) = \frac{1}{2H}\int_0^H \int_0^H
+    \frac{\text{erfc}\!\left(\dfrac{\sqrt{(z-z')^2 + r_b^2}}{2\sqrt{\alpha_s\,t}}\right)}{\sqrt{(z-z')^2 + r_b^2}}\;dz'\,dz
+\end{equation}
+where $H$ is the borehole depth, $r_b$ the borehole radius, and $\alpha_s$ the ground thermal diffusivity.
+
+\subsection{TDMA (Thomas algorithm)}
+
+The tri-diagonal system $a_i T_{i-1} + b_i T_i + c_i T_{i+1} = d_i$ is solved by forward elimination and backward substitution:
+\begin{align}
+  c'_i &= \begin{cases} c_0/b_0 & i = 0 \\ c_i\,/\,(b_i - a_i\,c'_{i-1}) & i > 0 \end{cases} \label{eq:tdma-c}\\
+  d'_i &= \begin{cases} d_0/b_0 & i = 0 \\ (d_i - a_i\,d'_{i-1})\,/\,(b_i - a_i\,c'_{i-1}) & i > 0 \end{cases} \label{eq:tdma-d}\\
+  T_i  &= \begin{cases} d'_{N-1} & i = N-1 \\ d'_i - c'_i\,T_{i+1} & i < N-1 \end{cases} \label{eq:tdma-T}
+\end{align}

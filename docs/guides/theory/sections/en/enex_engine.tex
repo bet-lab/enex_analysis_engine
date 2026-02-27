@@ -1,0 +1,92 @@
+% ═══════════════════════════════════════════════════════════════════
+% §4  Steady-State DHW System Models
+% Source: enex_engine.py (ElectricBoiler, GasBoiler, HeatPumpBoiler, etc.)
+% ═══════════════════════════════════════════════════════════════════
+\section{Steady-state domestic hot water models}
+\label{sec:enex-engine}
+
+This section presents the energy, entropy, and exergy balances for the steady-state DHW system models in \texttt{enex\_engine.py}. Each model comprises a \emph{hot water tank} and a \emph{mixing valve}; the heat source varies by model type.
+
+\subsection{Common system boundary}
+\label{sec:dhw-common}
+
+All DHW models share a two-component boundary:
+\begin{enumerate}
+  \item \textbf{Hot water tank}: receives heat input, stores water at $T_\text{tank}$, and loses heat to the ambient.
+  \item \textbf{Mixing valve}: blends hot tank water with cold supply water to deliver service water at $T_\text{serv}$.
+\end{enumerate}
+
+The mixing ratio $\alpha$ determines the tank draw fraction:
+\begin{equation}\label{eq:dhw-alpha}
+  \alpha = \frac{T_\text{serv} - T_\text{sup}}{T_\text{tank} - T_\text{sup}}
+  \,,\quad
+  \dot{V}_\text{sup,tank} = \alpha\,\dot{V}_\text{serv}
+  \,,\quad
+  \dot{V}_\text{sup,mix} = (1 - \alpha)\,\dot{V}_\text{serv}
+\end{equation}
+
+\subsection{Common thermodynamic formulations}
+
+\paragraph{Energy of a water stream.}
+\begin{equation}\label{eq:dhw-Q}
+  Q_w = \rho_w c_w \dot{V}\,(T - T_0)
+\end{equation}
+
+\paragraph{Entropy of a water stream.}
+\begin{equation}\label{eq:dhw-S}
+  \dot{S}_w = \rho_w c_w \dot{V}\,\ln\frac{T}{T_0}
+\end{equation}
+
+\paragraph{Exergy of a water stream (incompressible fluid).}
+\begin{equation}\label{eq:dhw-X}
+  X_w = \rho_w c_w \dot{V}\left[(T - T_0) - T_0\,\ln\frac{T}{T_0}\right]
+\end{equation}
+
+\paragraph{Tank heat loss.}
+\begin{equation}\label{eq:dhw-Ql}
+  Q_\text{l,tank} = U_\text{tank}\,(T_\text{tank} - T_0)
+\end{equation}
+where $U_\text{tank}$ [W/K] is computed from the cylindrical shell and insulation thermal resistances.
+
+\paragraph{Entropy generation and exergy destruction.}
+For each component $k$:
+\begin{equation}\label{eq:dhw-Sg}
+  \dot{S}_{\text{g},k} = \sum \dot{S}_\text{out} - \sum \dot{S}_\text{in}
+  \,,\qquad
+  X_{\text{c},k} = \dot{S}_{\text{g},k}\,T_0
+\end{equation}
+
+\subsection{Electric boiler}
+
+The heat input equals the electrical power:
+\begin{equation}\label{eq:eb-energy}
+  E_\text{heater} = Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}
+\end{equation}
+Electricity is pure work ($T_\text{source} \to \infty$), hence $\dot{S}_\text{heater} = 0$ and $X_\text{heater} = E_\text{heater}$.
+
+\subsection{Gas boiler}
+
+The gas input introduces combustion irreversibility:
+\begin{align}
+  Q_\text{gas} &= \frac{Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}}{\eta_\text{gas}} \label{eq:gb-Qgas} \\
+  \dot{S}_\text{gas} &= \frac{Q_\text{gas}}{T_\text{ad}} \label{eq:gb-Sgas} \\
+  X_\text{gas} &= Q_\text{gas}\left(1 - \frac{T_0}{T_\text{ad}}\right) \label{eq:gb-Xgas}
+\end{align}
+where $\eta_\text{gas}$ is the burner efficiency and $T_\text{ad}$ is the adiabatic flame temperature of natural gas.
+
+\subsection{Heat pump boiler}
+
+The heat pump model uses the air source COP correlation (see Section~\ref{sec:enex-functions}):
+\begin{align}
+  \text{COP} &= f(T_0,\,T_\text{tank}) \label{eq:hpb-COP}\\
+  E_\text{hp} &= \frac{Q_\text{w,tank} + Q_\text{l,tank} - Q_\text{w,sup,tank}}{\text{COP}} \label{eq:hpb-Ehp}\\
+  Q_\text{evap} &= Q_\text{cond} - E_\text{hp} \label{eq:hpb-Qevap}
+\end{align}
+The fan and compressor power are modelled as work inputs ($\dot{S} = 0$).
+
+\subsection{Exergy efficiency (all models)}
+
+\begin{equation}\label{eq:dhw-Xeff}
+  \eta_X = \frac{X_\text{w,serv}}{X_\text{input}}
+\end{equation}
+where $X_\text{input}$ is $X_\text{heater}$, $X_\text{gas}$, or $X_\text{hp} + X_\text{fan}$ depending on model type.

@@ -1,0 +1,128 @@
+% ═══════════════════════════════════════════════════════════════════
+% §3  성층형 저탕조 모델
+% Source: Tank_stratification_model.py
+% ═══════════════════════════════════════════════════════════════════
+\section{성층형 저탕조 모델}
+\label{sec:tank-stratification}
+
+본 절은 \texttt{Tank\_stratification\_model.py}에 구현된 1차원 수직 성층형 온수 저탕조 모델을 기술한다. TDMA(Thomas 알고리즘) 풀이기를 이용하여 각 시간 단계에서 온도장을 전진시킨다.
+
+\subsection{시스템 개요}
+
+높이 $H$, 내경 $r_0$인 원통형 저탕조를 $N$개의 균일 온도 수평 층(노드)으로 분할한다. 노드 1은 최상층(최고 온도), 노드 $N$은 최하층(냉수 유입부)이다. 각 노드는 유효 열전도에 의한 인접 노드 간 열교환, 단열 외벽을 통한 주위 열손실, 점열원 또는 외부 수력 루프를 통한 에너지 유입이 가능하다.
+
+\subsection{가정}
+\label{sec:tank-assumptions}
+
+\begin{enumerate}
+  \item 각 노드는 완전 혼합(층 내 균일 온도)된다.
+  \item 저탕조는 균일 단면적 $A = \pi r_0^2$의 원통이다.
+  \item 물성치($c_w$, $\rho_w$, $k_w$, $\mu_w$)는 고정 기준 온도에서 평가한다.
+  \item 급수(draw-off)는 급수 온도 $T_\text{in}$으로 하부 노드에 유입되어 상부 노드에서 유출된다.
+  \item 노드 간 열전달은 분자 전도와 부력 자연대류를 모두 반영하는 \emph{유효 열전도도} $k_\text{eff}$로 표현한다.
+\end{enumerate}
+
+\subsection{지배방정식}
+
+\paragraph{노드 $i$의 에너지 수지.}
+체적 $V = A\,\Delta h$, 열용량 $C = \rho_w c_w$인 노드에 대해:
+\begin{equation}\label{eq:tank-energy}
+  C\,V\,\frac{dT_i}{dt}
+  = K_{\text{eff},i-1}(T_{i-1} - T_i)
+  + K_{\text{eff},i}(T_{i+1} - T_i)
+  + G_\text{use}(T_{i+1} - T_i)
+  + \text{UA}_i(T_\text{amb} - T_i)
+  + S_i
+\end{equation}
+여기서:
+\begin{itemize}
+  \item $K_{\text{eff},i} = k_{\text{eff},i}\,A / \Delta h$: 노드 $i$와 $i+1$ 사이의 유효 전도 계수 [W/K],
+  \item $G_\text{use} = \rho_w c_w \dot{V}_\text{use}$: 급수 유량에 의한 이류 항 [W/K],
+  \item $\text{UA}_i$: 노드별 주위 열손실 계수 [W/K],
+  \item $S_i$: 가열기 열원 항 [W] (가열 노드에서만 0이 아님).
+\end{itemize}
+
+\paragraph{유효 열전도도.}
+인접 노드 $i$와 $i+1$ 사이의 유효 열전도도는 분자 전도와 자연대류를 결합한다:
+\begin{equation}\label{eq:tank-keff}
+  k_{\text{eff}} = k_w \cdot \text{Nu}
+\end{equation}
+Nusselt 수는 Rayleigh 수와 온도차 부호 $\Delta T = T_{i+1} - T_i$에 의존한다:
+\begin{equation}\label{eq:tank-Ra}
+  \text{Ra} = \frac{g\,\beta\,|\Delta T|\,\Delta h^3}{\nu\,\alpha}
+\end{equation}
+
+Nusselt 수 상관식:
+\begin{equation}\label{eq:tank-Nu}
+  \text{Nu} = \begin{cases}
+    1.0 + 0.1\left(\dfrac{\text{Ra}}{\text{Ra}_\text{cr}}\right)^{0.25}
+      & \text{안정: } \Delta T < 0 \\[8pt]
+    1.0   & \text{불안정: } \text{Ra} < 10^3 \\
+    0.2\,\text{Ra}^{0.25} & \text{불안정: } 10^3 \le \text{Ra} < 10^7 \\
+    0.1\,\text{Ra}^{0.33} & \text{불안정: } \text{Ra} \ge 10^7
+  \end{cases}
+\end{equation}
+여기서 $\text{Ra}_\text{cr} = 1708$ (수평층 B\'{e}nard--Rayleigh 임계값)이다~\cite{incropera2006}.
+
+\subsection{TDMA 이산화}
+
+후진 오일러(backward Euler) 반음해법으로 이산화하면 각 시간 단계에서 삼중대각 행렬 $\mathbf{a},\mathbf{b},\mathbf{c},\mathbf{d}$가 조립된다.
+
+\paragraph{상부 노드 ($i = 0$).}
+\begin{align}
+  a_0 &= 0 \label{eq:tdma-top-a}\\
+  b_0 &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},0} + \text{UA}_0 \label{eq:tdma-top-b}\\
+  c_0 &= -(K_{\text{eff},0} + G_\text{use}) \label{eq:tdma-top-c}\\
+  d_0 &= \frac{C\,V}{\Delta t}\,T_0^n + \text{UA}_0\,T_\text{amb} + S_0 \label{eq:tdma-top-d}
+\end{align}
+
+\paragraph{내부 노드 ($1 \le i \le N-2$).}
+\begin{align}
+  a_i &= -K_{\text{eff},i-1} \label{eq:tdma-int-a}\\
+  b_i &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},i-1} + K_{\text{eff},i} + \text{UA}_i \label{eq:tdma-int-b}\\
+  c_i &= -(K_{\text{eff},i} + G_\text{use}) \label{eq:tdma-int-c}\\
+  d_i &= \frac{C\,V}{\Delta t}\,T_i^n + \text{UA}_i\,T_\text{amb} + S_i \label{eq:tdma-int-d}
+\end{align}
+
+\paragraph{하부 노드 ($i = N-1$).}
+냉수 유입 $T_\text{in}$이 부과된다:
+\begin{align}
+  a_{N-1} &= -K_{\text{eff},N-2} \label{eq:tdma-bot-a}\\
+  b_{N-1} &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},N-2} + \text{UA}_{N-1} \label{eq:tdma-bot-b}\\
+  c_{N-1} &= 0 \label{eq:tdma-bot-c}\\
+  d_{N-1} &= \frac{C\,V}{\Delta t}\,T_{N-1}^n + \text{UA}_{N-1}\,T_\text{amb} + S_{N-1} + G_\text{use}\,T_\text{in} \label{eq:tdma-bot-d}
+\end{align}
+
+결과 시스템은 Thomas 알고리즘(\texttt{enex\_functions.TDMA})으로 풀이된다.
+
+\subsection{외부 루프 이류}
+
+선택적 외부 수력 루프는 노드 $j_\text{out}$에서 물을 추출하고 열량 $Q_\text{loop}$를 가하여 노드 $j_\text{in}$으로 환수한다. 환수 온도:
+\begin{equation}\label{eq:tank-Tloop}
+  T_\text{loop,in} = T_{j_\text{out}} + \frac{Q_\text{loop}}{G_\text{loop}}
+  \quad\text{여기서}\quad G_\text{loop} = \rho_w c_w \dot{V}_\text{loop}
+\end{equation}
+노드 $j_\text{out}$와 $j_\text{in}$ 사이의 방향성 이류는 \texttt{\_add\_loop\_advection\_terms} 유틸리티에 의해 TDMA 계수에 중첩된다.
+
+\subsection{코드--수식 대응 표}
+
+\begin{table}[h!]
+\centering
+\caption{성층형 저탕조 변수 대응 관계.}
+\label{tab:tank-mapping}
+\begin{tabular}{@{}lll@{}}
+\toprule
+수식 기호 & Python 속성 & 단위 \\
+\midrule
+$N$                   & \texttt{self.N}        & --- \\
+$\Delta h$            & \texttt{self.dh}       & m   \\
+$A$                   & \texttt{self.A}        & m$^2$ \\
+$C$                   & \texttt{self.C}        & J/(m$^3$\,K) \\
+$K_{\text{eff},i}$    & \texttt{self.K\_eff}   & W/K \\
+$k_{\text{eff},i}$    & \texttt{self.k\_eff}   & W/(m\,K) \\
+$\text{UA}_i$         & \texttt{self.UA}       & W/K \\
+$G_\text{use}$        & \texttt{self.G\_use}   & W/K \\
+$G_\text{loop}$       & \texttt{self.G\_loop}  & W/K \\
+\bottomrule
+\end{tabular}
+\end{table}

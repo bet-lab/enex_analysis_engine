@@ -1,0 +1,124 @@
+% ═══════════════════════════════════════════════════════════════════
+% §2  PV-to-Converter Exergy Cascade
+% Source: PV_to_Converter.py
+% ═══════════════════════════════════════════════════════════════════
+\section{PV-to-Converter exergy cascade}
+\label{sec:pv-converter}
+
+This section describes the four-stage photovoltaic power conversion model implemented in \texttt{PV\_to\_Converter.py}. The model traces an energy, entropy, and exergy balance through each component in the conversion chain.
+
+\subsection{System description}
+
+The PV system is modelled as a serial chain of four conversion stages:
+\begin{enumerate}
+  \item \textbf{PV Cell} — converts solar irradiance to DC electricity.
+  \item \textbf{Charge Controller} — regulates voltage/current to the battery.
+  \item \textbf{Battery} — stores and releases electrical energy.
+  \item \textbf{DC/AC Inverter} — converts DC to grid-quality AC power.
+\end{enumerate}
+
+\subsection{Assumptions}
+\label{sec:pv-assumptions}
+
+\begin{enumerate}
+  \item Each stage operates at a uniform surface temperature.
+  \item Electricity is treated as pure work ($T_\text{source} \to \infty$), hence its entropy rate is zero.
+  \item All losses are dissipated as heat to the environment at the component surface temperature.
+  \item The solar radiation entropy is estimated using the Petela--Landsberg--Press coefficients~\cite{petela1964}.
+\end{enumerate}
+
+\subsection{Stage 1: PV cell}
+\label{sec:pv-stage1}
+
+\paragraph{Solar input.}
+Total irradiance on the panel surface:
+\begin{equation}\label{eq:pv-I-sol}
+  I_\text{sol} = I_\text{DN} + I_\text{dH}
+\end{equation}
+where $I_\text{DN}$ is the direct normal irradiance and $I_\text{dH}$ is the diffuse horizontal irradiance [W/m$^2$].
+
+\paragraph{PV surface temperature.}
+From a steady-state energy balance on the absorber plate:
+\begin{equation}\label{eq:pv-Tpv}
+  T_\text{pv} = T_0 + \frac{I_\text{sol}\,(\alpha_\text{pv} - \eta_\text{pv})}{2\,h_o}
+\end{equation}
+where $\alpha_\text{pv}$ is the surface absorptivity, $\eta_\text{pv}$ is the PV efficiency, and $h_o$ is the combined convective--radiative heat transfer coefficient [W/(m$^2$\,K)]. The factor 2 accounts for heat loss from both front and back surfaces.
+
+\paragraph{Energy balance.}
+\begin{align}
+  E_\text{pv0} &= A_\text{pv}\,\eta_\text{pv}\,I_\text{sol}     \label{eq:pv-Epv0} \\
+  Q_\text{l,pv} &= 2\,A_\text{pv}\,h_o\,(T_\text{pv} - T_0)     \label{eq:pv-Qlpv}
+\end{align}
+
+\paragraph{Entropy balance.}
+The entropy of solar radiation is estimated via the Petela coefficients:
+\begin{equation}\label{eq:pv-s-sol}
+  s_\text{sol} = k_D\,I_\text{DN}^{0.9} + k_d\,I_\text{dH}^{0.9}
+\end{equation}
+where $k_D$ and $k_d$ are empirical constants for direct and diffuse radiation, respectively.
+
+The entropy flows are:
+\begin{align}
+  \dot{S}_\text{sol}  &= A_\text{pv}\,\alpha_\text{pv}\,s_\text{sol}   \label{eq:pv-Ssol}  \\
+  \dot{S}_\text{pv0}  &= 0 \quad (\text{electricity: } T \to \infty)    \label{eq:pv-Spv0}  \\
+  \dot{S}_\text{l,pv} &= \frac{Q_\text{l,pv}}{T_\text{pv}}             \label{eq:pv-Slpv}  \\
+  \dot{S}_\text{g,pv} &= \dot{S}_\text{pv0} + \dot{S}_\text{l,pv} - \dot{S}_\text{sol} \label{eq:pv-Sgpv}
+\end{align}
+
+\paragraph{Exergy balance.}
+\begin{align}
+  X_\text{sol}  &= A_\text{pv}\,\alpha_\text{pv}\,(I_\text{sol} - s_\text{sol}\,T_0)  \label{eq:pv-Xsol}  \\
+  X_\text{pv0}  &= E_\text{pv0}                                                         \label{eq:pv-Xpv0}  \\
+  X_\text{l,pv} &= \left(1 - \frac{T_0}{T_\text{pv}}\right) Q_\text{l,pv}             \label{eq:pv-Xlpv}  \\
+  X_\text{c,pv} &= \dot{S}_\text{g,pv}\,T_0                                             \label{eq:pv-Xcpv}
+\end{align}
+
+\subsection{Stages 2--4: Controller, battery, DC/AC inverter}
+\label{sec:pv-stages234}
+
+Each downstream stage $k$ ($k \in \{\text{ctrl}, \text{batt}, \text{DC/AC}\}$) follows an identical pattern. Let $\eta_k$ and $T_k$ denote the component efficiency and surface temperature.
+
+\paragraph{Energy balance.}
+\begin{align}
+  E_\text{out} &= \eta_k\,E_\text{in}          \label{eq:pv-generic-E}  \\
+  Q_{\text{l},k} &= (1 - \eta_k)\,E_\text{in}   \label{eq:pv-generic-Ql}
+\end{align}
+
+\paragraph{Entropy balance.}
+\begin{align}
+  \dot{S}_\text{out}  &= 0                                                 \label{eq:pv-generic-Sout}  \\
+  \dot{S}_{\text{l},k}  &= \frac{Q_{\text{l},k}}{T_k}                     \label{eq:pv-generic-Sl}    \\
+  \dot{S}_{\text{g},k}  &= \dot{S}_\text{out} + \dot{S}_{\text{l},k} - \dot{S}_\text{in}  \label{eq:pv-generic-Sg}
+\end{align}
+
+\paragraph{Exergy balance.}
+\begin{align}
+  X_\text{out}        &= E_\text{out}                                       \label{eq:pv-generic-Xout}  \\
+  X_{\text{l},k}      &= Q_{\text{l},k} - \dot{S}_{\text{l},k}\,T_0       \label{eq:pv-generic-Xl}    \\
+  X_{\text{c},k}      &= \dot{S}_{\text{g},k}\,T_0                         \label{eq:pv-generic-Xc}
+\end{align}
+
+\subsection{Code--equation mapping}
+
+\begin{table}[h!]
+\centering
+\caption{PV-to-Converter variable correspondence.}
+\label{tab:pv-mapping}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Equation symbol & Python attribute & Unit \\
+\midrule
+$I_\text{sol}$         & \texttt{self.I\_sol}       & W/m$^2$ \\
+$T_\text{pv}$          & \texttt{self.T\_pv}        & K       \\
+$E_\text{pv0}$         & \texttt{self.E\_pv0}       & W       \\
+$E_\text{pv1}$         & \texttt{self.E\_pv1}       & W       \\
+$E_\text{pv2}$         & \texttt{self.E\_pv2}       & W       \\
+$E_\text{pv3}$         & \texttt{self.E\_pv3}       & W       \\
+$X_\text{c,pv}$        & \texttt{self.X\_c\_pv}     & W       \\
+$X_\text{c,ctrl}$      & \texttt{self.X\_c\_ctrl}   & W       \\
+$X_\text{c,batt}$      & \texttt{self.X\_c\_batt}   & W       \\
+$X_\text{c,DC/AC}$     & \texttt{self.X\_c\_DC\_AC} & W       \\
+$k_D,\,k_d$            & \texttt{constants.k\_D, k\_d} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

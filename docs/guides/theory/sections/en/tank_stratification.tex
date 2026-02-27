@@ -1,0 +1,128 @@
+% ═══════════════════════════════════════════════════════════════════
+% §3  Stratified Storage Tank Model
+% Source: Tank_stratification_model.py
+% ═══════════════════════════════════════════════════════════════════
+\section{Stratified storage tank model}
+\label{sec:tank-stratification}
+
+This section describes the 1D vertically-stratified hot-water tank model implemented in \texttt{Tank\_stratification\_model.py}. The TDMA (Thomas algorithm) solver advances the temperature field at each time step.
+
+\subsection{System description}
+
+A cylindrical storage tank of height $H$ and inner radius $r_0$ is divided into $N$ isothermal horizontal layers (nodes). Node 1 is the topmost layer (hottest), node $N$ is the bottom (coldest, closest to the cold-water inlet). Each node exchanges heat with its neighbours by effective conduction, with the ambient through an insulated shell, and can receive energy from a point heater or an external hydraulic loop.
+
+\subsection{Assumptions}
+\label{sec:tank-assumptions}
+
+\begin{enumerate}
+  \item Each node is perfectly mixed (uniform temperature within a layer).
+  \item The tank is cylindrical with uniform cross-section $A = \pi r_0^2$.
+  \item Water properties ($c_w$, $\rho_w$, $k_w$, $\mu_w$) are evaluated at a fixed reference temperature.
+  \item The draw-off flow enters the bottom node at the mains temperature $T_\text{in}$ and exits from the top node.
+  \item Inter-node heat transfer is characterised by an \emph{effective thermal conductivity} $k_\text{eff}$ that accounts for both molecular conduction and buoyancy-driven natural convection.
+\end{enumerate}
+
+\subsection{Governing equations}
+
+\paragraph{Energy balance for node $i$.}
+For a node of volume $V = A\,\Delta h$ and thermal capacitance $C = \rho_w c_w$:
+\begin{equation}\label{eq:tank-energy}
+  C\,V\,\frac{dT_i}{dt}
+  = K_{\text{eff},i-1}(T_{i-1} - T_i)
+  + K_{\text{eff},i}(T_{i+1} - T_i)
+  + G_\text{use}(T_{i+1} - T_i)
+  + \text{UA}_i(T_\text{amb} - T_i)
+  + S_i
+\end{equation}
+where:
+\begin{itemize}
+  \item $K_{\text{eff},i} = k_{\text{eff},i}\,A / \Delta h$ is the effective conduction coefficient between nodes $i$ and $i+1$ [W/K],
+  \item $G_\text{use} = \rho_w c_w \dot{V}_\text{use}$ is the advection term from draw-off flow [W/K],
+  \item $\text{UA}_i$ is the per-node overall heat transfer coefficient to ambient [W/K],
+  \item $S_i$ is the heater source term [W] (non-zero only at the heater node).
+\end{itemize}
+
+\paragraph{Effective thermal conductivity.}
+The effective conductivity between adjacent nodes $i$ and $i+1$ combines molecular conduction and natural convection:
+\begin{equation}\label{eq:tank-keff}
+  k_{\text{eff}} = k_w \cdot \text{Nu}
+\end{equation}
+where the Nusselt number depends on the Rayleigh number and the sign of the temperature difference $\Delta T = T_{i+1} - T_i$:
+\begin{equation}\label{eq:tank-Ra}
+  \text{Ra} = \frac{g\,\beta\,|\Delta T|\,\Delta h^3}{\nu\,\alpha}
+\end{equation}
+
+The Nusselt number correlations:
+\begin{equation}\label{eq:tank-Nu}
+  \text{Nu} = \begin{cases}
+    1.0 + 0.1\left(\dfrac{\text{Ra}}{\text{Ra}_\text{cr}}\right)^{0.25}
+      & \text{stable: } \Delta T < 0 \\[8pt]
+    1.0   & \text{unstable: } \text{Ra} < 10^3 \\
+    0.2\,\text{Ra}^{0.25} & \text{unstable: } 10^3 \le \text{Ra} < 10^7 \\
+    0.1\,\text{Ra}^{0.33} & \text{unstable: } \text{Ra} \ge 10^7
+  \end{cases}
+\end{equation}
+with $\text{Ra}_\text{cr} = 1708$ (B\'{e}nard--Rayleigh critical value for a horizontal layer)~\cite{incropera2006}.
+
+\subsection{TDMA discretization}
+
+A semi-implicit (backward Euler) discretization yields a tri-diagonal system $\mathbf{a},\mathbf{b},\mathbf{c},\mathbf{d}$ for each time step.
+
+\paragraph{Top node ($i = 0$).}
+\begin{align}
+  a_0 &= 0 \label{eq:tdma-top-a}\\
+  b_0 &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},0} + \text{UA}_0 \label{eq:tdma-top-b}\\
+  c_0 &= -(K_{\text{eff},0} + G_\text{use}) \label{eq:tdma-top-c}\\
+  d_0 &= \frac{C\,V}{\Delta t}\,T_0^n + \text{UA}_0\,T_\text{amb} + S_0 \label{eq:tdma-top-d}
+\end{align}
+
+\paragraph{Interior nodes ($1 \le i \le N-2$).}
+\begin{align}
+  a_i &= -K_{\text{eff},i-1} \label{eq:tdma-int-a}\\
+  b_i &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},i-1} + K_{\text{eff},i} + \text{UA}_i \label{eq:tdma-int-b}\\
+  c_i &= -(K_{\text{eff},i} + G_\text{use}) \label{eq:tdma-int-c}\\
+  d_i &= \frac{C\,V}{\Delta t}\,T_i^n + \text{UA}_i\,T_\text{amb} + S_i \label{eq:tdma-int-d}
+\end{align}
+
+\paragraph{Bottom node ($i = N-1$).}
+The cold-water inlet imposes $T_\text{in}$:
+\begin{align}
+  a_{N-1} &= -K_{\text{eff},N-2} \label{eq:tdma-bot-a}\\
+  b_{N-1} &= \frac{C\,V}{\Delta t} + G_\text{use} + K_{\text{eff},N-2} + \text{UA}_{N-1} \label{eq:tdma-bot-b}\\
+  c_{N-1} &= 0 \label{eq:tdma-bot-c}\\
+  d_{N-1} &= \frac{C\,V}{\Delta t}\,T_{N-1}^n + \text{UA}_{N-1}\,T_\text{amb} + S_{N-1} + G_\text{use}\,T_\text{in} \label{eq:tdma-bot-d}
+\end{align}
+
+The resulting system is solved by the Thomas algorithm (\texttt{enex\_functions.TDMA}).
+
+\subsection{External loop advection}
+
+An optional external hydraulic loop extracts water at node $j_\text{out}$ and returns it at node $j_\text{in}$ with an additional heat gain $Q_\text{loop}$. The return temperature is:
+\begin{equation}\label{eq:tank-Tloop}
+  T_\text{loop,in} = T_{j_\text{out}} + \frac{Q_\text{loop}}{G_\text{loop}}
+  \quad\text{where}\quad G_\text{loop} = \rho_w c_w \dot{V}_\text{loop}
+\end{equation}
+The directed advection between nodes $j_\text{out}$ and $j_\text{in}$ is superimposed on the TDMA coefficients by the \texttt{\_add\_loop\_advection\_terms} utility.
+
+\subsection{Code--equation mapping}
+
+\begin{table}[h!]
+\centering
+\caption{Stratified tank variable correspondence.}
+\label{tab:tank-mapping}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Equation symbol & Python attribute & Unit \\
+\midrule
+$N$                   & \texttt{self.N}        & --- \\
+$\Delta h$            & \texttt{self.dh}       & m   \\
+$A$                   & \texttt{self.A}        & m$^2$ \\
+$C$                   & \texttt{self.C}        & J/(m$^3$\,K) \\
+$K_{\text{eff},i}$    & \texttt{self.K\_eff}   & W/K \\
+$k_{\text{eff},i}$    & \texttt{self.k\_eff}   & W/(m\,K) \\
+$\text{UA}_i$         & \texttt{self.UA}       & W/K \\
+$G_\text{use}$        & \texttt{self.G\_use}   & W/K \\
+$G_\text{loop}$       & \texttt{self.G\_loop}  & W/K \\
+\bottomrule
+\end{tabular}
+\end{table}
