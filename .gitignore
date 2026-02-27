@@ -92,25 +92,13 @@ docs/_templates/
 .DS_Store
 Thumbs.db
 
-# Project specific directories (if needed)
-# figure/
-# video/
+# Research workspaces (local-only, except annual_ashp_analysis)
+studies/*
+!studies/annual_ashp_analysis/
+notebooks/
+
+# Conference
 conference/
-result/
-data/
-project/
-simulation/
-# paper/
-paper/*
-!paper/Annual_ASHP_enex_analysis/
-
-# Explicitly ignore other paper directories
-paper/ASHPB-model/
-paper/GB_HPB_grid_scenario/
-paper/HPB_UV/
-
-
-paper/Annual_ASHP_enex_analysis/code_temporary/
 
 # agent
 .agent/
