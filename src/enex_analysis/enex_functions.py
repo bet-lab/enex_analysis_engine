@@ -2646,6 +2646,12 @@ def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     T3 = result.get('T_ref_exp_in [°C]', result.get('T3 [°C]', np.nan))
     T4 = result.get('T_ref_exp_out [°C]', result.get('T4 [°C]', np.nan))
 
+    # superheating=0, subcooling=0 시 *_star 누락 fallback (1*=1, 3*=3이면 동일값 사용)
+    if np.isnan(h1_star) and not np.isnan(h1):
+        h1_star, T1_star = h1, T1
+    if np.isnan(h3_star) and not np.isnan(h3):
+        h3_star, T3_star = h3, T3
+
     # 포화선 그리기
     ax.plot(h_liq, temps, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
     ax.plot(h_vap, temps, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
@@ -2654,41 +2660,51 @@ def plot_th_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
     cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
 
+    def points_are_close(x1, y1, x2, y2, tol_atol=0.1):
+        """두 점이 시각적으로 동일한지 확인 (subcooling/superheating≈0 시 degenerate 세그먼트 감지용)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol_atol) and np.isclose(y1, y2, atol=tol_atol))
+
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
     if not (np.isnan(h4) or np.isnan(h1_star) or np.isnan(T4) or np.isnan(T1_star)):
         ax.plot([h4, h1_star], [T4, T1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T1_star → T1: 등압 superheating
+    # T1_star → T1: 등압 superheating (superheating=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h1_star) or np.isnan(h1) or np.isnan(T1_star) or np.isnan(T1)):
-        ax.plot([h1_star, h1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h1_star, T1_star, h1, T1):
+            ax.plot(h1, T1, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h1_star, h1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T1 → T2: 압축
     if not (np.isnan(h1) or np.isnan(h2) or np.isnan(T1) or np.isnan(T2)):
         ax.plot([h1, h2], [T1, T2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선)
+    # T2 → T2_star: 등압 냉각 (2=2*이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h2) or np.isnan(h2_star) or np.isnan(T2) or np.isnan(T2_star)):
-        ax.plot([h2, h2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h2, T2, h2_star, T2_star):
+            ax.plot(h2, T2, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h2, h2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선)
     if not (np.isnan(h2_star) or np.isnan(h3_star) or np.isnan(T2_star) or np.isnan(T3_star)):
         ax.plot([h2_star, h3_star], [T2_star, T3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T3_star → T3: 등압 subcooling
+    # T3_star → T3: 등압 subcooling (subcooling=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h3_star) or np.isnan(h3) or np.isnan(T3_star) or np.isnan(T3)):
-        ax.plot([h3_star, h3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h3_star, T3_star, h3, T3):
+            ax.plot(h3, T3, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h3_star, h3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T3 → T4: 등엔탈피 팽창 (수직선)
     if not (np.isnan(h3) or np.isnan(h4) or np.isnan(T3) or np.isnan(T4)):
         ax.plot([h3, h4], [T3, T4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
 
     # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
-    def points_are_close(x1, y1, x2, y2, tol=1e-6):
-        """두 점이 동일한지 확인 (좌표 비교)"""
-        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
-            return False
-        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
     
     points = []
     
@@ -2801,6 +2817,12 @@ def plot_ph_diagram(ax, result, refrigerant, fs, pad):
     h3 = (result.get('h_ref_exp_in [J/kg]') or result.get('h3 [J/kg]', np.nan)) * cu.J2kJ
     h4 = (result.get('h_ref_exp_out [J/kg]') or result.get('h4 [J/kg]', np.nan)) * cu.J2kJ
 
+    # superheating=0, subcooling=0 시 *_star 누락 fallback (1*=1, 3*=3이면 동일값 사용)
+    if np.isnan(h1_star) and not np.isnan(h1):
+        h1_star, P1_star = h1, P1
+    if np.isnan(h3_star) and not np.isnan(h3):
+        h3_star, P3_star = h3, P3
+
     # 포화선 그리기
     ax.plot(h_liq, p_sat, color=color1, label='Saturated liquid', linewidth=dm.lw(0))
     ax.plot(h_vap, p_sat, color=color2, label='Saturated vapor', linewidth=dm.lw(0))
@@ -2809,42 +2831,51 @@ def plot_ph_diagram(ax, result, refrigerant, fs, pad):
     cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
     cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
 
+    def points_are_close(x1, y1, x2, y2, tol_atol=0.1):
+        """두 점이 시각적으로 동일한지 확인 (subcooling/superheating≈0 시 degenerate 세그먼트 감지용)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol_atol) and np.isclose(y1, y2, atol=tol_atol))
+
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선, P4=P1_star)
     if not (np.isnan(h4) or np.isnan(h1_star) or np.isnan(P4) or np.isnan(P1_star)):
         ax.plot([h4, h1_star], [P4, P1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T1_star → T1: 등압 superheating (P1_star=P1)
+    # T1_star → T1: 등압 superheating (superheating=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h1_star) or np.isnan(h1) or np.isnan(P1_star) or np.isnan(P1)):
-        ax.plot([h1_star, h1], [P1_star, P1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h1_star, P1_star, h1, P1):
+            ax.plot(h1, P1, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h1_star, h1], [P1_star, P1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T1 → T2: 압축
     if not (np.isnan(h1) or np.isnan(h2) or np.isnan(P1) or np.isnan(P2)):
         ax.plot([h1, h2], [P1, P2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선, P2=P2_star)
+    # T2 → T2_star: 등압 냉각 (2=2*이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h2) or np.isnan(h2_star) or np.isnan(P2) or np.isnan(P2_star)):
-        ax.plot([h2, h2_star], [P2, P2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h2, P2, h2_star, P2_star):
+            ax.plot(h2, P2, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h2, h2_star], [P2, P2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선, P2_star=P3_star)
     if not (np.isnan(h2_star) or np.isnan(h3_star) or np.isnan(P2_star) or np.isnan(P3_star)):
         ax.plot([h2_star, h3_star], [P2_star, P3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T3_star → T3: 등압 subcooling (P3_star=P3)
+    # T3_star → T3: 등압 subcooling (subcooling=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(h3_star) or np.isnan(h3) or np.isnan(P3_star) or np.isnan(P3)):
-        ax.plot([h3_star, h3], [P3_star, P3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(h3_star, P3_star, h3, P3):
+            ax.plot(h3, P3, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([h3_star, h3], [P3_star, P3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T3 → T4: 등엔탈피 팽창 (수직선, h3=h4)
     if not (np.isnan(h3) or np.isnan(h4) or np.isnan(P3) or np.isnan(P4)):
         ax.plot([h3, h4], [P3, P4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
 
     # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
-    def points_are_close(x1, y1, x2, y2, tol=1e-6):
-        """두 점이 동일한지 확인 (좌표 비교)"""
-        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
-            return False
-        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
-    
     points = []
     
     # 1*와 1 비교
@@ -2952,46 +2983,61 @@ def plot_ts_diagram(ax, result, refrigerant, T_tank, T0, fs, pad):
     T3 = result.get('T_ref_exp_in [°C]') or result.get('T3 [°C]', np.nan)
     T4 = result.get('T_ref_exp_out [°C]') or result.get('T4 [°C]', np.nan)
 
+    # superheating=0, subcooling=0 시 *_star 누락 fallback (1*=1, 3*=3이면 동일값 사용)
+    if np.isnan(s1_star) and not np.isnan(s1):
+        s1_star, T1_star = s1, T1
+    if np.isnan(s3_star) and not np.isnan(s3):
+        s3_star, T3_star = s3, T3
+
     # 마커 색상 결정
     cycle_markerfacecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
     cycle_markeredgecolor = color3 if result.get('hp_is_on', result.get('is_on', False)) else color4
+
+    def points_are_close(x1, y1, x2, y2, tol_atol=0.1):
+        """두 점이 시각적으로 동일한지 확인 (subcooling/superheating≈0 시 degenerate 세그먼트 감지용)"""
+        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
+            return False
+        return (np.isclose(x1, x2, atol=tol_atol) and np.isclose(y1, y2, atol=tol_atol))
 
     # 물리적 프로세스 경로 그리기
     # T4 → T1_star: 등압 증발 (포화 액체선→포화 증기선)
     if not (np.isnan(s4) or np.isnan(s1_star) or np.isnan(T4) or np.isnan(T1_star)):
         ax.plot([s4, s1_star], [T4, T1_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T1_star → T1: 등압 superheating
+    # T1_star → T1: 등압 superheating (superheating=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(s1_star) or np.isnan(s1) or np.isnan(T1_star) or np.isnan(T1)):
-        ax.plot([s1_star, s1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(s1_star, T1_star, s1, T1):
+            ax.plot(s1, T1, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([s1_star, s1], [T1_star, T1], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T1 → T2: 압축 (등엔트로피는 아니지만 실제 압축, s 증가)
     if not (np.isnan(s1) or np.isnan(s2) or np.isnan(T1) or np.isnan(T2)):
         ax.plot([s1, s2], [T1, T2], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T2 → T2_star: 등압 냉각 (과열 증기 → 포화 증기선)
+    # T2 → T2_star: 등압 냉각 (2=2*이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(s2) or np.isnan(s2_star) or np.isnan(T2) or np.isnan(T2_star)):
-        ax.plot([s2, s2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(s2, T2, s2_star, T2_star):
+            ax.plot(s2, T2, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([s2, s2_star], [T2, T2_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T2_star → T3_star: 등압 응축 (포화 증기선 → 포화 액체선)
     if not (np.isnan(s2_star) or np.isnan(s3_star) or np.isnan(T2_star) or np.isnan(T3_star)):
         ax.plot([s2_star, s3_star], [T2_star, T3_star], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
-    # T3_star → T3: 등압 subcooling
+    # T3_star → T3: 등압 subcooling (subcooling=0이면 끝점 동일 → 점으로 표현)
     if not (np.isnan(s3_star) or np.isnan(s3) or np.isnan(T3_star) or np.isnan(T3)):
-        ax.plot([s3_star, s3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
+        if points_are_close(s3_star, T3_star, s3, T3):
+            ax.plot(s3, T3, marker='o', linestyle='None', color=line_color, markersize=2.5, zorder=1)
+        else:
+            ax.plot([s3_star, s3], [T3_star, T3], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
     
     # T3 → T4: 등엔탈피 팽창 (엔트로피 증가)
     if not (np.isnan(s3) or np.isnan(s4) or np.isnan(T3) or np.isnan(T4)):
         ax.plot([s3, s4], [T3, T4], color=line_color, linewidth=dm.lw(0), linestyle=':', zorder=1)
 
     # 모든 상태점 마커 표시 (동일한 star/일반 지점 통합)
-    def points_are_close(x1, y1, x2, y2, tol=1e-6):
-        """두 점이 동일한지 확인 (좌표 비교)"""
-        if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
-            return False
-        return (np.isclose(x1, x2, atol=tol) and np.isclose(y1, y2, atol=tol))
-    
     points = []
     
     # 1*와 1 비교
