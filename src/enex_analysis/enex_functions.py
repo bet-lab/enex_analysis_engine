@@ -1195,8 +1195,9 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
     
     def _error_function(dV_fan):
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
+        epsilon = (1 - np.exp(-UA / (c_a * rho_a * dV_fan)))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T1_star_K + (T_a_ou_in_K - T1_star_K) * np.exp(-UA / (c_a * rho_a * dV_fan)) # Heating assumption (Q_ref_target > 0)
+        T_a_ou_mid_K = T_a_ou_in_K - (T_a_ou_in_K - T1_star_K) * epsilon # Heating assumption (Q_ref_target > 0)
         
         # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
         Q_ou_air = c_a * rho_a * dV_fan * (T_a_ou_in_K - T_a_ou_mid_K) # 흡열이므로 (입구 - 출구) * C_min
