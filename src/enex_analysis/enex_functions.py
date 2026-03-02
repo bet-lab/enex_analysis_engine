@@ -1195,9 +1195,8 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
     
     def _error_function(dV_fan):
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
-        epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T1_star_K + epsilon * (T_a_ou_in_K - T1_star_K) # Heating assumption (Q_ref_target > 0)
+        T_a_ou_mid_K = T1_star_K + (T_a_ou_in_K - T1_star_K) * np.exp(-UA / (c_a * rho_a * dV_fan)) # Heating assumption (Q_ref_target > 0)
         
         # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
         Q_ou_air = c_a * rho_a * dV_fan * (T_a_ou_in_K - T_a_ou_mid_K) # 흡열이므로 (입구 - 출구) * C_min
@@ -1210,6 +1209,54 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
 
     dV_min = dV_fan_design * 0.1 # [m³/s]
     dV_max = dV_fan_design # [m³/s]
+
+    # --- Bracket validity check (avoid bisect ValueError) ---
+    f_min = _error_function(dV_min)
+    f_max = _error_function(dV_max)
+
+    if f_min * f_max > 0:
+        # Same sign → no root in [dV_min, dV_max]. Return best-effort result.
+        # Pick the boundary closer to zero as fallback.
+        if abs(f_min) <= abs(f_max):
+            dV_fallback = dV_min
+            closer_end = 'dV_min'
+        else:
+            dV_fallback = dV_max
+            closer_end = 'dV_max'
+
+        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
+        eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
+        T_mid_fb = T1_star_K + eps_fb * (T_a_ou_in_K - T1_star_K)
+        Q_fb = c_a * rho_a * dV_fallback * (T_a_ou_in_K - T_mid_fb)
+
+        # Diagnostic hint (stored in return dict, not printed)
+        if f_min > 0 and f_max > 0:
+            hint = ("Q_achievable > Q_target at both bracket ends. "
+                    "Consider: ↓ dV_ou_fan_a_design or ↑ Q_ref_target via ↑ hp_capacity")
+        else:
+            hint = ("Q_achievable < Q_target at both bracket ends. "
+                    "Consider: ↑ dV_ou_fan_a_design, ↑ UA_evap_design, or ↓ hp_capacity")
+
+        # Compute Q at both boundaries for diagnostics
+        Q_at_dV_min = Q_ref_target + f_min  # f = Q_air - Q_target → Q_air = f + Q_target
+        Q_at_dV_max = Q_ref_target + f_max
+
+        return {
+            'converged': False,
+            'dV_fan': dV_fallback,
+            'UA': UA_fb,
+            'T_a_ou_mid': cu.K2C(T_mid_fb),
+            'Q_ou_air': Q_fb,
+            'epsilon': eps_fb,
+            # Diagnostic fields for callers
+            'Q_at_dV_min': Q_at_dV_min,
+            'Q_at_dV_max': Q_at_dV_max,
+            'Q_ref_target': Q_ref_target,
+            'dV_min': dV_min,
+            'dV_max': dV_max,
+            'hint': hint,
+        }
+
     sol = root_scalar(_error_function, bracket=[dV_min, dV_max], method='bisect')
     
     if sol.converged:
