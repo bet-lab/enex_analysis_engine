@@ -15,7 +15,7 @@ import numpy as np
 import math
 from . import calc_util as cu
 from dataclasses import dataclass
-from scipy.optimize import minimize
+from scipy.optimize import differential_evolution
 from .enex_functions import (
     calc_ref_state,
 )
@@ -181,17 +181,122 @@ class GroundSourceHeatPumpBoiler:
         # Warm-start: reuse previous optimisation result
         self.prev_opt_x = None
         
+
+    def _calc_off_state(self, T_tank_w, T0):
+        """Return a zero-load result dict for the OFF state.
+
+        Provides saturation-point thermodynamic properties at the
+        current tank and borehole temperatures for consistent logging.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Current tank water temperature [°C].
+        T0 : float
+            Dead-state temperature [°C].
+
+        Returns
+        -------
+        dict
+            Result dictionary with all keys set to OFF-state values.
+        """
+        T_tank_w_K = cu.C2K(T_tank_w)
+
+        # Mixing valve calculation
+        mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        T_serv_w_actual = mix['T_serv_w_actual']
+
+        # Saturation properties at evaporator / condenser pressure
+        P_ref_evap_sat = CP.PropsSI('P', 'T', self.T_b_f_in_K, 'Q', 1, self.ref)
+        h_ref_evap_sat = CP.PropsSI('H', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
+        s_ref_evap_sat = CP.PropsSI('S', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
+
+        P_ref_cond_sat = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
+        h_ref_cond_sat_l = CP.PropsSI('H', 'P', P_ref_cond_sat, 'Q', 0, self.ref)
+        s_ref_cond_sat_l = CP.PropsSI('S', 'P', P_ref_cond_sat, 'Q', 0, self.ref)
+
+        return {
+            'hp_is_on': False,
+            'converged': True,
+
+            # === Temperatures [°C] ===
+            'T_tank_w [°C]': T_tank_w,
+            'T0 [°C]': T0,
+            'T_mix_w_out [°C]': T_serv_w_actual,
+            'T_tank_w_in [°C]': self.T_tank_w_in,
+            'Ts [°C]': self.Ts,
+            'T_bhe [°C]': self.Ts,
+            'T_bhe_f [°C]': self.Ts,
+            'T_bhe_f_in [°C]': self.Ts,
+            'T_bhe_f_out [°C]': self.Ts,
+            'T_ref_evap_sat [°C]': cu.K2C(self.T_b_f_in_K),
+            'T_ref_cond_sat_v [°C]': T_tank_w,
+            'T_ref_cond_sat_l [°C]': T_tank_w,
+            'T_ref_cmp_in [°C]': cu.K2C(self.T_b_f_in_K),
+            'T_ref_cmp_out [°C]': T_tank_w,
+            'T_ref_exp_in [°C]': T_tank_w,
+            'T_ref_exp_out [°C]': cu.K2C(self.T_b_f_in_K),
+            'T_cond [°C]': T_tank_w,
+
+            # === Flow rates [m3/s] ===
+            'dV_mix_w_out [m3/s]': getattr(self, 'dV_mix_w_out', 0.0),
+            'dV_tank_w_in [m3/s]': getattr(self, 'dV_tank_w_in', 0.0),
+            'dV_mix_w_in_sup [m3/s]': getattr(self, 'dV_mix_w_in_sup', 0.0),
+            'dV_bhe_f [m3/s]': self.dV_b_f_m3s,
+
+            # === Pressures [Pa] ===
+            'P_ref_cmp_in [Pa]': P_ref_evap_sat,
+            'P_ref_cmp_out [Pa]': P_ref_cond_sat,
+            'P_ref_exp_in [Pa]': P_ref_cond_sat,
+            'P_ref_exp_out [Pa]': P_ref_evap_sat,
+            'P_ref_evap_sat [Pa]': P_ref_evap_sat,
+            'P_ref_cond_sat_v [Pa]': P_ref_cond_sat,
+            'P_ref_cond_sat_l [Pa]': P_ref_cond_sat,
+
+            # === Enthalpy [J/kg] ===
+            'h_ref_cmp_in [J/kg]': h_ref_evap_sat,
+            'h_ref_cmp_out [J/kg]': h_ref_evap_sat,
+            'h_ref_exp_in [J/kg]': h_ref_cond_sat_l,
+            'h_ref_exp_out [J/kg]': h_ref_cond_sat_l,
+            'h_ref_evap_sat [J/kg]': h_ref_evap_sat,
+            'h_ref_cond_sat_v [J/kg]': h_ref_evap_sat,
+            'h_ref_cond_sat_l [J/kg]': h_ref_cond_sat_l,
+
+            # === Entropy [J/(kg·K)] ===
+            's_ref_cmp_in [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_cmp_out [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_exp_in [J/(kg·K)]': s_ref_cond_sat_l,
+            's_ref_exp_out [J/(kg·K)]': s_ref_cond_sat_l,
+            's_ref_evap_sat [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_cond_sat_v [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_cond_sat_l [J/(kg·K)]': s_ref_cond_sat_l,
+
+            # === Exergy [J/kg] ===
+            'x_ref_cmp_in [J/kg]': 0.0,
+            'x_ref_cmp_out [J/kg]': 0.0,
+            'x_ref_exp_in [J/kg]': 0.0,
+            'x_ref_exp_out [J/kg]': 0.0,
+
+            # === Heat rates [W] ===
+            'Q_bhe [W]': 0.0, 'Q_ref_cond [W]': 0.0, 'Q_ref_evap [W]': 0.0,
+            'Q_LMTD_cond [W]': 0.0, 'Q_LMTD_evap [W]': 0.0, 'Q_cond_load [W]': 0.0,
+
+            # === Power [W] ===
+            'E_cmp [W]': 0.0, 'E_pmp [W]': 0.0, 'E_tot [W]': 0.0,
+
+            # === Mass flow ===
+            'm_dot_ref [kg/s]': 0.0, 'cmp_rpm [rpm]': 0.0,
+        }
+
     def _calc_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
         """Evaluate refrigerant cycle performance for a given operating point.
 
-        Handles both ON and OFF states in a single entry point.
-        When ``Q_cond_load <= 0`` the method returns a zero-load result
-        with saturation-point thermodynamic properties.
+        Delegates to ``_calc_off_state`` when ``Q_cond_load <= 0``.
 
         Parameters
         ----------
         optimization_vars : list of float
-            ``[dT_ref_HX, dT_ref_cond]`` — evaporator and condenser
+            ``[dT_ref_evap, dT_ref_cond]`` — evaporator and condenser
             approach temperature differences [K].
         T_tank_w : float
             Current tank water temperature [°C].
@@ -203,270 +308,195 @@ class GroundSourceHeatPumpBoiler:
         Returns
         -------
         dict or None
-            Result dictionary with cycle state points, heat rates,
-            electrical inputs, and borehole temperatures.
-            ``None`` if the cycle is physically infeasible.
+            Result dictionary.  ``None`` if the cycle is physically infeasible.
         """
-        # OFF 상태: Q_cond_load <= 0
+        # --- OFF state delegation ---
         if Q_cond_load <= 0:
-            T_tank_w_K = cu.C2K(T_tank_w)
-            den = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
-            alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
-            if alp >= 1.0:
-                T_serv_w_actual = T_tank_w
-            else:
-                T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * self.T_tank_w_in_K
-                T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
-            P1_off = CP.PropsSI('P', 'T', self.T_b_f_in_K, 'Q', 1, self.ref)
-            h1_off = CP.PropsSI('H', 'P', P1_off, 'Q', 1, self.ref)
-            s1_off = CP.PropsSI('S', 'P', P1_off, 'Q', 1, self.ref)
-            P3_off = CP.PropsSI('P', 'T', T_tank_w_K, 'Q', 0, self.ref)
-            h3_off = CP.PropsSI('H', 'P', P3_off, 'Q', 0, self.ref)
-            s3_off = CP.PropsSI('S', 'P', P3_off, 'Q', 0, self.ref)
-            return {
-                'hp_is_on': False,
-                'converged': True,
-                'T_tank_w [°C]': T_tank_w,
-                'T0 [°C]': T0,
-                'T_mix_w_out [°C]': T_serv_w_actual,
-                'T_tank_w_in [°C]': self.T_tank_w_in,
-                'Ts [°C]': self.Ts,
-                'T_b [°C]': self.Ts,
-                'T_b_f [°C]': self.Ts,
-                'T_b_f_in [°C]': self.Ts,
-                'T_b_f_out [°C]': self.Ts,
-                'dV_mix_w_out [m3/s]': self.dV_mix_w_out if hasattr(self, 'dV_mix_w_out') else 0.0,
-                'dV_tank_w_in [m3/s]': self.dV_tank_w_in if hasattr(self, 'dV_tank_w_in') else 0.0,
-                'dV_mix_w_in_sup [m3/s]': self.dV_mix_w_in_sup if hasattr(self, 'dV_mix_w_in_sup') else 0.0,
-                'dV_b_f [m3/s]': self.dV_b_f_m3s,
-                'P_ref_cmp_in [Pa]': P1_off,
-                'P_ref_cmp_out [Pa]': P3_off,
-                'P_ref_exp_in [Pa]': P3_off,
-                'P_ref_exp_out [Pa]': P1_off,
-                'P_ref_evap_sat [Pa]': P1_off,
-                'P_ref_cond_sat_v [Pa]': P3_off,
-                'P_ref_cond_sat_l [Pa]': P3_off,
-                'h_ref_cmp_in [J/kg]': h1_off,
-                'h_ref_cmp_out [J/kg]': h1_off,
-                'h_ref_exp_in [J/kg]': h3_off,
-                'h_ref_exp_out [J/kg]': h3_off,
-                'h_ref_evap_sat [J/kg]': h1_off,
-                'h_ref_cond_sat_v [J/kg]': h1_off,
-                'h_ref_cond_sat_l [J/kg]': h3_off,
-                's_ref_cmp_in [J/(kg·K)]': s1_off,
-                's_ref_cmp_out [J/(kg·K)]': s1_off,
-                's_ref_exp_in [J/(kg·K)]': s3_off,
-                's_ref_exp_out [J/(kg·K)]': s3_off,
-                's_ref_evap_sat [J/(kg·K)]': s1_off,
-                's_ref_cond_sat_v [J/(kg·K)]': s1_off,
-                's_ref_cond_sat_l [J/(kg·K)]': s3_off,
-                'x1 [J/kg]': 0.0, 'x2 [J/kg]': 0.0, 'x3 [J/kg]': 0.0, 'x4 [J/kg]': 0.0,
-                'T_ref_evap_sat [°C]': cu.K2C(self.T_b_f_in_K),
-                'T_ref_cond_sat_v [°C]': T_tank_w,
-                'T_ref_cond_sat_l [°C]': T_tank_w,
-                'T_ref_cmp_in [°C]': cu.K2C(self.T_b_f_in_K),
-                'T_ref_cmp_out [°C]': T_tank_w,
-                'T_ref_exp_in [°C]': T_tank_w,
-                'T_ref_exp_out [°C]': cu.K2C(self.T_b_f_in_K),
-                'T_cond [°C]': T_tank_w,
-                'Q_b [W]': 0.0, 'Q_ref_cond [W]': 0.0, 'Q_ref_evap [W]': 0.0,
-                'Q_LMTD_cond [W]': 0.0, 'Q_LMTD_evap [W]': 0.0, 'Q_cond_load [W]': 0.0,
-                'E_cmp [W]': 0.0, 'E_pmp [W]': 0.0, 'E_tot [W]': 0.0,
-                'm_dot_ref [kg/s]': 0.0, 'cmp_rpm [rpm]': 0.0,
-            }
+            return self._calc_off_state(T_tank_w, T0)
 
         # --- Step 1: Unpack optimisation variables ---
-        dT_ref_HX = optimization_vars[0]       # Evaporator approach ΔT [K]
+        dT_ref_evap = optimization_vars[0]     # Evaporator approach ΔT [K]
         dT_ref_cond = optimization_vars[1]     # Condenser approach ΔT [K]
 
-        # --- Step 2: Temperature conversions and evap/cond temperatures ---
+        # --- Step 2: Temperature conversions ---
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
-        T_b_f_in_K = self.T_b_f_in_K           # BHE fluid inlet [K] (from previous step)
+        T_bhe_f_in_K = self.T_b_f_in_K        # BHE fluid inlet [K]
 
-        T_evap_K = T_b_f_in_K - dT_ref_HX      # Evaporation temperature [K]
-        T_cond_K = T_tank_w_K + dT_ref_cond    # Condensation temperature [K]
-        
-        # --- Step 3: Common cycle state calculation ---
+        T_ref_evap_sat_K = T_bhe_f_in_K - dT_ref_evap  # Evaporation sat. temp [K]
+        T_ref_cond_sat_K = T_tank_w_K + dT_ref_cond    # Condensation sat. temp [K]
+
+        # --- Step 3: Refrigerant cycle state calculation ---
         cycle_states = calc_ref_state(
-            T_evap_K=T_evap_K, T_cond_K=T_cond_K,
+            T_evap_K=T_ref_evap_sat_K, T_cond_K=T_ref_cond_sat_K,
             refrigerant=self.ref, eta_cmp_isen=self.eta_cmp_isen,
             T0_K=T0_K, P0=101325,
             dT_superheat=self.dT_superheat, dT_subcool=self.dT_subcool
         )
 
-        rho_ref_cmp_in = cycle_states['rho']  # Density at compressor inlet
+        rho_ref_cmp_in = cycle_states['rho']
 
-        # --- Step 4: Extract state-point properties ---
-        T1_K = cycle_states['T1_K'];  P1 = cycle_states['P1']
-        h1 = cycle_states['h1'];      s1 = cycle_states['s1']
-        T2_K = cycle_states['T2_K'];  P2 = cycle_states['P2']
-        h2 = cycle_states['h2'];      s2 = cycle_states['s2']
-        T3_K = cycle_states['T3_K'];  P3 = cycle_states['P3']
-        h3 = cycle_states['h3'];      s3 = cycle_states['s3']
-        T4_K = cycle_states['T4_K'];  P4 = cycle_states['P4']
-        h4 = cycle_states['h4'];      s4 = cycle_states['s4']
+        # --- Step 4: Extract state-point properties (descriptive names) ---
+        T_ref_cmp_in_K  = cycle_states['T1_K'];  P_ref_cmp_in  = cycle_states['P1']
+        h_ref_cmp_in    = cycle_states['h1'];     s_ref_cmp_in  = cycle_states['s1']
+        T_ref_cmp_out_K = cycle_states['T2_K'];   P_ref_cmp_out = cycle_states['P2']
+        h_ref_cmp_out   = cycle_states['h2'];     s_ref_cmp_out = cycle_states['s2']
+        T_ref_exp_in_K  = cycle_states['T3_K'];   P_ref_exp_in  = cycle_states['P3']
+        h_ref_exp_in    = cycle_states['h3'];     s_ref_exp_in  = cycle_states['s3']
+        T_ref_exp_out_K = cycle_states['T4_K'];   P_ref_exp_out = cycle_states['P4']
+        h_ref_exp_out   = cycle_states['h4'];     s_ref_exp_out = cycle_states['s4']
 
-        if (h3 - h2) == 0:  # Guard against division by zero
+        if (h_ref_exp_in - h_ref_cmp_out) == 0:
             return None
 
         # --- Step 5: Refrigerant mass flow and cycle performance ---
-        m_dot_ref = Q_cond_load / (h2 - h3)   # [kg/s]
-        Q_ref_cond = m_dot_ref * (h2 - h3)    # Condenser heat [W]
-        Q_ref_evap = m_dot_ref * (h1 - h4)    # Evaporator heat (from ground) [W]
-        E_cmp = m_dot_ref * (h2 - h1)         # Compressor power [W]
-        cmp_rps = m_dot_ref / (self.V_disp_cmp * rho_ref_cmp_in)  # [rev/s]
-        
+        m_dot_ref  = Q_cond_load / (h_ref_cmp_out - h_ref_exp_in)
+        Q_ref_cond = m_dot_ref * (h_ref_cmp_out - h_ref_exp_in)
+        Q_ref_evap = m_dot_ref * (h_ref_cmp_in - h_ref_exp_out)
+        E_cmp      = m_dot_ref * (h_ref_cmp_out - h_ref_cmp_in)
+        cmp_rps    = m_dot_ref / (self.V_disp_cmp * rho_ref_cmp_in)
+
         # --- Step 6: Condenser heat transfer (simplified ΔT model) ---
         Q_LMTD_cond = self.UA_cond * dT_ref_cond
 
         # --- Step 7: Borehole heat exchange (evaporator side) ---
-        Q_b = Q_ref_evap - self.E_pmp           # Net ground heat extraction [W]
-        Q_b_unit = Q_b / self.H_b               # Per-unit-length heat rate [W/m]
+        Q_bhe = Q_ref_evap - self.E_pmp
+        Q_bhe_unit = Q_bhe / self.H_b
 
-        # BHE fluid outlet temperature (energy conservation)
-        T_b_f_out_K = T_b_f_in_K + Q_ref_evap / (c_w * rho_w * self.dV_b_f_m3s)
-        T_b_f_out = cu.K2C(T_b_f_out_K)
+        T_bhe_f_out_K = T_bhe_f_in_K + Q_ref_evap / (c_w * rho_w * self.dV_b_f_m3s)
+        T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+        T_bhe_f = (cu.K2C(T_bhe_f_in_K) + T_bhe_f_out) / 2
+        T_bhe = T_bhe_f + Q_bhe_unit * self.R_b
 
-        # Mean fluid temperature and borehole wall temperature
-        T_b_f = (cu.K2C(T_b_f_in_K) + T_b_f_out) / 2
-        T_b = T_b_f + Q_b_unit * self.R_b
+        # Evaporator LMTD (counter-flow)
+        dT1_evap = T_bhe_f_in_K - T_ref_cmp_in_K
+        dT2_evap = T_bhe_f_out_K - T_ref_exp_out_K
 
-        # Evaporator LMTD (counter-flow: ground fluid vs refrigerant)
-        dT1_HX = T_b_f_in_K - T1_K              # Fluid inlet − refrigerant outlet
-        dT2_HX = T_b_f_out_K - T4_K             # Fluid outlet − refrigerant inlet
-
-        if dT1_HX <= 1e-6 or dT2_HX <= 1e-6 or abs(dT1_HX - dT2_HX) < 1e-6:
-            Q_LMTD_evap = np.inf                 # Physically infeasible
+        if dT1_evap <= 1e-6 or dT2_evap <= 1e-6 or abs(dT1_evap - dT2_evap) < 1e-6:
+            Q_LMTD_evap = np.inf
         else:
-            LMTD_HX = (dT1_HX - dT2_HX) / np.log(dT1_HX / dT2_HX)
-            Q_LMTD_evap = self.UA_evap * LMTD_HX
+            LMTD_evap = (dT1_evap - dT2_evap) / np.log(dT1_evap / dT2_evap)
+            Q_LMTD_evap = self.UA_evap * LMTD_evap
 
         # --- Step 8: Specific exergy at each state point ---
         P0 = 101325
         h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, self.ref)
         s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, self.ref)
 
-        x1 = (h1-h0) - T0_K*(s1 - s0)
-        x2 = (h2-h0) - T0_K*(s2 - s0)
-        x3 = (h3-h0) - T0_K*(s3 - s0)
-        x4 = (h4-h0) - T0_K*(s4 - s0)
+        x_ref_cmp_in  = (h_ref_cmp_in  - h0) - T0_K * (s_ref_cmp_in  - s0)
+        x_ref_cmp_out = (h_ref_cmp_out - h0) - T0_K * (s_ref_cmp_out - s0)
+        x_ref_exp_in  = (h_ref_exp_in  - h0) - T0_K * (s_ref_exp_in  - s0)
+        x_ref_exp_out = (h_ref_exp_out - h0) - T0_K * (s_ref_exp_out - s0)
 
         # Saturation-point properties
-        T1_star_K = cycle_states.get('T1_star_K', np.nan)
-        T2_star_K = cycle_states.get('T2_star_K', np.nan)
-        T3_star_K = cycle_states.get('T3_star_K', np.nan)
-        P2_star = cycle_states.get('P2_star', P2)
+        T_ref_evap_sat_K_star = cycle_states.get('T1_star_K', np.nan)
+        T_ref_cond_sat_v_K    = cycle_states.get('T2_star_K', np.nan)
+        T_ref_cond_sat_l_K    = cycle_states.get('T3_star_K', np.nan)
+        P_ref_cond_sat_v      = cycle_states.get('P2_star', P_ref_cmp_out)
 
-        P1_star = P1
-        h1_star = CP.PropsSI('H', 'P', P1_star, 'Q', 1, self.ref)
-        s1_star = CP.PropsSI('S', 'P', P1_star, 'Q', 1, self.ref)
-        x1_star = (h1_star-h0) - T0_K*(s1_star - s0)
+        P_ref_evap_sat = P_ref_cmp_in
+        h_ref_evap_sat = CP.PropsSI('H', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
+        s_ref_evap_sat = CP.PropsSI('S', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
+        x_ref_evap_sat = (h_ref_evap_sat - h0) - T0_K * (s_ref_evap_sat - s0)
 
-        h2_star = cycle_states.get('h2_star', np.nan)
-        s2_star = cycle_states.get('s2_star', np.nan)
-        if np.isnan(h2_star) or np.isnan(s2_star):
-            h2_star = CP.PropsSI('H', 'P', P2_star, 'Q', 1, self.ref)
-            s2_star = CP.PropsSI('S', 'P', P2_star, 'Q', 1, self.ref)
-        x2_star = (h2_star-h0) - T0_K*(s2_star - s0)
+        h_ref_cond_sat_v = cycle_states.get('h2_star', np.nan)
+        s_ref_cond_sat_v = cycle_states.get('s2_star', np.nan)
+        if np.isnan(h_ref_cond_sat_v) or np.isnan(s_ref_cond_sat_v):
+            h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)
+            s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)
+        x_ref_cond_sat_v = (h_ref_cond_sat_v - h0) - T0_K * (s_ref_cond_sat_v - s0)
 
-        P3_star = P3
-        h3_star = CP.PropsSI('H', 'P', P3_star, 'Q', 0, self.ref)
-        s3_star = CP.PropsSI('S', 'P', P3_star, 'Q', 0, self.ref)
-        x3_star = (h3_star-h0) - T0_K*(s3_star - s0)
+        P_ref_cond_sat_l = P_ref_exp_in
+        h_ref_cond_sat_l = CP.PropsSI('H', 'P', P_ref_cond_sat_l, 'Q', 0, self.ref)
+        s_ref_cond_sat_l = CP.PropsSI('S', 'P', P_ref_cond_sat_l, 'Q', 0, self.ref)
+        x_ref_cond_sat_l = (h_ref_cond_sat_l - h0) - T0_K * (s_ref_cond_sat_l - s0)
 
         # --- Step 9: Assemble result dictionary ---
-        T_b_f_in = cu.K2C(T_b_f_in_K)
-        
-        result = {
+        T_bhe_f_in = cu.K2C(T_bhe_f_in_K)
+
+        return {
             'hp_is_on': True,
             'converged': True,
-            
-            # === [온도: °C] =======================================
-            # Saturation Points (ASHPB naming)
-            'T_ref_evap_sat [°C]': cu.K2C(T1_star_K),
-            'T_ref_cond_sat_v [°C]': cu.K2C(T2_star_K),
-            'T_ref_cond_sat_l [°C]': cu.K2C(T3_star_K),
-            
-            # Actual Points (ASHPB naming)
+
+            # === Temperatures [°C] ===
+            'T_ref_evap_sat [°C]': cu.K2C(T_ref_evap_sat_K_star),
+            'T_ref_cond_sat_v [°C]': cu.K2C(T_ref_cond_sat_v_K),
+            'T_ref_cond_sat_l [°C]': cu.K2C(T_ref_cond_sat_l_K),
             'T0 [°C]': T0,
-            'T_ref_cmp_in [°C]': cu.K2C(T1_K),
-            'T_ref_cmp_out [°C]': cu.K2C(T2_K),
-            'T_ref_exp_in [°C]': cu.K2C(T3_K),
-            'T_ref_exp_out [°C]': cu.K2C(T4_K),
-            'T_cond [°C]': cu.K2C(T3_star_K if not np.isnan(T3_star_K) else T3_K),  # 대표 응축 온도는 포화 온도로 표시
+            'T_ref_cmp_in [°C]': cu.K2C(T_ref_cmp_in_K),
+            'T_ref_cmp_out [°C]': cu.K2C(T_ref_cmp_out_K),
+            'T_ref_exp_in [°C]': cu.K2C(T_ref_exp_in_K),
+            'T_ref_exp_out [°C]': cu.K2C(T_ref_exp_out_K),
+            'T_cond [°C]': cu.K2C(T_ref_cond_sat_l_K if not np.isnan(T_ref_cond_sat_l_K) else T_ref_exp_in_K),
             'T_tank_w [°C]': T_tank_w,
             'T_mix_w_out [°C]': self.T_mix_w_out,
             'T_tank_w_in [°C]': self.T_tank_w_in,
             'Ts [°C]': self.Ts,
-            'T_b [°C]': T_b,
-            'T_b_f [°C]': T_b_f,
-            'T_b_f_in [°C]': T_b_f_in,
-            'T_b_f_out [°C]': T_b_f_out,
-            
-            # === [체적유량: m3/s] ==================================
-            'dV_b_f [m3/s]': self.dV_b_f_m3s,
-            'dV_mix_w_out [m3/s]': self.dV_mix_w_out if hasattr(self, 'dV_mix_w_out') else 0.0,
-            'dV_tank_w_in [m3/s]': self.dV_tank_w_in if hasattr(self, 'dV_tank_w_in') else 0.0,
-            'dV_mix_w_in_sup [m3/s]': self.dV_mix_w_in_sup if hasattr(self, 'dV_mix_w_in_sup') else 0.0,
-            
-            # === [압력: Pa] ========================================
-            'P_ref_cmp_in [Pa]': P1,
-            'P_ref_cmp_out [Pa]': P2,
-            'P_ref_exp_in [Pa]': P3,
-            'P_ref_exp_out [Pa]': P4,
-            'P_ref_evap_sat [Pa]': P1_star,
-            'P_ref_cond_sat_v [Pa]': P2_star,
-            'P_ref_cond_sat_l [Pa]': P3_star,
-            
-            # === [질량유량: kg/s] ==================================
+            'T_bhe [°C]': T_bhe,
+            'T_bhe_f [°C]': T_bhe_f,
+            'T_bhe_f_in [°C]': T_bhe_f_in,
+            'T_bhe_f_out [°C]': T_bhe_f_out,
+
+            # === Flow rates [m3/s] ===
+            'dV_bhe_f [m3/s]': self.dV_b_f_m3s,
+            'dV_mix_w_out [m3/s]': getattr(self, 'dV_mix_w_out', 0.0),
+            'dV_tank_w_in [m3/s]': getattr(self, 'dV_tank_w_in', 0.0),
+            'dV_mix_w_in_sup [m3/s]': getattr(self, 'dV_mix_w_in_sup', 0.0),
+
+            # === Pressures [Pa] ===
+            'P_ref_cmp_in [Pa]': P_ref_cmp_in,
+            'P_ref_cmp_out [Pa]': P_ref_cmp_out,
+            'P_ref_exp_in [Pa]': P_ref_exp_in,
+            'P_ref_exp_out [Pa]': P_ref_exp_out,
+            'P_ref_evap_sat [Pa]': P_ref_evap_sat,
+            'P_ref_cond_sat_v [Pa]': P_ref_cond_sat_v,
+            'P_ref_cond_sat_l [Pa]': P_ref_cond_sat_l,
+
+            # === Mass flow [kg/s] ===
             'm_dot_ref [kg/s]': m_dot_ref,
-            
-            # === [rpm] =============================================
             'cmp_rpm [rpm]': cmp_rps * 60,
-            
-            # === [엔탈피: J/kg] ====================================
-            'h_ref_cmp_in [J/kg]': h1,
-            'h_ref_cmp_out [J/kg]': h2,
-            'h_ref_exp_in [J/kg]': h3,
-            'h_ref_exp_out [J/kg]': h4,
-            'h_ref_evap_sat [J/kg]': h1_star,
-            'h_ref_cond_sat_v [J/kg]': h2_star,
-            'h_ref_cond_sat_l [J/kg]': h3_star,
-            
-            # === [엔트로피: J/(kg·K)] ==============================
-            's_ref_cmp_in [J/(kg·K)]': s1,
-            's_ref_cmp_out [J/(kg·K)]': s2,
-            's_ref_exp_in [J/(kg·K)]': s3,
-            's_ref_exp_out [J/(kg·K)]': s4,
-            's_ref_evap_sat [J/(kg·K)]': s1_star,
-            's_ref_cond_sat_v [J/(kg·K)]': s2_star,
-            's_ref_cond_sat_l [J/(kg·K)]': s3_star,
-            
-            # === [엑서지 단위: J/kg] ===============================
-            'x1 [J/kg]': x1,
-            'x2 [J/kg]': x2,
-            'x3 [J/kg]': x3,
-            'x4 [J/kg]': x4,
-            'x1_star [J/kg]': x1_star,
-            'x2_star [J/kg]': x2_star,
-            'x3_star [J/kg]': x3_star,
-            
-            # === [에너지/열량: W] ==================================
+
+            # === Enthalpy [J/kg] ===
+            'h_ref_cmp_in [J/kg]': h_ref_cmp_in,
+            'h_ref_cmp_out [J/kg]': h_ref_cmp_out,
+            'h_ref_exp_in [J/kg]': h_ref_exp_in,
+            'h_ref_exp_out [J/kg]': h_ref_exp_out,
+            'h_ref_evap_sat [J/kg]': h_ref_evap_sat,
+            'h_ref_cond_sat_v [J/kg]': h_ref_cond_sat_v,
+            'h_ref_cond_sat_l [J/kg]': h_ref_cond_sat_l,
+
+            # === Entropy [J/(kg·K)] ===
+            's_ref_cmp_in [J/(kg·K)]': s_ref_cmp_in,
+            's_ref_cmp_out [J/(kg·K)]': s_ref_cmp_out,
+            's_ref_exp_in [J/(kg·K)]': s_ref_exp_in,
+            's_ref_exp_out [J/(kg·K)]': s_ref_exp_out,
+            's_ref_evap_sat [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_cond_sat_v [J/(kg·K)]': s_ref_cond_sat_v,
+            's_ref_cond_sat_l [J/(kg·K)]': s_ref_cond_sat_l,
+
+            # === Exergy [J/kg] ===
+            'x_ref_cmp_in [J/kg]': x_ref_cmp_in,
+            'x_ref_cmp_out [J/kg]': x_ref_cmp_out,
+            'x_ref_exp_in [J/kg]': x_ref_exp_in,
+            'x_ref_exp_out [J/kg]': x_ref_exp_out,
+            'x_ref_evap_sat [J/kg]': x_ref_evap_sat,
+            'x_ref_cond_sat_v [J/kg]': x_ref_cond_sat_v,
+            'x_ref_cond_sat_l [J/kg]': x_ref_cond_sat_l,
+
+            # === Heat rates [W] ===
             'Q_cond_load [W]': Q_cond_load,
             'Q_ref_cond [W]': Q_ref_cond,
             'Q_ref_evap [W]': Q_ref_evap,
             'Q_LMTD_cond [W]': Q_LMTD_cond,
             'Q_LMTD_evap [W]': Q_LMTD_evap,
-            'Q_b [W]': Q_b,
-            
-            # === [전력: W] =========================================
+            'Q_bhe [W]': Q_bhe,
+
+            # === Power [W] ===
             'E_cmp [W]': E_cmp,
             'E_pmp [W]': self.E_pmp,
             'E_tot [W]': E_cmp + self.E_pmp,
         }
-        
-        return result
+
     
     def analyze_steady(
         self,
@@ -548,10 +578,10 @@ class GroundSourceHeatPumpBoiler:
         return pd.DataFrame([result])
     
     def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
-        """Find minimum-power operating point via SLSQP.
+        """Find minimum-power operating point via Differential Evolution.
 
-        Optimisation variables are ``[dT_ref_HX, dT_ref_cond]``.
-        The condenser LMTD constraint ensures heat-exchanger feasibility.
+        Optimisation variables are ``[dT_ref_evap, dT_ref_cond]``.
+        The condenser LMTD constraint is enforced via a penalty function.
 
         Parameters
         ----------
@@ -566,75 +596,14 @@ class GroundSourceHeatPumpBoiler:
         -------
         scipy.optimize.OptimizeResult
         """
-        # tolerance 변수 정의
         tolerance = 0.01  # 1%
-        
-        # 최적화 변수 경계 조건 및 초기 추정값 설정 (prev_opt_x 재사용)
-        bounds = [(1.0, 30.0), (1.0, 30.0)]  # [dT_ref_HX, dT_ref_cond]
-        initial_guess = self.prev_opt_x if self.prev_opt_x is not None else [5.0, 5.0]
-        
-        # 응축기 LMTD 제약 조건 함수 (하한): Q_LMTD_cond - Q_cond_load >= 0
-        def _cond_LMTD_constraint_low(x):
+        bounds = [(1.0, 30.0), (1.0, 30.0)]  # [dT_ref_evap, dT_ref_cond]
+        penalty_weight = 1e4
+
+        def _objective(x):
             """
-            응축기 LMTD 제약 조건 함수 (하한): Q_LMTD_cond - Q_cond_load >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
-            try:
-                perf = self._calc_state(
-                    optimization_vars=x,
-                    T_tank_w=T_tank_w,
-                    Q_cond_load=Q_cond_load,
-                    T0=T0
-                )
-                if perf is None or not isinstance(perf, dict):
-                    return -1e6  # ineq 제약이므로 음수 반환
-                
-                if "Q_LMTD_cond [W]" not in perf or np.isnan(perf["Q_LMTD_cond [W]"]):
-                    return -1e6
-                
-                # 제약 조건: Q_LMTD_cond - Q_cond_load >= 0
-                return perf["Q_LMTD_cond [W]"] - Q_cond_load
-            except Exception as e:
-                return -1e6
-        
-        # 응축기 LMTD 제약 조건 함수 (상한): Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
-        def _cond_LMTD_constraint_high(x):
-            """
-            응축기 LMTD 제약 조건 함수 (상한): Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
-            perf가 None이면 (수렴 실패 등) 큰 제약 조건 위반 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
-            """
-            try:
-                perf = self._calc_state(
-                    optimization_vars=x,
-                    T_tank_w=T_tank_w,
-                    Q_cond_load=Q_cond_load,
-                    T0=T0
-                )
-                if perf is None or not isinstance(perf, dict):
-                    return -1e6  # ineq 제약이므로 음수 반환
-                
-                if "Q_LMTD_cond [W]" not in perf or np.isnan(perf["Q_LMTD_cond [W]"]):
-                    return -1e6
-                
-                # 제약 조건: Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
-                return Q_cond_load * (1 + tolerance) - perf["Q_LMTD_cond [W]"]
-            except Exception as e:
-                return -1e6
-        
-        # 제약 조건: 응축기만 두 개의 ineq 제약 (증발기 제약조건 제거)
-        const_funcs = [
-            {'type': 'ineq', 'fun': _cond_LMTD_constraint_low},   # Q_LMTD_cond - Q_cond_load >= 0
-            {'type': 'ineq', 'fun': _cond_LMTD_constraint_high},  # Q_cond_load*(1+tolerance) - Q_LMTD_cond >= 0
-        ]
-        
-        # 목적 함수: E_tot (총 전력 소비) 최소화
-        def _objective(x):  # x = [dT_ref_HX, dT_ref_cond]
-            """
-            목적 함수: E_tot (총 전력 소비) 최소화.
-            perf가 None이면 (수렴 실패 등) 큰 penalty 값을 반환하여
-            최적화 알고리즘이 해당 변수 조합을 피하고 다른 조합을 시도하도록 함.
+            목적 함수: E_tot 최소화 + 응축기 LMTD 제약 위반 penalty.
+            DE는 population-based 글로벌 최적화이므로 penalty 방식으로 제약 처리.
             """
             try:
                 perf = self._calc_state(
@@ -645,37 +614,48 @@ class GroundSourceHeatPumpBoiler:
                 )
                 if perf is None or not isinstance(perf, dict):
                     return 1e6
-                
-                if "E_tot [W]" not in perf or np.isnan(perf["E_tot [W]"]):
+
+                E_tot = perf.get("E_tot [W]", np.nan)
+                if np.isnan(E_tot):
                     return 1e6
-                
-                # 목적 함수: E_tot 최소화
-                return perf["E_tot [W]"]
-            except Exception as e:
+
+                # --- 응축기 LMTD 제약 조건 penalty ---
+                penalty = 0.0
+                Q_LMTD_cond = perf.get("Q_LMTD_cond [W]", np.nan)
+                if not np.isnan(Q_LMTD_cond):
+                    # 하한: Q_LMTD_cond >= Q_cond_load
+                    cond_low = Q_cond_load - Q_LMTD_cond
+                    if cond_low > 0:
+                        penalty += penalty_weight * cond_low**2
+                    # 상한: Q_LMTD_cond <= Q_cond_load*(1+tolerance)
+                    cond_high = Q_LMTD_cond - Q_cond_load * (1 + tolerance)
+                    if cond_high > 0:
+                        penalty += penalty_weight * cond_high**2
+
+                return E_tot + penalty
+            except Exception:
                 return 1e6
-        
-        # SLSQP 옵션
-        if True:  # SLSQP only
-            options = {
-                'disp': False,
-                'maxiter': 100,
-                'ftol': 10,      # 함수 값 수렴 허용 오차
-                'eps': 0.01,      # 유한 차분 근사 스텝 크기
-            }
-        # 최적화 실행
-        opt_result = minimize(
-            _objective,           # 목적 함수 (E_tot = E_cmp + E_pmp 최소화)
-            initial_guess,        # 초기 추정값
-            method='SLSQP',
+
+        # Warm-start: 이전 최적화 결과를 초기 population에 주입
+        x0 = self.prev_opt_x if self.prev_opt_x is not None else None
+
+        opt_result = differential_evolution(
+            _objective,
             bounds=bounds,
-            constraints=const_funcs,
-            options=options
+            x0=x0,
+            maxiter=50,
+            popsize=10,
+            tol=1e-4,
+            seed=42,
+            polish=True,
+            disp=False,
         )
-        
+
         if opt_result.success:
             self.prev_opt_x = np.array(opt_result.x).copy()
         return opt_result
-    
+
+
     def analyze_dynamic(
         self, 
         simulation_period_sec, 
@@ -721,11 +701,11 @@ class GroundSourceHeatPumpBoiler:
         self.dt = dt_s
         
         # --- 1. 시뮬레이션 초기화 ---
-        self.T_b_f = self.Ts # 초기 지중열 교환기 유출수 온도
-        self.T_b = self.Ts   # 초기 지중 온도
-        self.T_b_f_in = self.Ts # 초기 지중열 교환기 유입수 온도
-        self.T_b_f_out = self.Ts # 초기 지중열 교환기 유출수 온도
-        self.Q_b = 0.0 # 초기 지중열 교환기 열 유량
+        self.T_bhe_f = self.Ts     # 초기 BHE 평균 유체 온도
+        self.T_bhe = self.Ts       # 초기 BHE 벽면 온도
+        self.T_bhe_f_in = self.Ts   # 초기 BHE 유입수 온도
+        self.T_bhe_f_out = self.Ts  # 초기 BHE 유출수 온도
+        self.Q_bhe = 0.0            # 초기 BHE 열 유량
         
         self.dV_mix_w_out = 0.0 
         self.dV_tank_w_in = 0.0 
@@ -734,8 +714,8 @@ class GroundSourceHeatPumpBoiler:
         self.w_use_frac = build_schedule_ratios(schedule_entries, self.time)
         
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
-        Q_b_unit_pulse = np.zeros(tN)
-        Q_b_unit_old = 0
+        Q_bhe_unit_pulse = np.zeros(tN)
+        Q_bhe_unit_old = 0
         is_on_prev = False
 
         # --- 2. 시뮬레이션 루프 ---
@@ -828,11 +808,11 @@ class GroundSourceHeatPumpBoiler:
                 step_results['is_transitioning'] = True
                 
                 # 전환 시점에서는 이전 스텝의 지중 온도 값 유지 (점진적 전환)
-                step_results['T_b [°C]'] = self.T_b  # 이전 스텝 값
-                step_results['T_b_f [°C]'] = self.T_b_f
-                step_results['T_b_f_in [°C]'] = self.T_b_f_in
-                step_results['T_b_f_out [°C]'] = self.T_b_f_out
-                step_results['Q_b [W]'] = 0.0  # 전환 시점에서는 0으로 시작
+                step_results['T_bhe [°C]'] = self.T_bhe
+                step_results['T_bhe_f [°C]'] = self.T_bhe_f
+                step_results['T_bhe_f_in [°C]'] = self.T_bhe_f_in
+                step_results['T_bhe_f_out [°C]'] = self.T_bhe_f_out
+                step_results['Q_bhe [W]'] = 0.0
             else:
                 step_results.update(result)
                 step_results['hp_is_on'] = is_on
@@ -840,60 +820,50 @@ class GroundSourceHeatPumpBoiler:
 
             # 지중 온도 업데이트
             if is_transitioning_off_to_on:
-                # 전환 시점: 점진적 전환을 위해 Q_b_unit을 0으로 시작
-                Q_b_unit = 0.0
+                # 전환 시점: 점진적 전환을 위해 Q_bhe_unit을 0으로 시작
+                Q_bhe_unit = 0.0
                 # 펄스 계산 건너뛰기 (전환 시점에서는 펄스 없음)
-                # Q_b_unit_old를 0으로 업데이트하여 다음 스텝에서 정상 계산 시작
-                Q_b_unit_old = 0.0
+                # Q_bhe_unit_old를 0으로 업데이트하여 다음 스텝에서 정상 계산 시작
+                Q_bhe_unit_old = 0.0
             else:
                 # 일반 시점: 정상 계산
-                Q_b_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('hp_is_on') else 0.0
+                Q_bhe_unit = (result.get('Q_ref_evap [W]', 0.0) - self.E_pmp) / self.H_b if result.get('hp_is_on') else 0.0
             
-            if abs(Q_b_unit - Q_b_unit_old) > 1e-6: # 만약 Q_b이 이전 스텝과 일정 수준 이상 차이가 난다면 펄스가 나타난 것으로 간주
-                Q_b_unit_pulse[n] = Q_b_unit - Q_b_unit_old # 펄스는 이전 값과의 차이
-                Q_b_unit_old = Q_b_unit # 업데이트
+            if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
+                Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
+                Q_bhe_unit_old = Q_bhe_unit
         
             # 펄스 계산 (전환 시점이 아닐 때만)
             if not is_transitioning_off_to_on:
-                pulses_idx = np.flatnonzero(Q_b_unit_pulse[:n+1])
-                dQ = Q_b_unit_pulse[pulses_idx]
+                pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[:n+1])
+                dQ = Q_bhe_unit_pulse[pulses_idx]
                 tau = self.time[n] - self.time[pulses_idx]
                 
-                # g-function 계산은 여전히 루프가 필요
                 g_n = np.array([G_FLS(t, self.k_s, self.alp_s, self.r_b, self.H_b) for t in tau])
-                dT_b = np.dot(dQ, g_n)
+                dT_bhe = np.dot(dQ, g_n)
                 
-                self.T_b = self.Ts - dT_b
-                self.T_b_f = self.T_b - Q_b_unit * self.R_b
-                self.Q_b = Q_b_unit * self.H_b
-                self.T_b_f_in  = self.T_b_f - self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
-                self.T_b_f_out = self.T_b_f + self.Q_b / (2 * c_w * rho_w * self.dV_b_f_m3s) # °C
-                self.T_b_f_in_K  = cu.C2K(self.T_b_f_in)
-                self.T_b_f_out_K = cu.C2K(self.T_b_f_out)
+                self.T_bhe = self.Ts - dT_bhe
+                self.T_bhe_f = self.T_bhe - Q_bhe_unit * self.R_b
+                self.Q_bhe = Q_bhe_unit * self.H_b
+                self.T_bhe_f_in  = self.T_bhe_f - self.Q_bhe / (2 * c_w * rho_w * self.dV_b_f_m3s)
+                self.T_bhe_f_out = self.T_bhe_f + self.Q_bhe / (2 * c_w * rho_w * self.dV_b_f_m3s)
+                self.T_b_f_in_K  = cu.C2K(self.T_bhe_f_in)
+                self.T_b_f_out_K = cu.C2K(self.T_bhe_f_out)
             
-                # step_results에 반영
-                step_results['T_b [°C]'] = self.T_b
-                step_results['T_b_f [°C]'] = self.T_b_f
-                step_results['T_b_f_in [°C]'] = self.T_b_f_in
-                step_results['T_b_f_out [°C]'] = self.T_b_f_out
-                step_results['Q_b [W]'] = self.Q_b
+                step_results['T_bhe [°C]'] = self.T_bhe
+                step_results['T_bhe_f [°C]'] = self.T_bhe_f
+                step_results['T_bhe_f_in [°C]'] = self.T_bhe_f_in
+                step_results['T_bhe_f_out [°C]'] = self.T_bhe_f_out
+                step_results['Q_bhe [W]'] = self.Q_bhe
             
-            # UV 램프 전력 계산 (is_on과 무관)
-            E_uv = 0
-            if (
-                self.num_switching_per_3hour > 0
-                and self.lamp_power_watts > 0
-            ):
-                time_in_period = time[n] % self.period_3hour_sec
-                interval = (
-                    self.period_3hour_sec
-                    - self.num_switching_per_3hour * self.uv_lamp_exposure_duration_sec
-                ) / (self.num_switching_per_3hour + 1)
-                for i in range(self.num_switching_per_3hour):
-                    start_time = interval * (i + 1) + i * self.uv_lamp_exposure_duration_sec
-                    if start_time <= time_in_period < start_time + self.uv_lamp_exposure_duration_sec:
-                        E_uv = self.lamp_power_watts
-                        break
+            # UV 램프 전력 계산 (공유 함수 사용)
+            E_uv = calc_uv_lamp_power(
+                current_time_s=time[n],
+                period_sec=self.period_3hour_sec,
+                num_switching=self.num_switching_per_3hour,
+                exposure_sec=self.uv_lamp_exposure_duration_sec,
+                lamp_watts=self.lamp_power_watts,
+            )
             
             step_results['hp_is_on'] = is_on
             if self.lamp_power_watts > 0:

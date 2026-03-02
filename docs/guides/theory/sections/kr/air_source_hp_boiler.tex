@@ -5,7 +5,7 @@
 \section{공기열원 히트펌프 급탕기}
 \label{sec:ashpb}
 
-본 절은 \texttt{AirSourceHeatPumpBoiler.py}에 구현된 동적 ASHPB 모델을 기술한다. 증기압축 냉매 사이클, 물리 기반 열교환기, SLSQP 최적화기, 히스테리시스 제어 저탕조를 통합한다.
+본 절은 \texttt{AirSourceHeatPumpBoiler.py}에 구현된 동적 ASHPB 모델을 기술한다. 증기압축 냉매 사이클, 물리 기반 열교환기, Differential Evolution 최적화기, 히스테리시스 제어 저탕조를 통합한다.
 
 \subsection{가정}
 \begin{enumerate}
@@ -24,7 +24,7 @@
   T_\text{eva,sat} &= T_0 - \Delta T_\text{ref,evap}  \label{eq:ashp-Teva}\\
   T_\text{cond,sat} &= T_\text{w,tank} + \Delta T_\text{ref,cond} \label{eq:ashp-Tcond}
 \end{align}
-여기서 $\Delta T_\text{ref,evap}$, $\Delta T_\text{ref,cond}$는 SLSQP 최적화 변수이다.
+여기서 $\Delta T_\text{ref,evap}$, $\Delta T_\text{ref,cond}$는 Differential Evolution 최적화 변수이다.
 
 압축기 입구 (과열):
 \begin{equation}\label{eq:ashp-cmp-in}
@@ -64,7 +64,7 @@
   E_\text{cmp} = \dot{m}_\text{ref}\,(h_\text{cmp,out} - h_\text{cmp,in})
 \end{equation}
 
-\subsection{SLSQP 최적화}
+\subsection{Differential Evolution 최적화}
 
 \paragraph{목적함수.}
 총 소비 전력 최소화:
@@ -79,6 +79,49 @@
   \item 팬 유량 범위: $0.1\,\dot{V}_\text{design} \le \dot{V}_\text{fan} \le \dot{V}_\text{design}$
   \item 압축기 회전수 범위: $n_\text{min} \le n_\text{cmp} \le n_\text{max}$
 \end{itemize}
+
+\subsection{저탕조 에너지 밸런스}
+\label{sec:ashpb-tank}
+
+저탕조는 가변 질량의 집중정전용량(lumped capacitance) 모델로 취급한다.
+지배 상미분방정식은 다음과 같다:
+\begin{equation}\label{eq:ashp-tank-ode}
+  C \frac{dT}{dt} = \dot{Q}_\text{gain} - UA_\text{tank}\,(T - T_0)
+\end{equation}
+여기서 $C = c_w \rho_w V_\text{tank} \cdot \ell$은 유효 열용량(저탕조 수위 $\ell \in (0,1]$에 의해 스케일링),
+$\dot{Q}_\text{gain}$은 열원 항(응축기, UV 램프, STC, 급수 엔탈피)의 합이다.
+
+\paragraph{완전 음해법(Fully Implicit) 이산화.}
+모든 온도 의존 항을 $n{+}1$ 시점에서 평가하며, 질량--에너지 연립 시스템을
+Newton--Raphson(\texttt{scipy.optimize.fsolve})으로 동시에 풀어 구한다.
+
+\textbf{에너지 잔차:}
+\begin{equation}\label{eq:ashp-implicit-energy}
+  r_E = C_\text{full}\,\ell^{n+1}\,T^{n+1}
+      - C_\text{full}\,\ell^{n}\,T^{n}
+      - \Delta t\,\bigl[
+          \dot{Q}_\text{HP} + E_\text{UV} + E_\text{pump}
+          + \dot{Q}_\text{STC}(T^{n+1})
+          + \dot{Q}_\text{refill}(T^{n+1})
+          - UA\,(T^{n+1} - T_0)
+        \bigr]
+\end{equation}
+여기서
+$\dot{Q}_\text{refill}(T) = c_w \rho_w \dot{V}_\text{in}(T_\text{refill} - T)$,
+$\dot{Q}_\text{STC}(T)$는 탱크 온도 $T$에서 평가된 순 STC 이득이다.
+
+\textbf{질량 잔차:}
+\begin{equation}\label{eq:ashp-implicit-mass}
+  r_M = \ell^{n+1} - \ell^{n}
+      - \frac{\dot{V}_\text{in} - \dot{V}_\text{out}(T^{n+1})}{V_\text{full}}\,\Delta t
+\end{equation}
+여기서 $\dot{V}_\text{out}(T) = \alpha(T)\,\dot{V}_\text{mix}$이며,
+믹싱 비율은
+$\alpha(T) = \text{clip}\bigl(\frac{T_\text{mix}-T_\text{in}}{T - T_\text{in}},\;0,\;1\bigr)$이다.
+
+미지수 $[T^{n+1},\,\ell^{n+1}]$는 $\mathbf{r} = \mathbf{0}$을
+\texttt{fsolve}로 풀어 결정한다.
+이 방법은 무조건 안정하며, 가변 탱크 질량과 온도의 강한 연성을 처리할 수 있다.
 
 \subsection{엑서지 분석}
 

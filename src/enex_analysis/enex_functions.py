@@ -622,6 +622,80 @@ def calc_exergy_flow(G, T, T0):
 # Flow and Mixing Functions
 # ============================================================================
 
+def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
+    """Calculate 3-way mixing valve output temperature and mixing ratio.
+
+    Mixes hot tank water with cold mains water to achieve the target
+    service temperature ``T_mix_w_out_K``.
+
+    Parameters
+    ----------
+    T_tank_w_K : float
+        Current tank water temperature [K].
+    T_tank_w_in_K : float
+        Mains (cold) water supply temperature [K].
+    T_mix_w_out_K : float
+        Target delivery temperature [K].
+
+    Returns
+    -------
+    dict
+        ``{'alp': float, 'T_serv_w_actual': float, 'T_serv_w_actual_K': float}``
+        - ``alp``: hot-water fraction [0–1]
+        - ``T_serv_w_actual``: actual service temperature [°C]
+        - ``T_serv_w_actual_K``: actual service temperature [K]
+    """
+    den = max(1e-6, T_tank_w_K - T_tank_w_in_K)
+    alp = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
+
+    if alp >= 1.0:
+        T_serv_w_actual_K = T_tank_w_K
+    else:
+        T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * T_tank_w_in_K
+
+    T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+    return {
+        'alp': alp,
+        'T_serv_w_actual': T_serv_w_actual,
+        'T_serv_w_actual_K': T_serv_w_actual_K,
+    }
+
+
+def calc_uv_lamp_power(current_time_s, period_sec, num_switching, exposure_sec, lamp_watts):
+    """Calculate UV lamp power at a given time instant.
+
+    The lamp switches on ``num_switching`` times per ``period_sec``,
+    each activation lasting ``exposure_sec``.
+
+    Parameters
+    ----------
+    current_time_s : float
+        Current simulation time [s].
+    period_sec : float
+        Switching period (e.g. 3 h → 10800 s).
+    num_switching : int
+        Number of on-cycles per period.
+    exposure_sec : float
+        Duration of each on-cycle [s].
+    lamp_watts : float
+        Rated lamp power [W].
+
+    Returns
+    -------
+    float
+        Instantaneous lamp power [W] (0 or ``lamp_watts``).
+    """
+    if num_switching <= 0 or lamp_watts <= 0:
+        return 0.0
+
+    time_in_period = current_time_s % period_sec
+    interval = (period_sec - num_switching * exposure_sec) / (num_switching + 1)
+    for i in range(num_switching):
+        start_time = interval * (i + 1) + i * exposure_sec
+        if start_time <= time_in_period < start_time + exposure_sec:
+            return lamp_watts
+    return 0.0
+
 def calc_Orifice_flow_coefficient(D0, D1):
     """
     Calculate the orifice flow coefficient based on diameters.
@@ -2285,46 +2359,173 @@ def find_ref_loop_optimal_operation(
         return None
 
 def update_tank_temperature(
-    T_tank_w_K,      # 현재 탱크 온도 [K]
-    Q_tank_in,       # 탱크 입력 열량 [W]
-    total_loss,      # 총 손실 [W] (Q_tank_loss + Q_use_loss)
+    T_tank_w_K,
+    Q_gain,
+    UA_tank,
+    T0_K,
     C_tank,
     dt):
-    """
-    탱크 온도를 업데이트합니다.
-    
-    열량 밸런스 기반으로 다음 타임스텝의 탱크 온도를 계산합니다:
-    Q_net = Q_tank_in - total_loss
-    T_tank_w_K_new = T_tank_w_K + (Q_net / C_tank) * dt
-    
-    Parameters:
-    -----------
+    """Update tank temperature using the Crank-Nicolson implicit scheme.
+
+    The governing ODE for a lumped-capacitance tank is:
+
+        C dT/dt = Q_gain - UA (T - T0)
+
+    Crank-Nicolson averages the loss term across both time levels:
+
+        T^{n+1} = [(C/dt - UA/2) T^n + Q_gain + UA T0] / (C/dt + UA/2)
+
+    This scheme is second-order accurate in time and unconditionally
+    stable, eliminating the overshoot that Forward Euler can exhibit
+    when dt is large relative to the thermal time constant C/UA.
+
+    Parameters
+    ----------
     T_tank_w_K : float
-        현재 탱크 온도 [K]
-    Q_tank_in : float
-        탱크 입력 열량 [W] (예: 응축기에서 전달되는 열량)
-    total_loss : float
-        총 손실 [W] (탱크 외벽 손실 + 급탕 사용 손실)
+        Current tank temperature [K].
+    Q_gain : float
+        Total heat gain rate [W] (condenser, UV, STC, refill, etc.).
+    UA_tank : float
+        Overall tank heat-loss coefficient [W/K].
+    T0_K : float
+        Dead-state / ambient temperature [K].
     C_tank : float
-        탱크 열용량 [J/K] (C_tank = c_w * rho_w * V_tank)
+        Tank thermal capacitance [J/K] (= c_w * rho_w * V_tank * level).
     dt : float
-        타임스텝 [s]
-    
-    Returns:
-    --------
+        Time step [s].
+
+    Returns
+    -------
     float
-        업데이트된 탱크 온도 [K]
-    
-    Notes:
-    ------
-    - 열량 밸런스: Q_net = Q_tank_in - total_loss
-    - 온도 변화: dT = Q_net * dt / C_tank
-    - 다음 타임스텝 온도: T_new = T_old + dT
+        Updated tank temperature [K].
     """
-    Q_net = Q_tank_in - total_loss
-    dT = (Q_net / C_tank) * dt
-    T_tank_w_K_new = T_tank_w_K + dT
+    a = C_tank / dt
+    T_tank_w_K_new = ((a - UA_tank / 2) * T_tank_w_K + Q_gain + UA_tank * T0_K) / (a + UA_tank / 2)
     return T_tank_w_K_new
+
+
+def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
+    """Compute exergy variables and append them to a simulation DataFrame.
+
+    Adds refrigerant-state specific exergy, electricity exergy, air exergy,
+    condenser exergy, tank water exergy, exergy accumulation, total exergy,
+    exergy consumption, and COP columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Simulation result DataFrame from ``analyze_dynamic()``.
+    ref : str
+        CoolProp refrigerant identifier (e.g. ``'R134a'``).
+    C_tank : float
+        Full-tank thermal capacitance [J/K].
+    dt : float
+        Simulation time step [s].
+    T_tank_w_in : float
+        Mains water supply temperature [°C].
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with exergy columns appended.
+    """
+    df = df.copy()
+    P0 = 101325
+
+    def _C2K(T_C):
+        return T_C + 273.15
+
+    T0_K = _C2K(df['T0 [°C]'])
+    T_tank_K = _C2K(df['T_tank_w [°C]'])
+
+    # 1. Refrigerant entropy / exergy
+    state_map = {
+        1: ('cmp_in', 'P_ref_cmp_in [Pa]', 'h_ref_cmp_in [J/kg]'),
+        2: ('cmp_out', 'P_ref_cmp_out [Pa]', 'h_ref_cmp_out [J/kg]'),
+        3: ('exp_in', 'P_ref_exp_in [Pa]', 'h_ref_exp_in [J/kg]'),
+        4: ('exp_out', 'P_ref_exp_out [Pa]', 'h_ref_exp_out [J/kg]'),
+    }
+
+    for idx in df.index:
+        t0_k = T0_K.iloc[idx]
+        try:
+            h0 = CP.PropsSI('H', 'T', t0_k, 'P', P0, ref)
+            s0 = CP.PropsSI('S', 'T', t0_k, 'P', P0, ref)
+        except Exception:
+            h0, s0 = np.nan, np.nan
+
+        m_dot = df.loc[idx, 'm_dot_ref [kg/s]'] if 'm_dot_ref [kg/s]' in df.columns else np.nan
+
+        for num, (name, P_col, h_col) in state_map.items():
+            if P_col in df.columns and h_col in df.columns:
+                P = df.loc[idx, P_col]
+                h = df.loc[idx, h_col]
+                try:
+                    if not np.isnan(P) and not np.isnan(h):
+                        s_val = CP.PropsSI('S', 'P', P, 'H', h, ref)
+                        x_val = (h - h0) - t0_k * (s_val - s0)
+                        X_val = m_dot * x_val if not np.isnan(m_dot) else np.nan
+                        df.loc[idx, f's_ref_{name} [J/(kg·K)]'] = s_val
+                        df.loc[idx, f'x_ref_{name} [J/kg]'] = x_val
+                        df.loc[idx, f'X_ref_{name} [W]'] = X_val
+                except Exception:
+                    pass
+
+    # 2. Electricity = exergy
+    df['X_cmp [W]'] = df['E_cmp [W]']
+    if 'E_ou_fan [W]' in df.columns:
+        df['X_ou_fan [W]'] = df['E_ou_fan [W]']
+
+    # 3. Air exergy
+    if 'dV_ou_a_fan [m3/s]' in df.columns and 'T_a_ou_in [°C]' in df.columns:
+        G_a = c_a * rho_a * df['dV_ou_a_fan [m3/s]']
+        Tin = _C2K(df['T_a_ou_in [°C]'])
+        Tout = _C2K(df['T_a_ou_out [°C]']) if 'T_a_ou_out [°C]' in df.columns else Tin
+        df['X_a_ou_in [W]'] = calc_exergy_flow(G_a, Tin, T0_K)
+        df['X_a_ou_out [W]'] = calc_exergy_flow(G_a, Tout, T0_K)
+
+    # 4. Condenser exergy
+    if 'Q_ref_cond [W]' in df.columns:
+        df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / T_tank_K)
+
+    # 5. Tank water exergy
+    if 'dV_tank_w_in [m3/s]' in df.columns:
+        G_in = c_w * rho_w * df['dV_tank_w_in [m3/s]'].fillna(0)
+        df['X_w_tank_in [W]'] = calc_exergy_flow(G_in, _C2K(T_tank_w_in), T0_K)
+
+    if 'E_uv [W]' in df.columns:
+        df['X_uv [W]'] = df['E_uv [W]']
+
+    if 'Q_tank_loss [W]' in df.columns:
+        df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
+
+    # 6. Exergy accumulation
+    tank_level = df['tank_level [-]'] if 'tank_level [-]' in df.columns else 1.0
+    C_tank_actual = C_tank * tank_level
+    T_tank_K_prev = T_tank_K.shift(1)
+    df['Xst_tank [W]'] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / dt
+    df.loc[df.index[0], 'Xst_tank [W]'] = 0.0
+
+    # 7. Total exergy
+    E_fan = df['E_ou_fan [W]'] if 'E_ou_fan [W]' in df.columns else 0
+    E_pump = df['E_stc_pump [W]'] if 'E_stc_pump [W]' in df.columns else 0
+    X_uv = df['X_uv [W]'] if 'X_uv [W]' in df.columns else 0
+    df['X_tot [W]'] = df['E_cmp [W]'] + E_fan + X_uv + E_pump
+
+    # 8. Exergy consumption
+    if all(c in df.columns for c in ['X_cmp [W]', 'X_ref_cmp_in [W]', 'X_ref_cmp_out [W]']):
+        df['Xc_cmp [W]'] = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']
+
+    if all(c in df.columns for c in ['X_ref_exp_in [W]', 'X_ref_exp_out [W]']):
+        df['Xc_exp [W]'] = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
+
+    # 9. COP
+    if 'Q_cond_load [W]' in df.columns:
+        df['cop_ref [-]'] = df['Q_cond_load [W]'] / df['E_cmp [W]'].replace(0, np.nan)
+        df['cop_sys [-]'] = df['Q_cond_load [W]'] / df['E_tot [W]'].replace(0, np.nan)
+
+    return df
+
 
 def calc_stc_performance(
     I_DN_stc,              # 직달일사 [W/m²]

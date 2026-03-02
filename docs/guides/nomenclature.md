@@ -55,7 +55,7 @@ All variable names follow a standardized order separated by underscores (`_`):
 ### 2.2 Medium and Subsystem Symbols
 
 - **Medium**: `w` (water), `a` (air), `ref` (refrigerant), `sol` (solar radiation)
-- **Subsystem**: `cmp` (compressor), `cond` (condenser), `evap` (evaporator), `exp` (expansion valve), `ou` (outdoor unit), `tank` (thermal storage), `stc` (solar thermal collector), `mix` (mixing valve), `pump` (pump)
+- **Subsystem**: `cmp` (compressor), `cond` (condenser), `evap` (evaporator), `exp` (expansion valve), `ou` (outdoor unit), `tank` (thermal storage), `stc` (solar thermal collector), `mix` (mixing valve), `pump` (pump), `bhe` (borehole heat exchanger)
 
 ### 2.3 Subsystem Hierarchy
 

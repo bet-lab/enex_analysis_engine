@@ -5,7 +5,7 @@
 \section{Air source heat pump boiler}
 \label{sec:ashpb}
 
-This section describes the dynamic ASHPB model implemented in \texttt{AirSourceHeatPumpBoiler.py}. It integrates a vapour-compression refrigerant cycle, physics-based heat exchangers, an SLSQP optimiser, and a storage tank with hysteresis control.
+This section describes the dynamic ASHPB model implemented in \texttt{AirSourceHeatPumpBoiler.py}. It integrates a vapour-compression refrigerant cycle, physics-based heat exchangers, a Differential Evolution optimiser, and a storage tank with hysteresis control.
 
 \subsection{Assumptions}
 \begin{enumerate}
@@ -24,7 +24,7 @@ Saturation temperatures are set by the source/sink conditions:
   T_\text{eva,sat} &= T_0 - \Delta T_\text{ref,evap}  \label{eq:ashp-Teva}\\
   T_\text{cond,sat} &= T_\text{w,tank} + \Delta T_\text{ref,cond} \label{eq:ashp-Tcond}
 \end{align}
-where $\Delta T_\text{ref,evap}$ and $\Delta T_\text{ref,cond}$ are the SLSQP optimisation variables.
+where $\Delta T_\text{ref,evap}$ and $\Delta T_\text{ref,cond}$ are the Differential Evolution optimisation variables.
 
 Compressor inlet (superheated):
 \begin{equation}\label{eq:ashp-cmp-in}
@@ -64,7 +64,7 @@ Power use:
   E_\text{cmp} = \dot{m}_\text{ref}\,(h_\text{cmp,out} - h_\text{cmp,in})
 \end{equation}
 
-\subsection{SLSQP optimisation}
+\subsection{Differential Evolution optimisation}
 
 \paragraph{Objective.}
 Minimise total power use:
@@ -79,6 +79,54 @@ Minimise total power use:
   \item Minimum/maximum fan flow: $0.1\,\dot{V}_\text{design} \le \dot{V}_\text{fan} \le \dot{V}_\text{design}$
   \item Compressor speed bounds: $n_\text{min} \le n_\text{cmp} \le n_\text{max}$
 \end{itemize}
+
+\subsection{Storage tank energy balance}
+\label{sec:ashpb-tank}
+
+The storage tank is modelled as a lumped capacitance with variable mass.
+The governing ODE is:
+\begin{equation}\label{eq:ashp-tank-ode}
+  C \frac{dT}{dt} = \dot{Q}_\text{gain} - UA_\text{tank}\,(T - T_0)
+\end{equation}
+where $C = c_w \rho_w V_\text{tank} \cdot \ell$ is the effective thermal capacitance
+(scaled by the tank level $\ell \in (0,1]$),
+and $\dot{Q}_\text{gain}$ aggregates all source terms
+(condenser, UV lamp, STC, refill enthalpy).
+
+\paragraph{Fully implicit discretisation.}
+All temperature-dependent terms are evaluated at $n{+}1$, and the
+coupled mass--energy system is solved simultaneously via Newton--Raphson
+(\texttt{scipy.optimize.fsolve}).
+
+\textbf{Energy residual:}
+\begin{equation}\label{eq:ashp-implicit-energy}
+  r_E = C_\text{full}\,\ell^{n+1}\,T^{n+1}
+      - C_\text{full}\,\ell^{n}\,T^{n}
+      - \Delta t\,\bigl[
+          \dot{Q}_\text{HP} + E_\text{UV} + E_\text{pump}
+          + \dot{Q}_\text{STC}(T^{n+1})
+          + \dot{Q}_\text{refill}(T^{n+1})
+          - UA\,(T^{n+1} - T_0)
+        \bigr]
+\end{equation}
+where
+$\dot{Q}_\text{refill}(T) = c_w \rho_w \dot{V}_\text{in}(T_\text{refill} - T)$
+and
+$\dot{Q}_\text{STC}(T)$ is the net STC gain evaluated at tank temperature~$T$.
+
+\textbf{Mass residual:}
+\begin{equation}\label{eq:ashp-implicit-mass}
+  r_M = \ell^{n+1} - \ell^{n}
+      - \frac{\dot{V}_\text{in} - \dot{V}_\text{out}(T^{n+1})}{V_\text{full}}\,\Delta t
+\end{equation}
+where $\dot{V}_\text{out}(T) = \alpha(T)\,\dot{V}_\text{mix}$
+with the mixing ratio
+$\alpha(T) = \text{clip}\bigl(\frac{T_\text{mix}-T_\text{in}}{T - T_\text{in}},\;0,\;1\bigr)$.
+
+The unknowns $[T^{n+1},\,\ell^{n+1}]$ are found by solving
+$\mathbf{r} = \mathbf{0}$ using \texttt{fsolve}.
+This scheme is unconditionally stable and handles strong coupling
+between variable tank mass and temperature.
 
 \subsection{Exergy analysis}
 

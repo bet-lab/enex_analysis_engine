@@ -7,8 +7,12 @@
 Physics-based air source heat pump boiler model with refrigerant cycle resolution,
 dynamic tank simulation, and optional solar thermal collector (STC) integration.
 The model finds the optimal compressor speed and fan airflow at each time step by
-minimizing total electrical power (`E_cmp + E_fan`) subject to LMTD heat exchanger
-constraints.
+minimizing total electrical power (`E_cmp + E_fan`) subject to heat exchanger
+constraints via Differential Evolution.
+
+The storage tank temperature is updated using a **fully implicit** scheme
+(`scipy.optimize.fsolve`), solving coupled energy and mass balance residuals
+at each timestep for unconditional stability.
 
 ## Architecture
 
