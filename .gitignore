@@ -52,6 +52,9 @@ docs/_templates/
 # LaTeX build artifacts
 docs/guides/theory/theory_manual_KR.fdb_latexmk
 docs/guides/theory/theory_manual_KR.log
+docs/guides/theory/theory_manual_EN.fdb_latexmk
+docs/guides/theory/theory_manual_EN.fls
+docs/guides/theory/theory_manual_EN.log
 
 # Image files
 *.png
