@@ -86,7 +86,7 @@ Minimise total power use:
 The storage tank is modelled as a lumped capacitance with variable mass.
 The governing ODE is:
 \begin{equation}\label{eq:ashp-tank-ode}
-  C \frac{dT}{dt} = \dot{Q}_\text{gain} - UA_\text{tank}\,(T - T_0)
+  C \frac{\dd T}{\dd t} = \dot{Q}_\text{gain} - UA_\text{tank}\,(T - T_0)
 \end{equation}
 where $C = c_w \rho_w V_\text{tank} \cdot \ell$ is the effective thermal capacitance
 (scaled by the tank level $\ell \in (0,1]$),
