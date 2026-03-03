@@ -49,6 +49,10 @@ docs/build/
 docs/_static/
 docs/_templates/
 
+# LaTeX build artifacts
+docs/guides/theory/theory_manual_KR.fdb_latexmk
+docs/guides/theory/theory_manual_KR.log
+
 # Image files
 *.png
 *.jpg
