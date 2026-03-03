@@ -4,7 +4,7 @@
 
 ## Overview
 
-Library of 65+ utility functions organized into functional categories.
+Library of 73+ utility functions organized into functional categories.
 These functions are used internally by the simulation classes and can also
 be called directly for custom analysis workflows.
 
@@ -39,9 +39,18 @@ be called directly for custom analysis workflows.
 |---|---|
 | `generate_entropy_exergy_term(energy, Tsys, T0, fluid)` | Compute S and X terms from energy |
 | `calc_energy_flow(G, T, T0)` | Energy flow rate for advection |
-| `calc_exergy_flow(G, T, T0)` | Exergy flow rate for material streams |
+| `calc_exergy_flow(G, T, T0)` | Exergy flow rate for material streams (vectorized) |
 
-### 5. Heat Pump COP Calculations
+### 5. Flow and Mixing
+
+| Function | Description |
+|---|---|
+| `calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K)` | 3-way mixing valve output temperature and ratio α |
+| `calc_uv_lamp_power(current_time_s, period_sec, num_switching, ...)` | UV lamp instantaneous power (periodic on/off) |
+| `calc_Orifice_flow_coefficient(D0, D1)` | Orifice flow coefficient |
+| `calc_boussinessq_mixing_flow(T_up, T_lo, A, dz, C_d)` | Buoyancy-driven mixing flow |
+
+### 6. Heat Pump COP Calculations
 
 | Function | Description |
 |---|---|
@@ -49,7 +58,7 @@ be called directly for custom analysis workflows.
 | `calc_ASHP_heating_COP(T0, Q, Q_max)` | ASHP heating COP (PLR-based) |
 | `calc_GSHP_COP(Tg, T_cond, T_evap, theta_hat)` | GSHP modified Carnot COP |
 
-### 6. Ground Heat Exchanger
+### 7. Ground Heat Exchanger
 
 | Function | Description |
 |---|---|
@@ -57,68 +66,82 @@ be called directly for custom analysis workflows.
 | `chi(s, rb, H, z0)` | Helper for g-function calculation |
 | `G_FLS(t, ks, as_, rb, H)` | Finite Line Source g-function (cached) |
 
-### 7. TDMA Solver
+### 8. TDMA Solver
 
 | Function | Description |
 |---|---|
 | `TDMA(a, b, c, d)` | Solve tri-diagonal matrix system |
 | `_add_loop_advection_terms(a, b, c, d, ...)` | Add forced convection terms to TDMA coefficients |
 
-### 8. Tank Heat Transfer
+### 9. Tank Heat Transfer
 
 | Function | Description |
 |---|---|
 | `calc_UA_tank_arr(r0, x_shell, x_ins, ...)` | Per-node UA array for cylindrical tank |
-| `calc_simple_tank_UA(...)` | Simplified whole-tank UA |
-| `update_tank_temperature(T_K, Q_in, loss, C, dt)` | Simple lumped-capacitance tank update |
+| `calc_simple_tank_UA(r0, H, x_shell, x_ins, k_shell, k_ins, h_o)` | Simplified whole-tank UA |
+| `update_tank_temperature(T_tank_w_K, Q_gain, UA_tank, T0_K, C_tank, dt)` | Crank-Nicolson lumped-capacitance tank update |
 
-### 9. Heat Exchanger
+### 10. Heat Exchanger
 
 | Function | Description |
 |---|---|
 | `calc_LMTD_counter_flow(T_hi, T_ho, T_ci, T_co)` | Counter-flow LMTD [K] |
 | `calc_LMTD_parallel_flow(T_hi, T_ho, T_ci, T_co)` | Parallel-flow LMTD [K] |
 | `calc_UA_from_dV_fan(dV, dV_design, A, UA)` | Velocity-dependent UA (Dittus-Boelter) |
-| `calc_HX_perf_for_target_heat(Q_target, ...)` | Solve fan airflow for target heat rate |
+| `calc_HX_perf_for_target_heat(Q_target, ...)` | Solve fan airflow for target heat rate (bisect) |
 
-### 10. Fan Power
+### 11. Fan Power
 
 | Function | Description |
 |---|---|
 | `calc_fan_power_from_dV_fan(dV, params, vsd_coeffs, ...)` | Fan power via ASHRAE 90.1 VSD curve |
 
-### 11. Refrigerant Cycle
+### 12. Refrigerant Cycle
 
 | Function | Description |
 |---|---|
-| `calc_ref_state(ref, T_evap, T_cond, ...)` | Calculate all 4 cycle state points with superheat/subcool |
+| `calc_ref_state(T_evap_K, T_cond_K, refrigerant, eta_cmp_isen, T0_K, mode, dT_superheat, dT_subcool, is_active)` | Calculate all 4 cycle state points with superheat/subcool |
 | `create_lmtd_constraints()` | Generate LMTD constraint functions for optimization |
 | `find_ref_loop_optimal_operation(...)` | Find minimum-power operating point |
 
-### 12. Schedule and Water Use
+### 13. Schedule and Water Use
 
 | Function | Description |
 |---|---|
 | `build_schedule_ratios(entries, t_array)` | Build time-series ratio array from schedule entries |
-| `check_hp_schedule_active(hour, schedule)` | Check if current hour is in active HP schedule |
+| `check_hp_schedule_active(hour, hp_on_schedule)` | Check if current hour is in active HP schedule |
 | `calc_total_water_use_from_schedule(schedule, peak, ...)` | Compute total daily water consumption |
 | `make_dhw_schedule_from_Annex_42_profile(...)` | Convert IEA Annex 42 flow profile to schedule |
 | `calc_cold_water_temp(df, date_str)` | EnergyPlus algorithm for mains water temperature |
 
-### 13. UV Disinfection
+### 14. UV Disinfection
 
 | Function | Description |
 |---|---|
 | `get_uv_params_from_turbidity(ntu)` | UV parameters from turbidity table |
 | `calc_uv_exposure_time(radius, power, ...)` | Required UV exposure time (radial model) |
 
-### 14. Solar Thermal Collector
+### 15. Solar Thermal Collector
 
 | Function | Description |
 |---|---|
-| `calc_stc_performance(...)` | Complete STC thermal analysis |
+| `calc_stc_performance(I_DN_stc, I_dH_stc, T_stc_w_in_K, T0_K, dV_stc, ...)` | Complete STC thermal analysis |
 
-### 15. Visualization
+### 16. KMA Weather Data & Solar Decomposition
+
+| Function | Description |
+|---|---|
+| `load_kma_solar_csv(csv_path, encoding)` | Load KMA 1-min cumulative GHI CSV → instantaneous W/m² |
+| `load_kma_T0_sol_hourly_csv(csv_path, encoding)` | Load KMA hourly T0 + solar CSV (auto-detects columns) |
+| `decompose_ghi_to_poa(ghi, lat, lon, tilt, azimuth, ...)` | GHI → DNI+DHI → POA irradiance via `pvlib` |
+
+### 17. Exergy Post-Processing
+
+| Function | Description |
+|---|---|
+| `postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in)` | Compute and append exergy columns to result DataFrame |
+
+### 18. Visualization
 
 | Function | Description |
 |---|---|
@@ -127,13 +150,6 @@ be called directly for custom analysis workflows.
 | `plot_th_diagram(ax, result, ...)` | T-h diagram for refrigerant cycle |
 | `plot_ph_diagram(ax, result, ...)` | P-h diagram for refrigerant cycle |
 | `plot_ts_diagram(ax, result, ...)` | T-s diagram for refrigerant cycle |
-
-### 16. Mixing Flow
-
-| Function | Description |
-|---|---|
-| `calc_Orifice_flow_coefficient(D0, D1)` | Orifice flow coefficient |
-| `calc_boussinessq_mixing_flow(T_up, T_lo, A, dz, C_d)` | Buoyancy-driven mixing flow |
 
 ## Usage Examples
 
@@ -171,14 +187,48 @@ ratios = build_schedule_ratios(entries, t_array)
 
 ```python
 from enex_analysis.enex_functions import calc_ref_state
+from enex_analysis.calc_util import C2K
 
 states = calc_ref_state(
-    ref='R134a',
-    T_evap_sat_C=5.0,
-    T_cond_sat_C=55.0,
+    T_evap_K=C2K(5.0),
+    T_cond_K=C2K(55.0),
+    refrigerant='R134a',
     eta_cmp_isen=0.8,
+    T0_K=C2K(5.0),
+    mode='heating',
     dT_superheat=3.0,
     dT_subcool=3.0,
+    is_active=True,
 )
-print(f"COP_ref: {states['cop_ref']:.2f}")
+print(f"h1: {states['h1']:.0f} J/kg, h2: {states['h2']:.0f} J/kg")
+```
+
+### Loading KMA Solar Data
+
+```python
+from enex_analysis.enex_functions import load_kma_solar_csv, decompose_ghi_to_poa
+
+ghi_df = load_kma_solar_csv('Seoul_25_solar_1min.csv')
+poa = decompose_ghi_to_poa(
+    ghi=ghi_df['GHI_Wm2'],
+    latitude=37.57, longitude=126.97,
+    tilt=35.0, azimuth=180.0,
+)
+
+I_DN_schedule = poa['poa_direct'].values
+I_dH_schedule = poa['poa_diffuse'].values
+```
+
+### 3-Way Mixing Valve
+
+```python
+from enex_analysis.enex_functions import calc_mixing_valve
+from enex_analysis.calc_util import C2K
+
+mix = calc_mixing_valve(
+    T_tank_w_K=C2K(65.0),
+    T_tank_w_in_K=C2K(15.0),
+    T_mix_w_out_K=C2K(40.0),
+)
+print(f"α = {mix['alp']:.3f}, T_mix = {mix['T_mix_w_out']:.1f} °C")
 ```

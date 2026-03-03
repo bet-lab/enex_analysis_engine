@@ -1,6 +1,6 @@
 # Symbol Naming Convention
 
-> **Version**: 1.3 — Canonical reference for all variable names in the `enex_analysis` package.
+> **Version**: 1.4 — Canonical reference for all variable names in the `enex_analysis` package.
 
 ## 1. Core Structure
 
@@ -47,6 +47,7 @@ All variable names follow a standardized order separated by underscores (`_`):
 | `s` | Specific entropy | J/(kg·K) |
 | `x` | Specific exergy | J/kg |
 | `I` | Solar irradiance | W/m² |
+| `v` | Velocity | m/s |
 | `G` | Heat capacity flow | W/K |
 | `UA` | Overall heat transfer coefficient | W/K |
 | `C` | Heat capacity | J/K |
@@ -110,6 +111,9 @@ When a flow exists between two subsystems, name it after the **upstream (source)
 4. **Design Values**: `_design` suffix (e.g., `dV_ou_design`)
 5. **Losses**: `_loss` suffix (e.g., `Q_tank_loss`)
 6. **Saturation**: `_sat` suffix (e.g., `T_ref_evap_sat`)
+7. **Target/Setpoint Values**: `_target` suffix (e.g., `Q_cond_target`). Replaces legacy `_load` suffix.
+8. **Heated/Modified Inputs**: `_heated` suffix for values modified by an upstream process (e.g., `T_tank_w_in_heated` = mains water preheated by STC).
+9. **Supplemental Flows**: `_sup` suffix for bypass flows that supplement the main path (e.g., `dV_mix_w_in_sup` = mains water bypassing the tank into the mixing valve).
 
 ## 6. Heat Exchanger Variable Naming
 
