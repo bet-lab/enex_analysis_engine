@@ -640,24 +640,24 @@ def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
     Returns
     -------
     dict
-        ``{'alp': float, 'T_serv_w_actual': float, 'T_serv_w_actual_K': float}``
+        ``{'alp': float, 'T_mix_w_out': float, 'T_mix_w_out_K': float}``
         - ``alp``: hot-water fraction [0–1]
-        - ``T_serv_w_actual``: actual service temperature [°C]
-        - ``T_serv_w_actual_K``: actual service temperature [K]
+        - ``T_mix_w_out``: actual service temperature [°C]
+        - ``T_mix_w_out_K``: actual service temperature [K]
     """
     den = max(1e-6, T_tank_w_K - T_tank_w_in_K)
     alp = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
 
     if alp >= 1.0:
-        T_serv_w_actual_K = T_tank_w_K
+        T_mix_w_out_val_K = T_tank_w_K
     else:
-        T_serv_w_actual_K = alp * T_tank_w_K + (1 - alp) * T_tank_w_in_K
+        T_mix_w_out_val_K = alp * T_tank_w_K + (1 - alp) * T_tank_w_in_K
 
-    T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+    T_mix_w_out_val = cu.K2C(T_mix_w_out_val_K)
     return {
         'alp': alp,
-        'T_serv_w_actual': T_serv_w_actual,
-        'T_serv_w_actual_K': T_serv_w_actual_K,
+        'T_mix_w_out': T_mix_w_out_val,
+        'T_mix_w_out_K': T_mix_w_out_val_K,
     }
 
 
@@ -1111,7 +1111,7 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     v_design = dV_fan_design / A_cross if A_cross > 0 else 0
     return UA * (v / v_design) ** 0.8
 
-def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design, is_active=True):
+def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design, is_active=True):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
@@ -1124,7 +1124,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         Positive (+): Heat transferred from refrigerant to air (heating mode).
         Negative (−): Heat transferred from air to refrigerant (cooling mode).
 
-    T_a_ou_in_C : float
+    T_ou_a_in_C : float
         Inlet temperature of air [°C].
 
     T1_star_K : float
@@ -1154,7 +1154,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         Dictionary containing:
             - dV_fan : Required air-side flow rate [m³/s]
             - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
-            - T_a_ou_out_K : Outlet air temperature [K]
+            - T_ou_a_out_K : Outlet air temperature [K]
             - LMTD : Log-mean temperature difference at operating point [K]
             - Q_LMTD : Heat transfer rate at operating point [W]
             - epsilon : Effectiveness at operating point [–]
@@ -1168,12 +1168,12 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
     """
     # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
     if not is_active:
-        T_a_ou_in_K = cu.C2K(T_a_ou_in_C)
+        T_ou_a_in_K = cu.C2K(T_ou_a_in_C)
         return {
             'converged': True,
             'dV_fan': np.nan,
             'UA': np.nan,
-            'T_a_ou_mid': np.nan,
+            'T_ou_a_mid': np.nan,
             'Q_ou_air': np.nan,
             'epsilon': np.nan,
         }
@@ -1182,13 +1182,13 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
     
     # Q_ref_target이 0에 가까우면 root_scalar 호출 없이 0 값 반환
     # bisect 메서드는 f(a)와 f(b)의 부호가 달라야 하므로, Q_ref_target=0일 때 실패함
-    T_a_ou_in_K = cu.C2K(T_a_ou_in_C)
+    T_ou_a_in_K = cu.C2K(T_ou_a_in_C)
     if abs(Q_ref_target) < 1e-6:
         return {
             'converged': True,
             'dV_fan': 0.0,
             'UA': 0.0,
-            'T_a_ou_mid_K': T_a_ou_in_K,  # 입구 온도와 동일 (열교환 없음)
+            'T_ou_a_mid_K': T_ou_a_in_K,  # 입구 온도와 동일 (열교환 없음)
             'Q_ou_air': 0.0,
             'epsilon': 0.0,
         }
@@ -1197,12 +1197,12 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = (1 - np.exp(-UA / (c_a * rho_a * dV_fan)))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T_a_ou_in_K - (T_a_ou_in_K - T1_star_K) * epsilon # Heating assumption (Q_ref_target > 0)
+        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T1_star_K) * epsilon # Heating assumption (Q_ref_target > 0)
         
         # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
-        Q_ou_air = c_a * rho_a * dV_fan * (T_a_ou_in_K - T_a_ou_mid_K) # 흡열이므로 (입구 - 출구) * C_min
+        Q_ou_air = c_a * rho_a * dV_fan * (T_ou_a_in_K - T_ou_a_mid_K) # 흡열이므로 (입구 - 출구) * C_min
         # Heating 모드 기준: Refrigerant가 열 흡수, Air가 열 방출. 
-        # T_a_ou_in > T_a_ou_mid > T1_star
+        # T_ou_a_in > T_ou_a_mid > T1_star
         # Q_ref_target > 0 (Refrigerant gains heat)
         # Q_air (Air loses heat) = m_dot * cp * (Tin - Tout) > 0
         
@@ -1227,8 +1227,8 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
 
         UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
         eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
-        T_mid_fb = T1_star_K + eps_fb * (T_a_ou_in_K - T1_star_K)
-        Q_fb = c_a * rho_a * dV_fallback * (T_a_ou_in_K - T_mid_fb)
+        T_mid_fb = T1_star_K + eps_fb * (T_ou_a_in_K - T1_star_K)
+        Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
 
         # Diagnostic hint (stored in return dict, not printed)
         if f_min > 0 and f_max > 0:
@@ -1246,7 +1246,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
             'converged': False,
             'dV_fan': dV_fallback,
             'UA': UA_fb,
-            'T_a_ou_mid': cu.K2C(T_mid_fb),
+            'T_ou_a_mid': cu.K2C(T_mid_fb),
             'Q_ou_air': Q_fb,
             'epsilon': eps_fb,
             # Diagnostic fields for callers
@@ -1266,15 +1266,15 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
         # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_a_ou_mid_K = T1_star_K + epsilon * (T_a_ou_in_K - T1_star_K)  # Heating assumption (Q_ref_target > 0)
+        T_ou_a_mid_K = T1_star_K + epsilon * (T_ou_a_in_K - T1_star_K)  # Heating assumption (Q_ref_target > 0)
         
-        Q_ou_air = c_a * rho_a * dV_fan_converged * (T_a_ou_in_K - T_a_ou_mid_K)
+        Q_ou_air = c_a * rho_a * dV_fan_converged * (T_ou_a_in_K - T_ou_a_mid_K)
         
         return {
             'converged': True,  # 명시적으로 converged 플래그 추가
             'dV_fan': dV_fan_converged,
             'UA': UA,
-            'T_a_ou_mid': cu.K2C(T_a_ou_mid_K),
+            'T_ou_a_mid': cu.K2C(T_ou_a_mid_K),
             'Q_ou_air': Q_ou_air,
             'epsilon': epsilon,
             }
@@ -1283,7 +1283,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_a_ou_in_C, T1_star_K, T3_star_K
             'converged': False,
             'dV_fan': np.nan,
             'UA': np.nan,
-            'T_a_ou_mid': np.nan,
+            'T_ou_a_mid': np.nan,
             'Q_ou_air': np.nan,
             'epsilon': np.nan
         }
@@ -2470,7 +2470,7 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
     dt : float
         Simulation time step [s].
     T_tank_w_in : float
-        Mains water supply temperature [°C].
+    Mains water supply temperature [°C].
 
     Returns
     -------
@@ -2525,10 +2525,10 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
         df['X_ou_fan [W]'] = df['E_ou_fan [W]']
 
     # 3. Air exergy
-    if 'dV_ou_a_fan [m3/s]' in df.columns and 'T_a_ou_in [°C]' in df.columns:
-        G_a = c_a * rho_a * df['dV_ou_a_fan [m3/s]']
-        Tin = _C2K(df['T_a_ou_in [°C]'])
-        Tout = _C2K(df['T_a_ou_out [°C]']) if 'T_a_ou_out [°C]' in df.columns else Tin
+    if 'dV_ou_a [m3/s]' in df.columns and 'T_ou_a_in [°C]' in df.columns:
+        G_a = c_a * rho_a * df['dV_ou_a [m3/s]']
+        Tin = _C2K(df['T_ou_a_in [°C]'])
+        Tout = _C2K(df['T_ou_a_out [°C]']) if 'T_ou_a_out [°C]' in df.columns else Tin
         df['X_a_ou_in [W]'] = calc_exergy_flow(G_a, Tin, T0_K)
         df['X_a_ou_out [W]'] = calc_exergy_flow(G_a, Tout, T0_K)
 
@@ -2568,11 +2568,245 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
         df['Xc_exp [W]'] = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
 
     # 9. COP
-    if 'Q_cond_load [W]' in df.columns:
-        df['cop_ref [-]'] = df['Q_cond_load [W]'] / df['E_cmp [W]'].replace(0, np.nan)
-        df['cop_sys [-]'] = df['Q_cond_load [W]'] / df['E_tot [W]'].replace(0, np.nan)
+    if 'Q_cond_target [W]' in df.columns:
+        df['cop_ref [-]'] = df['Q_cond_target [W]'] / df['E_cmp [W]'].replace(0, np.nan)
+        df['cop_sys [-]'] = df['Q_cond_target [W]'] / df['E_tot [W]'].replace(0, np.nan)
 
     return df
+
+
+def load_kma_solar_csv(csv_path, encoding='euc-kr'):
+    """Load KMA (기상청) 1-minute cumulative solar irradiance CSV.
+
+    The KMA ASOS solar radiation data provides cumulative Global Horizontal
+    Irradiance (GHI) at 1-minute resolution in MJ/m².  This function
+    converts it to instantaneous GHI in W/m².
+
+    Parameters
+    ----------
+    csv_path : str
+        Path to the KMA solar CSV file.
+    encoding : str, optional
+        File encoding (default: ``'euc-kr'``).
+
+    Returns
+    -------
+    pd.Series
+        Instantaneous GHI [W/m²] with ``DatetimeIndex`` (timezone-naive,
+        KST assumed).  Index name is ``'datetime'``.
+
+    Notes
+    -----
+    - Cumulative MJ/m² is differenced then divided by 60 s to get W/m².
+    - Conversion: 1 MJ = 1e6 J,  power = ΔE / Δt = ΔMJ×1e6 / 60  [W/m²].
+    - Negative values (from noise) are clipped to 0.
+    """
+    df = pd.read_csv(csv_path, encoding=encoding)
+    # Columns: 지점, 지점명, 일시, 일사(MJ/m^2)
+    col_datetime = df.columns[2]   # '일시'
+    col_ghi_cum  = df.columns[3]   # '일사(MJ/m^2)'
+
+    df[col_datetime] = pd.to_datetime(df[col_datetime])
+    df = df.set_index(col_datetime).sort_index()
+
+    ghi_cum = pd.to_numeric(df[col_ghi_cum], errors='coerce').fillna(method='ffill').fillna(0)
+
+    # Differentiate cumulative → incremental (MJ/m² per minute)
+    ghi_delta_mj = ghi_cum.diff().fillna(0).clip(lower=0)
+
+    # Convert MJ/m²/min → W/m²:  W = MJ * 1e6 / 60
+    ghi_wm2 = ghi_delta_mj * 1e6 / 60.0
+
+    ghi_wm2.index.name = 'datetime'
+    ghi_wm2.name = 'ghi_wm2'
+    return ghi_wm2
+
+
+def load_kma_T0_sol_hourly_csv(csv_path, encoding='euc-kr'):
+    """Load KMA hourly T0 + solar CSV (Seoul_25_T0_Sol format).
+
+    컬럼명 패턴으로 일시·기온·일사 컬럼을 자동 식별하여,
+    컬럼 순서나 추가 컬럼이 있어도 동작합니다.
+
+    일사는 시간평균 MJ/m² → W/m² = MJ/m² × 1e6 / 3600 으로 변환합니다.
+
+    Parameters
+    ----------
+    csv_path : str
+        Path to the KMA T0+solar CSV file.
+    encoding : str, optional
+        File encoding (default: ``'euc-kr'``).
+
+    Returns
+    -------
+    pd.DataFrame
+        DatetimeIndex, columns: ``T0`` [°C], ``GHI`` [W/m²].
+        365일(8760행)까지만 포함. 2026-01-01 행은 제외.
+
+    Notes
+    -----
+    - 일시: '일시', 'datetime', '날짜', 'date' 등 포함
+    - 기온: '기온', '온도', 'temp', 'T0', '°C', '℃' 등 포함
+    - 일사: '일사', 'ghi', 'irradiance', 'MJ', 'solar' 등 포함
+    """
+    df = pd.read_csv(csv_path, encoding=encoding)
+
+    def _find_col(patterns):
+        for c in df.columns:
+            c_lower = str(c).lower().strip()
+            for p in patterns:
+                if p in c_lower or p in str(c):
+                    return c
+        return None
+
+    col_datetime = _find_col(['일시', 'datetime', '날짜', 'date'])
+    col_t0 = _find_col(['기온', '온도', 'temp', 't0', '°c', '℃'])
+    col_solar = _find_col(['일사', 'ghi', 'irradiance', 'mj', 'solar'])
+
+    if col_datetime is None:
+        raise ValueError(f"일시 컬럼을 찾을 수 없습니다. columns: {list(df.columns)}")
+    if col_t0 is None:
+        raise ValueError(f"기온 컬럼을 찾을 수 없습니다. columns: {list(df.columns)}")
+    if col_solar is None:
+        raise ValueError(f"일사 컬럼을 찾을 수 없습니다. columns: {list(df.columns)}")
+
+    df[col_datetime] = pd.to_datetime(df[col_datetime])
+    df = df.set_index(col_datetime).sort_index()
+
+    T0 = pd.to_numeric(df[col_t0], errors='coerce').ffill().bfill()
+    ghi_mj_h = pd.to_numeric(df[col_solar], errors='coerce').fillna(0).clip(lower=0)
+    GHI = (ghi_mj_h * 1e6 / 3600.0).rename('GHI')
+
+    result = pd.DataFrame({'T0': T0, 'GHI': GHI}, index=df.index)
+    result.index.name = 'datetime'
+
+    # 365일(8760행)까지만 사용
+    if len(result) > 8760:
+        result = result.iloc[:8760]
+    return result
+
+
+def decompose_ghi_to_poa(
+    ghi,
+    latitude,
+    longitude,
+    tilt,
+    azimuth,
+    altitude=0,
+    tz='Asia/Seoul',
+    decomposition='erbs',
+    transposition='perez',
+):
+    """Decompose GHI into DNI+DHI and transpose to plane-of-array irradiance.
+
+    Uses ``pvlib`` to convert Global Horizontal Irradiance to
+    Plane-of-Array (POA) direct and diffuse components for a tilted
+    solar collector.
+
+    Parameters
+    ----------
+    ghi : pd.Series
+        Instantaneous GHI [W/m²] with ``DatetimeIndex``.
+        If timezone-naive, *tz* is applied (localized).
+    latitude : float
+        Site latitude [°N].
+    longitude : float
+        Site longitude [°E].
+    tilt : float
+        Collector tilt from horizontal [°].  0 = horizontal, 90 = vertical.
+    azimuth : float
+        Collector azimuth [°].  180 = south-facing (Northern Hemisphere).
+    altitude : float, optional
+        Site altitude above sea level [m] (default 0).
+    tz : str, optional
+        Timezone string (default ``'Asia/Seoul'``).
+    decomposition : str, optional
+        GHI decomposition model: ``'erbs'`` (default) or ``'erbs_driesse'``.
+    transposition : str, optional
+        POA transposition model: ``'perez'`` (default) or ``'isotropic'``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns:
+
+        - ``ghi``: original GHI [W/m²]
+        - ``dni``: Direct Normal Irradiance [W/m²]
+        - ``dhi``: Diffuse Horizontal Irradiance [W/m²]
+        - ``poa_direct``:  POA beam irradiance [W/m²]  → use as ``I_DN_schedule``
+        - ``poa_diffuse``: POA diffuse irradiance [W/m²] → use as ``I_dH_schedule``
+        - ``poa_global``:  total POA irradiance [W/m²]
+
+    Raises
+    ------
+    ImportError
+        If ``pvlib`` is not installed.
+
+    Examples
+    --------
+    >>> ghi = load_kma_solar_csv('Seoul_250101_Sol.csv')
+    >>> poa = decompose_ghi_to_poa(ghi, latitude=37.57, longitude=126.97,
+    ...                             tilt=35.0, azimuth=180.0)
+    >>> I_DN_schedule = poa['poa_direct'].values
+    >>> I_dH_schedule = poa['poa_diffuse'].values
+    """
+    try:
+        import pvlib
+        from pvlib.irradiance import get_total_irradiance, erbs, erbs_driesse
+        from pvlib.solarposition import get_solarposition
+    except ImportError:
+        raise ImportError(
+            "pvlib is required for GHI decomposition. "
+            "Install it with: uv add pvlib"
+        )
+
+    # Ensure timezone-aware index
+    if ghi.index.tz is None:
+        ghi = ghi.copy()
+        ghi.index = ghi.index.tz_localize(tz)
+
+    # --- 1. Solar position ---
+    solpos = get_solarposition(
+        ghi.index, latitude, longitude, altitude=altitude
+    )
+    solar_zenith  = solpos['apparent_zenith']
+    solar_azimuth = solpos['azimuth']
+
+    # --- 2. GHI decomposition → DNI + DHI ---
+    # Extra-terrestrial radiation for decomposition
+    dni_extra = pvlib.irradiance.get_extra_radiation(ghi.index)
+
+    if decomposition == 'erbs_driesse':
+        decomp = erbs_driesse(ghi, solar_zenith, datetime_or_doy=ghi.index)
+    else:  # default: 'erbs'
+        decomp = erbs(ghi, solar_zenith, datetime_or_doy=ghi.index)
+
+    dni = decomp['dni'].fillna(0).clip(lower=0)
+    dhi = decomp['dhi'].fillna(0).clip(lower=0)
+
+    # --- 3. Transposition to POA ---
+    poa = get_total_irradiance(
+        surface_tilt=tilt,
+        surface_azimuth=azimuth,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+        dni=dni,
+        ghi=ghi,
+        dhi=dhi,
+        dni_extra=dni_extra,
+        model=transposition,
+    )
+
+    result = pd.DataFrame({
+        'ghi': ghi.values,
+        'dni': dni.values,
+        'dhi': dhi.values,
+        'poa_direct':  poa['poa_direct'].fillna(0).clip(lower=0).values,
+        'poa_diffuse': poa['poa_diffuse'].fillna(0).clip(lower=0).values,
+        'poa_global':  poa['poa_global'].fillna(0).clip(lower=0).values,
+    }, index=ghi.index)
+
+    return result
 
 
 def calc_stc_performance(
@@ -2731,11 +2965,11 @@ def calc_stc_performance(
         'Q_l_stc': Q_l_stc,
     }
 
-def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
+def print_simulation_summary(df, simulation_time_step, dV_ou_a_design):
     """
     Reads simulation result DataFrame and prints comprehensive statistics in English.
     """
-    required_columns = ['converged', 'E_ou_fan [W]', 'E_tot [W]', 'dV_ou_a_fan [m3/s]', 'cmp_rpm [rpm]']
+    required_columns = ['converged', 'E_ou_fan [W]', 'E_tot [W]', 'dV_ou_a [m3/s]', 'cmp_rpm [rpm]']
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         raise KeyError(f"Required columns not found in DataFrame: {missing_columns}")
@@ -2760,11 +2994,11 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
     print("-" * 50)
 
     # 3. Fan Flow Rate Statistics
-    fan_nonzero = df.loc[df['dV_ou_a_fan [m3/s]'] > 0, 'dV_ou_a_fan [m3/s]']
+    fan_nonzero = df.loc[df['dV_ou_a [m3/s]'] > 0, 'dV_ou_a [m3/s]']
     print("[Fan Flow Rate]")
     if not fan_nonzero.empty:
         fan_avg = fan_nonzero.mean()
-        fan_avg_pct = (fan_avg / dV_ou_fan_a_design) * 100
+        fan_avg_pct = (fan_avg / dV_ou_a_design) * 100
         print(f"  - Min: {fan_nonzero.min():.3f} m³/s | Max: {fan_nonzero.max():.3f} m³/s")
         print(f"  - Avg: {fan_avg:.3f} m³/s ({fan_avg_pct:.1f}% of design)")
     else:
@@ -2772,8 +3006,8 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
     print("-" * 50)
 
     # 3-1. Fan Velocity & Pressure Statistics
-    if 'v_ou_a_fan [m/s]' in df.columns:
-        v_fan_nonzero = df.loc[df['v_ou_a_fan [m/s]'] > 0, 'v_ou_a_fan [m/s]']
+    if 'v_ou_a [m/s]' in df.columns:
+        v_fan_nonzero = df.loc[df['v_ou_a [m/s]'] > 0, 'v_ou_a [m/s]']
         print("[Fan Velocity]")
         if not v_fan_nonzero.empty:
             print(f"  - Min: {v_fan_nonzero.min():.2f} m/s | Max: {v_fan_nonzero.max():.2f} m/s")
@@ -2783,8 +3017,8 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
         print("-" * 50)
 
     if 'dP_ou_fan_static [Pa]' in df.columns and 'dP_ou_fan_dynamic [Pa]' in df.columns:
-        # Filter based on active fan (using dV_ou_a_fan > 0)
-        active_idx = df['dV_ou_a_fan [m3/s]'] > 0
+        # Filter based on active fan (using dV_ou_a > 0)
+        active_idx = df['dV_ou_a [m3/s]'] > 0
         dP_static = df.loc[active_idx, 'dP_ou_fan_static [Pa]']
         dP_dynamic = df.loc[active_idx, 'dP_ou_fan_dynamic [Pa]']
         
@@ -2814,11 +3048,11 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
     print("-" * 50)
 
     # 6. Heat Exchange Performance: Outdoor Air
-    if 'T_a_ou_in [°C]' in df.columns and 'T_a_ou_out [°C]' in df.columns:
-        valid_idx = df['T_a_ou_out [°C]'].notna()
+    if 'T_ou_a_in [°C]' in df.columns and 'T_ou_a_out [°C]' in df.columns:
+        valid_idx = df['T_ou_a_out [°C]'].notna()
         print("[Outdoor Air Temperature Difference (In - Out)]")
         if valid_idx.any():
-            delta_T = df.loc[valid_idx, 'T_a_ou_in [°C]'] - df.loc[valid_idx, 'T_a_ou_out [°C]']
+            delta_T = df.loc[valid_idx, 'T_ou_a_in [°C]'] - df.loc[valid_idx, 'T_ou_a_out [°C]']
             print(f"  - Avg Delta T: {delta_T.mean():.2f} K | Max Delta T: {delta_T.max():.2f} K")
         else:
             print("  - No active data.")
@@ -2828,9 +3062,9 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
     print("[Heat Exchanger Temperature Differences]")
     
     # Condenser (T_cond - T_tank_w)
-    if 'T3_star [°C]' in df.columns and 'T_tank_w [°C]' in df.columns:
-        T_cond = df.loc[df['T3_star [°C]'] > -273, 'T3_star [°C]']
-        T_tank_w = df.loc[df['T_tank_w [°C]'] > -273, 'T_tank_w [°C]']
+    if 'T_ref_cond_sat_l [°C]' in df.columns and 'T_tank_w [°C]' in df.columns:
+        T_cond = df.loc[:, 'T_ref_cond_sat_l [°C]']
+        T_tank_w = df.loc[:, 'T_tank_w [°C]']
         
         if not T_cond.empty and not T_tank_w.empty:
             dT_cond = T_cond - T_tank_w
@@ -2841,10 +3075,10 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_fan_a_design):
             print("  - Condenser: No data")
 
     # Evaporator (T_air_in - T_evap) & (T_air_in - T_air_out)
-    if 'T_a_ou_in [°C]' in df.columns and 'T1_star [°C]' in df.columns and 'T_a_ou_out [°C]' in df.columns:
-        T_air_in = df.loc[df['T_a_ou_in [°C]'] > -273, 'T_a_ou_in [°C]']
-        T_evap_sat = df.loc[df['T1_star [°C]'] > -273, 'T1_star [°C]']
-        T_air_out = df.loc[df['T_a_ou_out [°C]'] > -273, 'T_a_ou_out [°C]']
+    if 'T_ou_a_in [°C]' in df.columns and 'T_ref_evap_sat [°C]' in df.columns and 'T_ou_a_out [°C]' in df.columns:
+        T_air_in = df.loc[:, 'T_ou_a_in [°C]']
+        T_evap_sat = df.loc[:, 'T_ref_evap_sat [°C]']
+        T_air_out = df.loc[:, 'T_ou_a_out [°C]']
         
         if not T_air_in.empty:
             dT_evap_drive = T_air_in - T_evap_sat

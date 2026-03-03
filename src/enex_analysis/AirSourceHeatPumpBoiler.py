@@ -3,8 +3,9 @@
 Resolves a vapour-compression refrigerant cycle coupled to an outdoor-air
 evaporator with a VSD fan and a lumped-capacitance hot-water tank.
 At each time step the model finds the minimum-power operating point
-(compressor + fan) via Differential Evolution optimisation over two approach
-temperature differences.
+(compressor + fan) via bounded 1-D optimisation (Brent's method) over
+the evaporator approach temperature difference.  The condenser approach
+temperature is determined analytically from the target heat load.
 
 Optional subsystems include:
 - Solar Thermal Collector (STC) with tank-circuit or mains-preheat placement
@@ -17,7 +18,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import differential_evolution
+from scipy.optimize import minimize_scalar
 from tqdm import tqdm
 import CoolProp.CoolProp as CP
 
@@ -27,13 +28,46 @@ from .enex_functions import *
 
 
 @dataclass
+class StepContext:
+    """Per-timestep immutable context (time, environment, demand)."""
+    n: int
+    current_time_s: float
+    current_hour: float
+    hour_of_day: float   # 0 ~ 24, repeats each day (for HP schedule / preheat)
+    T0: float
+    T0_K: float
+    preheat_on: bool
+    T_tank_w_K: float
+    tank_level: float
+    dV_mix_w_out: float
+    E_uv: float
+    I_DN: float = 0.0
+    I_dH: float = 0.0
+
+
+@dataclass
+class ControlState:
+    """Control decisions and HP cycle results for one timestep."""
+    hp_is_on: bool
+    hp_result: dict
+    Q_ref_cond: float
+    dV_tank_w_in_ctrl: object   # float or None (None = always-full sentinel)
+    stc_active: bool
+    E_stc_pump: float
+    T_tank_w_in_heated_K: float
+    stc_result: dict
+    T_stc_w_out_K_mp: float
+
+
+@dataclass
 class AirSourceHeatPumpBoiler:
     """Air source heat pump boiler with outdoor-air evaporator and VSD fan.
 
     The refrigerant cycle is resolved via CoolProp with user-specified
-    superheat / subcool margins.  A Differential Evolution optimiser
-    minimises total electrical input (``E_cmp + E_ou_fan``) subject to
-    condenser and evaporator heat-transfer constraints.
+    superheat / subcool margins.  The condenser approach temperature is
+    determined analytically (``dT_ref_cond = Q_cond_target / UA_cond``),
+    and a bounded 1-D optimiser (Brent's method) minimises total electrical
+    input (``E_cmp + E_ou_fan``) over the evaporator approach temperature.
     """
     def __init__(
         self,
@@ -91,6 +125,8 @@ class AirSourceHeatPumpBoiler:
         
         # 8. Solar Thermal Collector (STC) ----------------------------
         A_stc      = 0.0,    # [m²] Collector area (0 = disabled)
+        stc_tilt   = 35.0,   # [°] Collector tilt from horizontal
+        stc_azimuth= 180.0,  # [°] Collector azimuth (180 = south)
         A_stc_pipe = 2.0,    # [m²] Pipe surface area
         alpha_stc  = 0.95,   # [-] Absorptivity
         h_o_stc    = 15,     # [W/m²·K] External convective coeff
@@ -176,12 +212,12 @@ class AirSourceHeatPumpBoiler:
 
         # --- 8–10. STC + STC pump + placement ---
         self._setup_stc_parameters(
-            A_stc, A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
+            A_stc, stc_tilt, stc_azimuth,
+            A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
             preheat_start_hour, preheat_end_hour, dV_stc_w, E_stc_pump, stc_placement
         )
 
-        # Warm-start: reuse previous optimisation result
-        self.prev_opt_x = None
+
 
         # Flow-rate synchronisation variables
         self.dV_tank_w_in = 0.0
@@ -189,22 +225,21 @@ class AirSourceHeatPumpBoiler:
         self.dV_mix_w_in_sup = 0.0
         self.dV_mix_w_out = 0.0
 
-    def _calc_state(self, optimization_vars, T_tank_w, Q_cond_load, T0):
+    def _calc_state(self, dT_ref_evap, T_tank_w, Q_cond_target, T0):
         """Evaluate refrigerant cycle performance for a given operating point.
 
-        Called repeatedly by the optimiser.  The method resolves the full
-        cycle (States 1–4 with superheat/subcool), computes required refrigerant
-        flow for the target ``Q_cond_load``, evaluates outdoor HX airflow and
-        fan power, and assembles a result dictionary.
+        Called repeatedly by the optimiser.  The condenser approach
+        temperature is determined analytically as
+        ``dT_ref_cond = Q_cond_target / UA_cond``, so only the evaporator
+        approach temperature remains as the free variable.
 
         Parameters
         ----------
-        optimization_vars : list of float
-            ``[dT_ref_cond, dT_ref_evap]`` — condenser and evaporator
-            approach temperature differences [K].
+        dT_ref_evap : float
+            Evaporator approach temperature difference [K].
         T_tank_w : float
             Current tank water temperature [°C].
-        Q_cond_load : float
+        Q_cond_target : float
             Target condenser heat rate [W].
         T0 : float
             Dead-state / outdoor-air temperature [°C].
@@ -214,8 +249,7 @@ class AirSourceHeatPumpBoiler:
         dict or None
             Cycle performance dictionary.  ``None`` if infeasible.
         """
-        dT_ref_cond = optimization_vars[0]
-        dT_ref_evap = optimization_vars[1]
+        dT_ref_cond = Q_cond_target / self.UA_cond_design if Q_cond_target > 0 else 0.0
 
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
@@ -223,7 +257,7 @@ class AirSourceHeatPumpBoiler:
         T_evap_sat_K = T0_K - dT_ref_evap
         T_cond_sat_K = T_tank_w_K + dT_ref_cond
 
-        is_active = (Q_cond_load > 0.0)
+        is_active = (Q_cond_target > 0.0)
 
         # Cycle state calculation (superheat / subcool applied)
         cs = calc_ref_state(
@@ -239,16 +273,16 @@ class AirSourceHeatPumpBoiler:
         )
 
         # Refrigerant mass flow and performance
-        m_dot_ref  = Q_cond_load / (cs['h2'] - cs['h3'])
-        Q_ref_cond = m_dot_ref * (cs['h2'] - cs['h3'])
-        Q_ref_evap = m_dot_ref * (cs['h1'] - cs['h4'])
-        E_cmp      = m_dot_ref * (cs['h2'] - cs['h1'])
-        cmp_rps    = m_dot_ref / (self.V_disp_cmp * cs['rho'])
+        m_dot_ref  = Q_cond_target / (cs['h2'] - cs['h3']) if is_active else 0.0
+        Q_ref_cond = m_dot_ref * (cs['h2'] - cs['h3']) if is_active else 0.0
+        Q_ref_evap = m_dot_ref * (cs['h1'] - cs['h4']) if is_active else 0.0
+        E_cmp      = m_dot_ref * (cs['h2'] - cs['h1']) if is_active else 0.0
+        cmp_rps    = m_dot_ref / (self.V_disp_cmp * cs['rho']) if is_active else 0.0
 
         # Outdoor unit HX performance
         HX_perf_ou = calc_HX_perf_for_target_heat(
             Q_ref_target  = Q_ref_evap if is_active else 0.0,
-            T_a_ou_in_C   = T0,
+            T_ou_a_in_C   = T0,
             T1_star_K     = cs['T1_star_K'],
             T3_star_K     = cs['T3_star_K'],
             A_cross       = self.A_cross_ou,
@@ -258,28 +292,28 @@ class AirSourceHeatPumpBoiler:
         )
 
         if HX_perf_ou.get('converged', True) is False:
-            return None
+            return {'converged': False, '_hx_diag': HX_perf_ou}
 
-        dV_ou_a_fan = HX_perf_ou['dV_fan']
-        v_ou_a_fan  = dV_ou_a_fan / self.A_cross_ou
-        UA_evap     = HX_perf_ou['UA']
-        T_a_ou_mid  = HX_perf_ou['T_a_ou_mid']
-        Q_ou_a      = HX_perf_ou['Q_ou_air']
+        dV_ou_a  = HX_perf_ou['dV_fan']
+        v_ou_a   = dV_ou_a / self.A_cross_ou if is_active else 0.0
+        UA_evap  = HX_perf_ou['UA']
+        T_ou_a_mid = HX_perf_ou['T_ou_a_mid']
+        Q_ou_a   = HX_perf_ou['Q_ou_air']
 
         # Fan power
         E_ou_fan = calc_fan_power_from_dV_fan(
-            dV_fan     = dV_ou_a_fan,
+            dV_fan     = dV_ou_a,
             fan_params = self.fan_params_ou,
             vsd_coeffs = self.vsd_coeffs_ou,
             is_active  = is_active,
         )
 
-        T_a_ou_out = T_a_ou_mid + E_ou_fan / (c_a * rho_a * dV_ou_a_fan)
-        fan_eff = self.eta_ou_fan_design * dV_ou_a_fan / E_ou_fan * 100
+        T_ou_a_out = T_ou_a_mid + E_ou_fan / (c_a * rho_a * dV_ou_a) if is_active else T0
+        eta_ou_fan = self.eta_ou_fan_design * dV_ou_a / E_ou_fan * 100 if is_active else 0.0
 
         # Condenser heat transfer (simplified: Q = UA * dT)
         UA_cond  = self.UA_cond_design
-        Q_tank_w = UA_cond * dT_ref_cond
+        Q_cond_w = UA_cond * dT_ref_cond
 
         # Mixing valve
         dV_tank_w_out   = self.dV_tank_w_out
@@ -288,20 +322,20 @@ class AirSourceHeatPumpBoiler:
         dV_mix_w_out    = self.dV_mix_w_out
 
         if dV_mix_w_out == 0:
-            T_serv_w_actual = np.nan
-            T_serv_w_actual_K = np.nan
+            T_mix_w_out_val = np.nan
+            T_mix_w_out_val_K = np.nan
         else:
             mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
-            T_serv_w_actual = mix['T_serv_w_actual']
-            T_serv_w_actual_K = mix['T_serv_w_actual_K']
+            T_mix_w_out_val = mix['T_mix_w_out']
+            T_mix_w_out_val_K = mix['T_mix_w_out_K']
 
         Q_tank_w_in  = calc_energy_flow(G=c_w * rho_w * dV_tank_w_in, T=self.T_tank_w_in_K, T0=T0_K)
         Q_tank_w_out = calc_energy_flow(G=c_w * rho_w * dV_tank_w_out, T=T_tank_w_K, T0=T0_K)
         Q_mix_w_in_sup = calc_energy_flow(G=c_w * rho_w * dV_mix_w_in_sup, T=self.T_tank_w_in_K, T0=T0_K)
-        Q_mix_w_out  = calc_energy_flow(G=c_w * rho_w * dV_mix_w_out, T=T_serv_w_actual_K, T0=T0_K)
+        Q_mix_w_out  = calc_energy_flow(G=c_w * rho_w * dV_mix_w_out, T=T_mix_w_out_val_K, T0=T0_K)
 
         result = {
-            'hp_is_on': (Q_cond_load > 0),
+            'hp_is_on': (Q_cond_target > 0),
             'converged': True,
 
             # === Temperatures [°C] ===
@@ -309,20 +343,20 @@ class AirSourceHeatPumpBoiler:
             'T_ref_cond_sat_v [°C]': cu.K2C(cs['T2_star_K']),
             'T_ref_cond_sat_l [°C]': cu.K2C(cs['T3_star_K']),
 
-            'T_a_ou_in [°C]': T0,
-            'T_a_ou_out [°C]': T_a_ou_out,
+            'T_ou_a_in [°C]': T0,
+            'T_ou_a_out [°C]': T_ou_a_out,
             'T_ref_cmp_in [°C]': cu.K2C(cs['T1_K']),
             'T_ref_cmp_out [°C]': cu.K2C(cs['T2_K']),
             'T_ref_exp_in [°C]': cu.K2C(cs['T3_K']),
             'T_ref_exp_out [°C]': cu.K2C(cs['T4_K']),
             'T_tank_w [°C]': T_tank_w,
             'T_tank_w_in [°C]': self.T_tank_w_in,
-            'T_mix_w_out [°C]': T_serv_w_actual,
+            'T_mix_w_out [°C]': T_mix_w_out_val,
             'T0 [°C]': T0,
 
             # === Volume flow rates [m3/s] ===
-            'dV_ou_a_fan [m3/s]': dV_ou_a_fan,
-            'v_ou_a_fan [m/s]': v_ou_a_fan,
+            'dV_ou_a [m3/s]': dV_ou_a,
+            'v_ou_a [m/s]': v_ou_a,
             'dV_mix_w_out [m3/s]': dV_mix_w_out if dV_mix_w_out > 0 else np.nan,
             'dV_tank_w_in [m3/s]': dV_tank_w_in if dV_tank_w_in > 0 else np.nan,
             'dV_mix_w_in_sup [m3/s]': dV_mix_w_in_sup if dV_mix_w_in_sup > 0 else np.nan,
@@ -335,8 +369,8 @@ class AirSourceHeatPumpBoiler:
             'P_ref_evap_sat [Pa]': cs['P1'] if is_active else np.nan,
             'P_ref_cond_sat_v [Pa]': cs['P2'] if is_active else np.nan,
             'P_ref_cond_sat_l [Pa]': cs['P3'] if is_active else np.nan,
-            'dP_ou_fan_static [Pa]': self.dP_ou_fan_design - 1/2 * rho_a * v_ou_a_fan**2,
-            'dP_ou_fan_dynamic [Pa]': 1/2 * rho_a * v_ou_a_fan**2,
+            'dP_ou_fan_static [Pa]': self.dP_ou_fan_design - 1/2 * rho_a * v_ou_a**2,
+            'dP_ou_fan_dynamic [Pa]': 1/2 * rho_a * v_ou_a**2,
 
             # === Mass flow rate [kg/s] ===
             'm_dot_ref [kg/s]': m_dot_ref,
@@ -358,9 +392,9 @@ class AirSourceHeatPumpBoiler:
             'Q_ref_evap [W]': Q_ref_evap,
             'Q_ou_a [W]': Q_ou_a,
             'E_cmp [W]': E_cmp,
-            'Q_cond_load [W]': Q_cond_load,
+            'Q_cond_target [W]': Q_cond_target,
             'Q_ref_cond [W]': Q_ref_cond,
-            'Q_tank_w [W]': Q_tank_w,
+            'Q_cond_w [W]': Q_cond_w,
             'Q_tank_w_in [W]': Q_tank_w_in,
             'Q_tank_w_out [W]': Q_tank_w_out,
             'Q_mix_w_in_sup [W]': Q_mix_w_in_sup,
@@ -368,23 +402,23 @@ class AirSourceHeatPumpBoiler:
             'E_tot [W]': E_cmp + E_ou_fan,
 
             # === Efficiency ===
-            'fan_eff [%]': fan_eff,
+            'eta_ou_fan [%]': eta_ou_fan,
         }
 
         return result
 
-    def _optimize_operation(self, T_tank_w, Q_cond_load, T0):
-        """Find minimum-power operating point via Differential Evolution.
+    def _optimize_operation(self, T_tank_w, Q_cond_target, T0):
+        """Find minimum-power operating point via Brent's bounded 1-D method.
 
-        Optimisation variables are ``[dT_ref_cond, dT_ref_evap]``.
-        Condenser and evaporator heat transfer feasibility constraints
-        are enforced via a penalty function.
+        The condenser approach temperature is analytically determined
+        (``dT_ref_cond = Q_cond_target / UA_cond``), so only ``dT_ref_evap``
+        remains as the optimisation variable.
 
         Parameters
         ----------
         T_tank_w : float
             Tank water temperature [°C].
-        Q_cond_load : float
+        Q_cond_target : float
             Target condenser heat rate [W].
         T0 : float
             Dead-state / outdoor-air temperature [°C].
@@ -392,84 +426,44 @@ class AirSourceHeatPumpBoiler:
         Returns
         -------
         scipy.optimize.OptimizeResult
-            Contains ``x`` (optimal variables) and ``success`` flag.
+            Contains ``x`` (optimal ``dT_ref_evap``, scalar) and ``success``.
         """
-        tolerance = 0.001  # 0.1%
-        bounds = [(1.0, 30.0), (1.0, 30.0)]
-        penalty_weight = 1e4
 
-        def _objective(x):
-            """Objective: minimise E_tot with penalty for constraint violations."""
+        def _objective(dT_ref_evap):
+            """Objective: minimise E_tot = E_cmp + E_ou_fan."""
             try:
                 perf = self._calc_state(
-                    optimization_vars=x,
+                    dT_ref_evap=dT_ref_evap,
                     T_tank_w=T_tank_w,
-                    Q_cond_load=Q_cond_load,
+                    Q_cond_target=Q_cond_target,
                     T0=T0
                 )
                 if perf is None or not isinstance(perf, dict):
                     return 1e6
 
                 E_tot = perf.get("E_tot [W]", np.nan)
-                if np.isnan(E_tot):
-                    return 1e6
-
-                penalty = 0.0
-
-                # Condenser constraint: Q_tank_w ∈ [Q_cond_load, Q_cond_load*(1+tol)]
-                Q_tank_w = perf.get("Q_tank_w [W]", np.nan)
-                if not np.isnan(Q_tank_w):
-                    cond_low = Q_cond_load - Q_tank_w
-                    if cond_low > 0:
-                        penalty += penalty_weight * cond_low**2
-                    cond_high = Q_tank_w - Q_cond_load * (1 + tolerance)
-                    if cond_high > 0:
-                        penalty += penalty_weight * cond_high**2
-
-                # Evaporator constraint: Q_ou_a ∈ [Q_ref_evap, Q_ref_evap*(1+tol)]
-                Q_ou_a = perf.get("Q_ou_a [W]", np.nan)
-                Q_ref_evap = perf.get("Q_ref_evap [W]", np.nan)
-                if not np.isnan(Q_ou_a) and not np.isnan(Q_ref_evap):
-                    evap_low = Q_ref_evap - Q_ou_a
-                    if evap_low > 0:
-                        penalty += penalty_weight * evap_low**2
-                    evap_high = Q_ou_a - Q_ref_evap * (1 + tolerance)
-                    if evap_high > 0:
-                        penalty += penalty_weight * evap_high**2
-
-                return E_tot + penalty
+                return E_tot if not np.isnan(E_tot) else 1e6
             except Exception:
                 return 1e6
 
-        x0 = self.prev_opt_x if self.prev_opt_x is not None else None
-
-        opt_result = differential_evolution(
+        return minimize_scalar(
             _objective,
-            bounds=bounds,
-            x0=x0,
-            maxiter=1000,
-            popsize=10,
-            tol=1e-4,
-            seed=42,
-            disp=False,
+            bounds=(5.0, 15.0),
+            method='bounded',
+            options={'maxiter': 200, 'xatol': 1e-6},
         )
-
-        if opt_result.success:
-            self.prev_opt_x = opt_result.x
-
-        return opt_result
 
     def analyze_steady(
         self,
         T_tank_w,
         T0,
-        dV_w_serv=None,
-        Q_cond_load=None,
+        dV_mix_w_out=None,
+        Q_cond_target=None,
         return_dict=True
         ):
         """Run a steady-state analysis at the given operating point.
 
-        Exactly one of ``dV_w_serv`` or ``Q_cond_load`` must be provided.
+        Exactly one of ``dV_mix_w_out`` or ``Q_cond_target`` must be provided.
 
         Parameters
         ----------
@@ -477,9 +471,9 @@ class AirSourceHeatPumpBoiler:
             Tank water temperature [°C].
         T0 : float
             Dead-state / outdoor-air temperature [°C].
-        dV_w_serv : float, optional
+        dV_mix_w_out : float, optional
             Service water flow rate [m³/s].
-        Q_cond_load : float, optional
+        Q_cond_target : float, optional
             Target condenser heat rate [W].
         return_dict : bool
             If True return dict; else single-row DataFrame.
@@ -488,56 +482,56 @@ class AirSourceHeatPumpBoiler:
         -------
         dict or pd.DataFrame
         """
-        if dV_w_serv is None and Q_cond_load is None:
-            raise ValueError("Either dV_w_serv or Q_cond_load must be provided.")
-        if dV_w_serv is not None and Q_cond_load is not None:
-            raise ValueError("Cannot provide both dV_w_serv and Q_cond_load.")
+        if dV_mix_w_out is None and Q_cond_target is None:
+            raise ValueError("Either dV_mix_w_out or Q_cond_target must be provided.")
+        if dV_mix_w_out is not None and Q_cond_target is not None:
+            raise ValueError("Cannot provide both dV_mix_w_out and Q_cond_target.")
 
         T_tank_w_K = cu.C2K(T_tank_w)
         T0_K = cu.C2K(T0)
 
-        if dV_w_serv is None:
-            dV_w_serv = 0.0
+        if dV_mix_w_out is None:
+            dV_mix_w_out = 0.0
 
         Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
         den = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
         alp = min(1.0, max(0.0, self.T_mix_w_out_K - self.T_tank_w_in_K) / den)
 
-        self.dV_mix_w_out = dV_w_serv
-        self.dV_tank_w_out = alp * dV_w_serv
-        self.dV_mix_w_in_sup = (1 - alp) * dV_w_serv
+        self.dV_mix_w_out = dV_mix_w_out
+        self.dV_tank_w_out = alp * dV_mix_w_out
+        self.dV_mix_w_in_sup = (1 - alp) * dV_mix_w_out
 
-        if Q_cond_load is None:
-            Q_use_loss = c_w * rho_w * self.dV_tank_w_out * (T_tank_w_K - self.T_tank_w_in_K)
-            Q_cond_load = Q_tank_loss + Q_use_loss
+        if Q_cond_target is None:
+            Q_tank_w_use = c_w * rho_w * self.dV_tank_w_out * (T_tank_w_K - self.T_tank_w_in_K)
+            Q_cond_target = Q_tank_loss + Q_tank_w_use
 
         if T_tank_w <= self.T_tank_w_lower_bound:
             hp_is_on = True
         elif T_tank_w > self.T_tank_w_upper_bound:
             hp_is_on = False
         else:
-            hp_is_on = Q_cond_load > 0
+            hp_is_on = Q_cond_target > 0
 
-        if Q_cond_load <= 0 or not hp_is_on:
+        if Q_cond_target <= 0 or not hp_is_on:
             result = self._calc_state(
-                optimization_vars=[5.0, 5.0],
+                dT_ref_evap=5.0,
                 T_tank_w=T_tank_w,
-                Q_cond_load=0.0,
+                Q_cond_target=0.0,
                 T0=T0
             )
         else:
             opt_result = self._optimize_operation(
                 T_tank_w=T_tank_w,
-                Q_cond_load=Q_cond_load,
+                Q_cond_target=Q_cond_target,
                 T0=T0
             )
             result = None
             try:
                 result = self._calc_state(
-                    optimization_vars=opt_result.x,
+                    dT_ref_evap=opt_result.x,
                     T_tank_w=T_tank_w,
                     T0=T0,
-                    Q_cond_load=Q_cond_load,
+                    Q_cond_target=Q_cond_target,
                 )
             except Exception:
                 pass
@@ -545,16 +539,16 @@ class AirSourceHeatPumpBoiler:
             if result is None or not isinstance(result, dict):
                 try:
                     result = self._calc_state(
-                        optimization_vars=[5.0, 5.0],
+                        dT_ref_evap=5.0,
                         T_tank_w=T_tank_w,
-                        Q_cond_load=0.0,
+                        Q_cond_target=0.0,
                         T0=T0
                     )
                 except Exception:
                     result = {
                         'hp_is_on': False,
                         'converged': False,
-                        'Q_cond_load [W]': Q_cond_load,
+                        'Q_cond_target [W]': Q_cond_target,
                         'Q_ref_cond [W]': 0.0,
                         'Q_ref_evap [W]': 0.0,
                         'E_cmp [W]': 0.0,
@@ -575,86 +569,258 @@ class AirSourceHeatPumpBoiler:
         else:
             return pd.DataFrame([result])
 
+    # =================================================================
+    # Private helpers for analyze_dynamic
+    # =================================================================
+
+    def _determine_hp_state(self, ctx, hp_is_on_prev):
+        """Determine HP on/off via hysteresis and run cycle optimisation."""
+        T_tank_w = cu.K2C(ctx.T_tank_w_K)
+        if T_tank_w <= self.T_tank_w_lower_bound:
+            hp_is_on = True
+        elif T_tank_w >= self.T_tank_w_upper_bound:
+            hp_is_on = False
+        else:
+            hp_is_on = hp_is_on_prev
+        hp_is_on = hp_is_on and check_hp_schedule_active(ctx.hour_of_day, self.hp_on_schedule)
+
+        Q_cond_target = self.hp_capacity if hp_is_on else 0.0
+
+        # Set mixing valve flows for _calc_state
+        den = max(1e-6, ctx.T_tank_w_K - self.T_tank_w_in_K)
+        alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
+        self.dV_mix_w_out = ctx.dV_mix_w_out
+        self.dV_tank_w_out = alp * ctx.dV_mix_w_out
+        self.dV_mix_w_in_sup = (1 - alp) * ctx.dV_mix_w_out
+
+        if Q_cond_target == 0:
+            hp_result = self._calc_state(5.0, T_tank_w, 0.0, ctx.T0)
+        else:
+            opt = self._optimize_operation(T_tank_w, Q_cond_target, ctx.T0)
+            hp_result = self._calc_state(opt.x, T_tank_w, Q_cond_target, ctx.T0)
+            if not opt.success or hp_result is None or hp_result.get('converged') is False:
+                print(f"\n{'='*70}")
+                print(f"[HP OPTIMIZATION FAILED] Step n={ctx.n}, hour_of_day={ctx.hour_of_day:.2f}h")
+                print(f"{'='*70}")
+                print(f"  Operating conditions:")
+                print(f"    T_tank_w     = {T_tank_w:.2f} °C")
+                print(f"    T0 (outdoor) = {ctx.T0:.2f} °C")
+                print(f"    Q_cond_target= {Q_cond_target:.1f} W  (hp_capacity)")
+                print(f"  Optimizer result:")
+                print(f"    opt.success  = {opt.success}")
+                print(f"    opt.x        = {opt.x}  [dT_ref_evap]")
+                print(f"    dT_ref_cond  = {Q_cond_target / self.UA_cond_design:.4f} K  (analytically determined)")
+                print(f"    opt.fun      = {opt.fun:.2f}")
+                print(f"    opt.message  = {opt.message}")
+                print(f"  Current design parameters:")
+                print(f"    hp_capacity        = {self.hp_capacity:.0f} W")
+                print(f"    dV_ou_fan_a_design = {self.dV_ou_fan_a_design:.4f} m³/s")
+                print(f"    UA_evap_design     = {self.UA_evap_design:.1f} W/K")
+                print(f"    UA_cond_design     = {self.UA_cond_design:.1f} W/K")
+                print(f"    A_cross_ou         = {self.A_cross_ou:.4f} m²")
+                # HX bracket failure diagnostics
+                hx_diag = hp_result.get('_hx_diag', {}) if hp_result else {}
+                if hx_diag:
+                    print(f"  HX bracket failure diagnostics:")
+                    print(f"    Q_ref_target  = {hx_diag.get('Q_ref_target', np.nan):.1f} W")
+                    print(f"    Q @ dV_min    = {hx_diag.get('Q_at_dV_min', np.nan):.1f} W  (dV={hx_diag.get('dV_min', np.nan):.4f} m³/s)")
+                    print(f"    Q @ dV_max    = {hx_diag.get('Q_at_dV_max', np.nan):.1f} W  (dV={hx_diag.get('dV_max', np.nan):.4f} m³/s)")
+                    print(f"    → {hx_diag.get('hint', '')}")
+                elif hp_result is None:
+                    print(f"  _calc_state returned None")
+                print(f"  Suggested fixes:")
+                print(f"    ↑ dV_ou_fan_a_design (increase outdoor fan airflow)")
+                print(f"    ↑ UA_evap_design     (increase evaporator heat transfer)")
+                print(f"    ↓ hp_capacity        (reduce target heating capacity)")
+                print(f"{'='*70}\n")
+                raise ValueError(
+                    f"Optimization failed at step {ctx.n} (hour_of_day={ctx.hour_of_day:.2f}h): "
+                    f"T_tank_w={T_tank_w:.1f}°C, T0={ctx.T0:.1f}°C, Q_target={Q_cond_target:.0f}W"
+                )
+
+        return hp_is_on, hp_result, hp_result.get('Q_ref_cond [W]', 0.0)
+
+    def _determine_refill_flow(self, ctx, is_refilling, use_stc):
+        """Determine refill flow rate from current level and control mode.
+
+        Returns ``(dV_tank_w_in_ctrl, is_refilling)``.
+        ``dV_tank_w_in_ctrl`` is ``None`` for tank_always_full (no PSF),
+        signalling that inflow = outflow (resolved inside residual).
+        """
+        dt = self.dt
+        lv = ctx.tank_level
+        if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
+            lv = max(0.0, ctx.tank_level - (self.dV_tank_w_out * dt) / self.V_tank_full)
+
+        dV_tank_w_in = 0.0
+        if self.tank_always_full and self.prevent_simultaneous_flow:
+            if self.dV_tank_w_out > 0:
+                is_refilling = False
+            elif lv < 1.0:
+                req = (1.0 - lv) * self.V_tank_full
+                if self.dV_tank_w_in_refill * dt <= req:
+                    dV_tank_w_in = self.dV_tank_w_in_refill
+        elif self.tank_always_full:
+            return None, is_refilling   # sentinel
+        else:
+            lo, hi = self.tank_level_lower_bound, self.tank_level_upper_bound
+            if use_stc and self.stc_placement == 'mains_preheat' and ctx.preheat_on:
+                lo, hi = 1.0, 1.0
+            if not is_refilling and lv < lo - 1e-6:
+                is_refilling = True
+            if is_refilling:
+                req = (hi - lv) * self.V_tank_full
+                if self.dV_tank_w_in_refill * dt <= req:
+                    dV_tank_w_in = self.dV_tank_w_in_refill
+                if (lv + dV_tank_w_in * dt / self.V_tank_full) >= hi - 1e-6:
+                    is_refilling = False
+
+        return dV_tank_w_in, is_refilling
+
+    def _tank_mass_energy_residual(self, x, ctx, ctrl, dt, stc_kwargs, use_stc):
+        """Energy and mass balance residuals evaluated at T^{n+1}.
+
+        The 3-way mixing valve ratio  α(T) = (T_mix - T_in) / (T - T_in)
+        makes the outflow a nonlinear function of T^{n+1}, requiring an
+        iterative solver.  If α were frozen at time n the residual becomes
+        linear in T and admits a direct algebraic solution.
+        """
+        T_next, level_next = x
+
+        den = max(1e-6, T_next - self.T_tank_w_in_K)
+        alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
+        dV_tank_w_out = alp * ctx.dV_mix_w_out
+        dV_tank_w_in = dV_tank_w_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
+
+        r_mass = level_next - ctx.tank_level - (dV_tank_w_in - dV_tank_w_out) * dt / self.V_tank_full
+
+        C_curr = self.C_tank * max(0.001, ctx.tank_level)
+        C_next = self.C_tank * max(0.001, level_next)
+        Q_loss = self.UA_tank * (T_next - ctx.T0_K)
+
+        # Open-system enthalpy flow: Q_flow_net = G_in * T_in - G_out * T_out
+        # When dV_tank_w_in = dV_tank_w_out (constant mass): reduces to G*(T_tank_w_in_heated - T_next)
+        # When dV_tank_w_in ≠ dV_tank_w_out (variable mass): properly accounts for outflow enthalpy
+        Q_flow_net = c_w * rho_w * (dV_tank_w_in * ctrl.T_tank_w_in_heated_K - dV_tank_w_out * T_next)
+
+        Q_stc_net = 0.0
+        if use_stc and self.stc_placement == 'tank_circuit' and ctrl.stc_active:
+            stc_r = calc_stc_performance(
+                I_DN_stc=ctx.I_DN, I_dH_stc=ctx.I_dH,
+                T_stc_w_in_K=T_next, T0_K=ctx.T0_K,
+                dV_stc=self.dV_stc_w, is_active=True, **stc_kwargs)
+            Q_stc_net = stc_r.get('Q_stc_w_out', 0.0) - stc_r.get('Q_stc_w_in', 0.0)
+
+        Q_total = ctrl.Q_ref_cond + ctx.E_uv + ctrl.E_stc_pump + Q_stc_net + Q_flow_net
+        r_energy = C_next * T_next - C_curr * ctx.T_tank_w_K - dt * (Q_total - Q_loss)
+
+        return [r_energy, r_mass]
+
+    def _assemble_step_results(self, ctx, ctrl, T_solved_K, level_solved,
+                               ier, stc_kwargs, use_stc):
+        """Recompute reporting quantities at solved state and assemble dict."""
+        den = max(1e-6, T_solved_K - self.T_tank_w_in_K)
+        alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
+        dV_tank_w_out = alp * ctx.dV_mix_w_out
+        dV_tank_w_in = dV_tank_w_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
+
+        self.dV_tank_w_out = dV_tank_w_out
+        self.dV_tank_w_in = dV_tank_w_in
+        self.dV_mix_w_out = ctx.dV_mix_w_out
+        self.dV_mix_w_in_sup = (1 - alp) * ctx.dV_mix_w_out
+
+        T_mix_w_out_val = (calc_mixing_valve(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)['T_mix_w_out']
+                  if ctx.dV_mix_w_out > 0 else np.nan)
+
+        # STC at solved T for reporting
+        Q_stc_w_out, Q_stc_w_in = 0.0, 0.0
+        T_stc_w_out_K, T_stc_w_final_K = np.nan, np.nan
+        stc_result = ctrl.stc_result
+
+        if use_stc and self.stc_placement == 'tank_circuit':
+            stc_result = calc_stc_performance(
+                I_DN_stc=ctx.I_DN, I_dH_stc=ctx.I_dH,
+                T_stc_w_in_K=T_solved_K, T0_K=ctx.T0_K,
+                dV_stc=self.dV_stc_w, is_active=ctrl.stc_active, **stc_kwargs)
+            T_stc_w_out_K = stc_result['T_stc_w_out_K']
+            T_stc_w_final_K = stc_result.get('T_stc_w_final_K', T_stc_w_out_K)
+            Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
+            Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
+        elif use_stc and self.stc_placement == 'mains_preheat':
+            T_stc_w_out_K = ctrl.T_stc_w_out_K_mp
+            Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
+            Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
+
+        r = {}
+        r.update(ctrl.hp_result)
+        r.update({
+            'hp_is_on': ctrl.hp_is_on,
+            'Q_tank_loss [W]': self.UA_tank * (T_solved_K - ctx.T0_K),
+            'T_tank_w [°C]': cu.K2C(T_solved_K),
+            'T_mix_w_out [°C]': T_mix_w_out_val,
+            'implicit_converged': (ier == 1),
+        })
+        if self.lamp_power_watts > 0:
+            r['E_uv [W]'] = ctx.E_uv
+        if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
+            r['tank_level [-]'] = level_solved
+        if use_stc:
+            r.update({
+                'stc_active [-]': ctrl.stc_active,
+                'I_DN_stc [W/m2]': ctx.I_DN, 'I_dH_stc [W/m2]': ctx.I_dH,
+                'I_sol_stc [W/m2]': stc_result.get('I_sol_stc', np.nan),
+                'Q_sol_stc [W]': stc_result.get('Q_sol_stc', np.nan),
+                'Q_stc_w_out [W]': Q_stc_w_out, 'Q_stc_w_in [W]': Q_stc_w_in,
+                'Q_l_stc [W]': stc_result.get('Q_l_stc', np.nan),
+                'T_stc_w_out [°C]': cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan,
+                'T_stc_w_in [°C]': cu.K2C(T_solved_K),
+                'T_stc [°C]': cu.K2C(stc_result.get('T_stc_K', np.nan)),
+                'E_stc_pump [W]': ctrl.E_stc_pump,
+            })
+            if self.stc_placement == 'tank_circuit':
+                r['T_stc_w_final [°C]'] = cu.K2C(T_stc_w_final_K) if not np.isnan(T_stc_w_final_K) else np.nan
+        else:
+            r['stc_active [-]'] = False
+        return r
+
+    # =================================================================
+    # Main dynamic simulation
+    # =================================================================
+
     def analyze_dynamic(
-        self, 
-        simulation_period_sec, 
-        dt_s, 
-        T_tank_w_init_C,
-        schedule_entries,
-        T0_schedule,
-        I_DN_schedule=None,
-        I_dH_schedule=None,
-        tank_level_init = 1.0,    
-        result_save_csv_path=None,
-        ):
+        self, simulation_period_sec, dt_s, T_tank_w_init_C,
+        schedule_entries, T0_schedule,
+        I_DN_schedule=None, I_dH_schedule=None,
+        tank_level_init=1.0, result_save_csv_path=None):
         """Run a time-stepping dynamic simulation (fully implicit scheme).
 
-        At each timestep, ``scipy.optimize.fsolve`` solves for
-        ``[T_tank_next, tank_level_next]`` such that the energy and
-        mass balance residuals vanish.  All temperature-dependent terms
-        (tank loss, refill mixing, STC gain) are evaluated at the
-        unknown next-step state, providing unconditional stability.
-
-        Parameters
-        ----------
-        simulation_period_sec : int
-            Total simulation duration [s].
-        dt_s : int
-            Time step size [s].
-        T_tank_w_init_C : float
-            Initial tank temperature [°C].
-        schedule_entries : list of tuple
-            DHW schedule ``(start_str, end_str, fraction)``.
-        T0_schedule : array-like
-            Dead-state temperature per step [°C].
-        I_DN_schedule : array-like, optional
-            Direct-normal irradiance per step [W/m²] (required if STC active).
-        I_dH_schedule : array-like, optional
-            Diffuse-horizontal irradiance per step [W/m²].
-        tank_level_init : float
-            Initial tank water level [0–1].
-        result_save_csv_path : str, optional
-            CSV output path.
-
-        Returns
-        -------
-        pd.DataFrame
-            Per-timestep results.
+        At each timestep ``fsolve`` solves for ``[T_next, level_next]``
+        such that the coupled energy / mass balance residuals vanish.
         """
         from scipy.optimize import fsolve
 
         time = np.arange(0, simulation_period_sec, dt_s)
         tN = len(time)
+
+        # Convert schedules to arrays for length checks and further use
         T0_schedule = np.array(T0_schedule)
-        if len(T0_schedule) != tN:
-            raise ValueError(f"T0_schedule length ({len(T0_schedule)}) must match time array length ({tN})")
+
+        # Check lengths of array inputs
+        if len(T0_schedule) != tN: raise ValueError(f"T0_schedule length ({len(T0_schedule)}) != time length ({tN})")
+        if I_DN_schedule is not None and len(I_DN_schedule) != tN: raise ValueError(f"I_DN_schedule length ({len(I_DN_schedule)}) != time length ({tN})")
+        if I_dH_schedule is not None and len(I_dH_schedule) != tN: raise ValueError(f"I_dH_schedule length ({len(I_dH_schedule)}) != time length ({tN})")
 
         use_stc = (self.A_stc > 0) and (I_DN_schedule is not None) and (I_dH_schedule is not None)
-        if use_stc:
-            I_DN_schedule = np.array(I_DN_schedule)
-            I_dH_schedule = np.array(I_dH_schedule)
-            if len(I_DN_schedule) != tN:
-                raise ValueError(f"I_DN_schedule length ({len(I_DN_schedule)}) must match time array length ({tN})")
-            if len(I_dH_schedule) != tN:
-                raise ValueError(f"I_dH_schedule length ({len(I_dH_schedule)}) must match time array length ({tN})")
+        self.time, self.dt = time, dt_s
 
-        results_data = []
-
-        self.time = time
-        self.dt = dt_s
-
-        self.dV_mix_w_out = 0.0
-        self.dV_tank_w_out = 0.0
-        self.dV_mix_w_in_sup = 0.0
-
-        self.w_use_frac = build_schedule_ratios(schedule_entries, self.time)
-
-        T_tank_w_K = cu.C2K(T_tank_w_init_C)
-        tank_level = tank_level_init
-        is_refilling = False
-        hp_is_on_prev = False
-
-        # STC kwargs (shared across timesteps)
+        # schedule_entries: accept pre-computed numpy array (O(N)) or
+        #   list of (start, end, frac) interval tuples (converted via build_schedule_ratios)
+        if isinstance(schedule_entries, np.ndarray) and schedule_entries.ndim == 1:
+            if len(schedule_entries) != tN:
+                raise ValueError(f"schedule_entries array length ({len(schedule_entries)}) != time length ({tN})")
+            self.w_use_frac = schedule_entries.astype(float)
+        else:
+            self.w_use_frac = build_schedule_ratios(schedule_entries, time)
         stc_kwargs = dict(
             A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
             h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,
@@ -662,344 +828,79 @@ class AirSourceHeatPumpBoiler:
             x_ins_stc=self.x_ins_stc, E_pump=self.E_stc_pump,
         )
 
-        C_full = self.C_tank  # full-tank thermal capacitance [J/K]
+        _STC_OFF = {'stc_active': False, 'stc_result': {},
+                    'T_stc_w_out_K': np.nan, 'T_stc_w_final_K': np.nan,
+                    'Q_stc_w_out': 0.0, 'Q_stc_w_in': 0.0, 'E_stc_pump': 0.0}
+
+        T_tank_w_K = cu.C2K(T_tank_w_init_C)
+        tank_level = tank_level_init
+        is_refilling = False
+        hp_is_on_prev = False
+        results_data = []
 
         for n in tqdm(range(tN), desc="ASHPB Simulating"):
-            # =================================================================
-            # PHASE A: CONTROL DECISIONS (evaluated at current state)
-            # =================================================================
-            current_time_s = time[n]
-            current_hour = current_time_s * cu.s2h
-            T0 = T0_schedule[n]
-            T0_K = cu.C2K(T0)
-
-            preheat_on = (
-                current_hour >= self.preheat_start_hour
-                and current_hour < self.preheat_end_hour
+            # --- Build context ---
+            t_s = time[n]
+            hr = t_s * cu.s2h
+            hour_of_day = (t_s % (24 * cu.h2s)) * cu.s2h
+            ctx = StepContext(
+                n=n, current_time_s=t_s, current_hour=hr, hour_of_day=hour_of_day,
+                T0=T0_schedule[n], T0_K=cu.C2K(T0_schedule[n]),
+                preheat_on=(hour_of_day >= self.preheat_start_hour and hour_of_day < self.preheat_end_hour),
+                T_tank_w_K=T_tank_w_K, tank_level=tank_level,
+                dV_mix_w_out=self.w_use_frac[n] * self.dV_mix_w_out_max,
+                E_uv=calc_uv_lamp_power(t_s, self.period_3hour_sec,
+                    self.num_switching_per_3hour,
+                    self.uv_lamp_exposure_duration_sec, self.lamp_power_watts),
+                I_DN=I_DN_schedule[n] if use_stc else 0.0,
+                I_dH=I_dH_schedule[n] if use_stc else 0.0,
             )
 
-            T_tank_w = cu.K2C(T_tank_w_K)
-
-            # --- UV lamp (time-based) ---
-            E_uv = calc_uv_lamp_power(
-                current_time_s, self.period_3hour_sec,
-                self.num_switching_per_3hour,
-                self.uv_lamp_exposure_duration_sec,
-                self.lamp_power_watts,
-            )
-
-            # --- Demand (schedule-based) ---
-            dV_mix_w_out_n = self.w_use_frac[n] * self.dV_mix_w_out_max
-
-            # --- HP control (hysteresis at current T) ---
-            if T_tank_w <= self.T_tank_w_lower_bound:
-                hp_is_on = True
-            elif T_tank_w >= self.T_tank_w_upper_bound:
-                hp_is_on = False
-            else:
-                hp_is_on = hp_is_on_prev
-
-            hp_is_on_schedule = check_hp_schedule_active(current_hour, self.hp_on_schedule)
-            hp_is_on = hp_is_on and hp_is_on_schedule
+            # --- Phase A: control decisions ---
+            hp_is_on, hp_result, Q_ref_cond = self._determine_hp_state(ctx, hp_is_on_prev)
             hp_is_on_prev = hp_is_on
 
-            Q_cond_load_n = self.hp_capacity if hp_is_on else 0.0
-
-            # --- HP cycle (quasi-steady at current T) ---
-            # Set mixing valve flows for _calc_state
-            den_curr = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
-            alp_curr = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den_curr))
-            self.dV_mix_w_out = dV_mix_w_out_n
-            self.dV_tank_w_out = alp_curr * dV_mix_w_out_n
-            self.dV_mix_w_in_sup = (1 - alp_curr) * dV_mix_w_out_n
-
-            if Q_cond_load_n == 0:
-                hp_result = self._calc_state(
-                    optimization_vars=[5.0, 5.0],
-                    T_tank_w=T_tank_w, Q_cond_load=0.0, T0=T0
-                )
-            else:
-                opt_result = self._optimize_operation(
-                    T_tank_w=T_tank_w, Q_cond_load=Q_cond_load_n, T0=T0
-                )
-                hp_result = self._calc_state(
-                    optimization_vars=opt_result.x,
-                    T_tank_w=T_tank_w, Q_cond_load=Q_cond_load_n, T0=T0
-                )
-                if not opt_result.success or hp_result is None:
-                    for k, v in hp_result.items():
-                        if isinstance(v, float): hp_result[k] = round(v, 2)
-                    raise ValueError(f"Optimization failed at timestep {n}: {hp_result}")
-                hp_result['converged'] = opt_result.success
-
-            Q_ref_cond = hp_result.get('Q_ref_cond [W]', 0.0)
-
-            # --- Refill control decision (based on current level) ---
-            # Project level after outflow to decide refilling
-            level_after_outflow = tank_level
-            if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
-                level_after_outflow = max(0.0, tank_level - (self.dV_tank_w_out * dt_s) / self.V_tank_full)
-
-            dV_tank_w_in_ctrl = 0.0  # Default: no refill
-
-            if self.tank_always_full and self.prevent_simultaneous_flow:
-                tank_outlet_exist = self.dV_tank_w_out > 0
-                if tank_outlet_exist:
-                    dV_tank_w_in_ctrl = 0.0
-                    is_refilling = False
-                else:
-                    if level_after_outflow < 1.0:
-                        req_vol = (1.0 - level_after_outflow) * self.V_tank_full
-                        if self.dV_tank_w_in_refill * dt_s <= req_vol:
-                            dV_tank_w_in_ctrl = self.dV_tank_w_in_refill
-                    else:
-                        dV_tank_w_in_ctrl = 0.0
-
-            elif self.tank_always_full:
-                dV_tank_w_in_ctrl = None  # Sentinel: dV_in = dV_out (resolved inside residual)
-
-            elif not self.tank_always_full:
-                target_lower = self.tank_level_lower_bound
-                target_upper = self.tank_level_upper_bound
-                if use_stc and self.stc_placement == 'mains_preheat' and preheat_on:
-                    target_lower = 1.0
-                    target_upper = 1.0
-                if not is_refilling:
-                    if level_after_outflow < target_lower - 1e-6:
-                        is_refilling = True
-                if is_refilling:
-                    req_vol = (target_upper - level_after_outflow) * self.V_tank_full
-                    if self.dV_tank_w_in_refill * dt_s <= req_vol:
-                        dV_tank_w_in_ctrl = self.dV_tank_w_in_refill
-                    if (level_after_outflow + dV_tank_w_in_ctrl * dt_s / self.V_tank_full) >= target_upper - 1e-6:
-                        is_refilling = False
-                else:
-                    dV_tank_w_in_ctrl = 0.0
-
-            # --- STC control decision (probe at current T) ---
-            stc_active = False
-            E_stc_pump_pwr = 0.0
-            stc_result_probe = {}
-            T_stc_w_out_K_mp = self.T_tank_w_in_K  # mains_preheat default
+            dV_tank_w_in_ctrl, is_refilling = self._determine_refill_flow(ctx, is_refilling, use_stc)
 
             if use_stc:
-                I_DN_n = I_DN_schedule[n]
-                I_dH_n = I_dH_schedule[n]
-
-                if self.stc_placement == 'tank_circuit':
-                    stc_probe = calc_stc_performance(
-                        I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                        T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
-                        dV_stc=self.dV_stc_w, is_active=True,
-                        **stc_kwargs,
-                    )
-                    stc_active = preheat_on and stc_probe['T_stc_w_out_K'] > T_tank_w_K
-                    E_stc_pump_pwr = self.E_stc_pump if stc_active else 0.0
-                    stc_result_probe = stc_probe
-
-                elif self.stc_placement == 'mains_preheat':
-                    dV_refill_for_stc = dV_tank_w_in_ctrl if dV_tank_w_in_ctrl is not None else self.dV_tank_w_out
-                    if preheat_on and dV_refill_for_stc > 0:
-                        stc_probe = calc_stc_performance(
-                            I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                            T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                            dV_stc=dV_refill_for_stc, is_active=True,
-                            **stc_kwargs,
-                        )
-                        stc_active = stc_probe['T_stc_w_out_K'] > self.T_tank_w_in_K
-                        stc_result_probe = stc_probe
-                    else:
-                        stc_active = False
-                        stc_result_probe = calc_stc_performance(
-                            I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                            T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                            dV_stc=1.0, is_active=False,
-                            **stc_kwargs,
-                        )
-
-                    if stc_active:
-                        T_stc_w_out_K_mp = stc_result_probe['T_stc_w_out_K']
-                        E_stc_pump_pwr = self.E_stc_pump
-                    else:
-                        T_stc_w_out_K_mp = self.T_tank_w_in_K
-                        E_stc_pump_pwr = 0.0
-
-            # --- Refill source temperature ---
-            if use_stc and self.stc_placement == 'mains_preheat' and stc_active:
-                T_refill_K = T_stc_w_out_K_mp
+                dV_stc_w_feed = dV_tank_w_in_ctrl if dV_tank_w_in_ctrl is not None else self.dV_tank_w_out
+                stc_state = self._calculate_stc_dynamic(
+                    I_DN=ctx.I_DN, I_dH=ctx.I_dH,
+                    T_tank_w_K=ctx.T_tank_w_K, T0_K=ctx.T0_K,
+                    preheat_on=ctx.preheat_on, dV_tank_w_in=dV_stc_w_feed)
             else:
-                T_refill_K = self.T_tank_w_in_K
+                stc_state = _STC_OFF
 
-            # =================================================================
-            # PHASE B: IMPLICIT SOLVE — fsolve([T_next, level_next])
-            # =================================================================
-            T_n = T_tank_w_K
-            level_n = tank_level
+            T_tank_w_in_heated_K = (stc_state['T_stc_w_out_K']
+                          if use_stc and self.stc_placement == 'mains_preheat' and stc_state['stc_active']
+                          else self.T_tank_w_in_K)
 
-            # Capture loop-local variables for closure
-            _dV_mix = dV_mix_w_out_n
-            _dV_in_ctrl = dV_tank_w_in_ctrl
-            _Q_hp = Q_ref_cond
-            _E_uv = E_uv
-            _E_pump = E_stc_pump_pwr
-            _T_refill = T_refill_K
-            _stc_active = stc_active
+            ctrl = ControlState(
+                hp_is_on=hp_is_on, hp_result=hp_result, Q_ref_cond=Q_ref_cond,
+                dV_tank_w_in_ctrl=dV_tank_w_in_ctrl,
+                stc_active=stc_state['stc_active'], E_stc_pump=stc_state['E_stc_pump'],
+                T_tank_w_in_heated_K=T_tank_w_in_heated_K, stc_result=stc_state['stc_result'],
+                T_stc_w_out_K_mp=stc_state.get('T_stc_w_out_K', self.T_tank_w_in_K))
 
-            def residual_func(x):
-                T_next = x[0]
-                level_next = x[1]
-
-                # Mixing valve at T_next
-                den = max(1e-6, T_next - self.T_tank_w_in_K)
-                alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
-                dV_out = alp * _dV_mix
-
-                # Refill flow
-                if _dV_in_ctrl is None:
-                    # tank_always_full: inflow matches outflow
-                    dV_in = dV_out
-                else:
-                    dV_in = _dV_in_ctrl
-
-                # --- Mass residual ---
-                r_mass = level_next - level_n - (dV_in - dV_out) * dt_s / self.V_tank_full
-
-                # --- Energy terms at T_next ---
-                C_curr = C_full * max(0.001, level_n)
-                C_next = C_full * max(0.001, level_next)
-
-                Q_loss = self.UA_tank * (T_next - T0_K)
-                Q_refill = c_w * rho_w * dV_in * (_T_refill - T_next)
-
-                # STC energy (tank_circuit: evaluate at T_next)
-                Q_stc_net = 0.0
-                if use_stc and self.stc_placement == 'tank_circuit' and _stc_active:
-                    stc_r = calc_stc_performance(
-                        I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                        T_stc_w_in_K=T_next, T0_K=T0_K,
-                        dV_stc=self.dV_stc_w, is_active=True,
-                        **stc_kwargs,
-                    )
-                    Q_stc_net = stc_r.get('Q_stc_w_out', 0.0) - stc_r.get('Q_stc_w_in', 0.0)
-
-                Q_total_gain = _Q_hp + _E_uv + _E_pump + Q_stc_net + Q_refill
-
-                # Energy residual: C_next*T_next - C_curr*T_n = dt*(Q_gain - Q_loss)
-                r_energy = C_next * T_next - C_curr * T_n - dt_s * (Q_total_gain - Q_loss)
-
-                return [r_energy, r_mass]
-
-            # Solve
-            x0 = [T_n, level_n]
-            sol, info, ier, msg = fsolve(residual_func, x0, full_output=True)
+            # --- Phase B: implicit solve ---
+            sol, _info, ier, _msg = fsolve(
+                self._tank_mass_energy_residual,
+                [ctx.T_tank_w_K, ctx.tank_level],
+                args=(ctx, ctrl, dt_s, stc_kwargs, use_stc),
+                full_output=True)
 
             T_tank_w_K = sol[0]
             tank_level = max(0.001, min(1.0, sol[1]))
 
-            # =================================================================
-            # PHASE C: POST-SOLVE RESULTS
-            # =================================================================
-            T_tank_w_solved = cu.K2C(T_tank_w_K)
-
-            # Recompute quantities at solved state for reporting
-            den_sol = max(1e-6, T_tank_w_K - self.T_tank_w_in_K)
-            alp_sol = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den_sol))
-            dV_out_sol = alp_sol * dV_mix_w_out_n
-            dV_in_sol = dV_out_sol if dV_tank_w_in_ctrl is None else dV_tank_w_in_ctrl
-
-            # Update instance flow-rate attributes
-            self.dV_tank_w_out = dV_out_sol
-            self.dV_tank_w_in = dV_in_sol
-            self.dV_mix_w_out = dV_mix_w_out_n
-            self.dV_mix_w_in_sup = (1 - alp_sol) * dV_mix_w_out_n
-
-            Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
-            Q_refill_net = c_w * rho_w * dV_in_sol * (T_refill_K - T_tank_w_K)
-            Q_use_loss = c_w * rho_w * dV_out_sol * (T_tank_w_K - T0_K)
-            Q_tank_w_in = c_w * rho_w * dV_in_sol * (T_refill_K - T0_K)
-
-            # Mixing valve result at solved T
-            if dV_mix_w_out_n > 0:
-                mix_sol = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
-                T_serv_w_actual = mix_sol['T_serv_w_actual']
-            else:
-                T_serv_w_actual = np.nan
-
-            # STC results at solved T (for reporting)
-            Q_stc_w_out = 0.0
-            Q_stc_w_in = 0.0
-            T_stc_w_out_K = np.nan
-            T_stc_w_final_K = np.nan
-            stc_result = stc_result_probe
-
-            if use_stc and self.stc_placement == 'tank_circuit':
-                if stc_active:
-                    stc_result = calc_stc_performance(
-                        I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                        T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
-                        dV_stc=self.dV_stc_w, is_active=True,
-                        **stc_kwargs,
-                    )
-                else:
-                    stc_result = calc_stc_performance(
-                        I_DN_stc=I_DN_n, I_dH_stc=I_dH_n,
-                        T_stc_w_in_K=T_tank_w_K, T0_K=T0_K,
-                        dV_stc=self.dV_stc_w, is_active=False,
-                        **stc_kwargs,
-                    )
-                T_stc_w_out_K = stc_result['T_stc_w_out_K']
-                T_stc_w_final_K = stc_result.get('T_stc_w_final_K', T_stc_w_out_K)
-                Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
-                Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
-            elif use_stc and self.stc_placement == 'mains_preheat':
-                T_stc_w_out_K = T_stc_w_out_K_mp
-                stc_result = stc_result_probe
-                Q_stc_w_out = stc_result.get('Q_stc_w_out', 0.0)
-                Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
-
-            # --- Assemble step_results ---
-            step_results = {}
-            step_results.update(hp_result)
-            step_results['hp_is_on'] = hp_is_on
-            step_results['Q_tank_loss [W]'] = Q_tank_loss
-            step_results['T_tank_w [°C]'] = T_tank_w_solved
-            step_results['T_mix_w_out [°C]'] = T_serv_w_actual
-            step_results['implicit_converged'] = (ier == 1)
-
-            if self.lamp_power_watts > 0:
-                step_results['E_uv [W]'] = E_uv
-
-            if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
-                step_results['tank_level [-]'] = tank_level
-
-            if use_stc:
-                step_results.update({
-                    'stc_active [-]': stc_active,
-                    'I_DN_stc [W/m2]': I_DN_schedule[n],
-                    'I_dH_stc [W/m2]': I_dH_schedule[n],
-                    'I_sol_stc [W/m2]': stc_result.get('I_sol_stc', np.nan),
-                    'Q_sol_stc [W]': stc_result.get('Q_sol_stc', np.nan),
-                    'Q_stc_w_out [W]': Q_stc_w_out,
-                    'Q_stc_w_in [W]': Q_stc_w_in,
-                    'Q_l_stc [W]': stc_result.get('Q_l_stc', np.nan),
-                    'T_stc_w_out [°C]': cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan,
-                    'T_stc_w_in [°C]': cu.K2C(T_tank_w_K),
-                    'T_stc [°C]': cu.K2C(stc_result.get('T_stc_K', np.nan)),
-                    'E_stc_pump [W]': E_stc_pump_pwr,
-                })
-                if self.stc_placement == 'tank_circuit':
-                    step_results['T_stc_w_final [°C]'] = cu.K2C(T_stc_w_final_K) if not np.isnan(T_stc_w_final_K) else np.nan
-            else:
-                step_results['stc_active [-]'] = False
-
-            results_data.append(step_results)
+            # --- Phase C: results ---
+            results_data.append(
+                self._assemble_step_results(ctx, ctrl, T_tank_w_K, tank_level,
+                                            ier, stc_kwargs, use_stc))
 
         results_df = pd.DataFrame(results_data)
         results_df = self.postprocess_exergy(results_df)
-
         if result_save_csv_path:
             results_df.to_csv(result_save_csv_path, index=False)
-
         return results_df
 
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1022,7 +923,8 @@ class AirSourceHeatPumpBoiler:
         return _postprocess_exergy(df, self.ref, self.C_tank, self.dt, self.T_tank_w_in)
 
     def _setup_stc_parameters(
-        self, A_stc, A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
+        self, A_stc, stc_tilt, stc_azimuth,
+        A_stc_pipe, alpha_stc, h_o_stc, h_r_stc, k_ins_stc, x_air_stc, x_ins_stc,
         preheat_start_hour, preheat_end_hour, dV_stc_w, E_stc_pump, stc_placement
     ):
         """Initialise Solar Thermal Collector (STC) parameters.
@@ -1030,6 +932,8 @@ class AirSourceHeatPumpBoiler:
         Separated from ``__init__`` to reduce constructor complexity.
         """
         self.A_stc = A_stc
+        self.stc_tilt = stc_tilt
+        self.stc_azimuth = stc_azimuth
         self.A_stc_pipe = A_stc_pipe
         self.alpha_stc = alpha_stc
         self.h_o_stc = h_o_stc
@@ -1050,7 +954,7 @@ class AirSourceHeatPumpBoiler:
         I_DN, I_dH, 
         T_tank_w_K, T0_K, 
         preheat_on, 
-        dV_tank_refill
+        dV_tank_w_in
     ):
         """Compute STC performance and state for a single timestep.
 
@@ -1069,7 +973,7 @@ class AirSourceHeatPumpBoiler:
             Dead-state temperature [K].
         preheat_on : bool
             Whether the preheat window is active.
-        dV_tank_refill : float
+        dV_tank_w_in : float
             Current refill flow rate [m³/s].
 
         Returns
@@ -1077,7 +981,7 @@ class AirSourceHeatPumpBoiler:
         dict
             Keys: ``stc_active``, ``stc_result``, ``T_stc_w_out_K``,
             ``T_stc_w_final_K``, ``Q_stc_w_out``, ``Q_stc_w_in``,
-            ``E_stc_pump_pwr``.
+            ``E_stc_pump``.
         """
         stc_active = False
         stc_result = {}
@@ -1086,7 +990,7 @@ class AirSourceHeatPumpBoiler:
         T_stc_w_final_K = np.nan
         Q_stc_w_out = 0.0
         Q_stc_w_in = 0.0
-        E_stc_pump_pwr = 0.0
+        E_stc_pump_val = 0.0
 
         stc_kwargs = dict(
             A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
@@ -1110,7 +1014,7 @@ class AirSourceHeatPumpBoiler:
 
             if stc_active:
                 stc_result = stc_result_test
-                E_stc_pump_pwr = self.E_stc_pump
+                E_stc_pump_val = self.E_stc_pump
             else:
                 stc_result = calc_stc_performance(
                     I_DN_stc=I_DN, I_dH_stc=I_dH,
@@ -1119,7 +1023,7 @@ class AirSourceHeatPumpBoiler:
                     is_active=False,
                     **stc_kwargs,
                 )
-                E_stc_pump_pwr = 0.0
+                E_stc_pump_val = 0.0
 
             T_stc_w_out_K = stc_result['T_stc_w_out_K']
             T_stc_w_final_K = stc_result.get('T_stc_w_final_K', T_stc_w_out_K)
@@ -1127,11 +1031,11 @@ class AirSourceHeatPumpBoiler:
             Q_stc_w_in    = stc_result.get('Q_stc_w_in', 0.0)
 
         elif self.stc_placement == 'mains_preheat':
-            if preheat_on and dV_tank_refill > 0:
+            if preheat_on and dV_tank_w_in > 0:
                 stc_result_test = calc_stc_performance(
                     I_DN_stc=I_DN, I_dH_stc=I_dH,
                     T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                    dV_stc=dV_tank_refill,
+                    dV_stc=dV_tank_w_in,
                     is_active=True,
                     **stc_kwargs,
                 )
@@ -1144,7 +1048,7 @@ class AirSourceHeatPumpBoiler:
                     stc_result = calc_stc_performance(
                         I_DN_stc=I_DN, I_dH_stc=I_dH,
                         T_stc_w_in_K=self.T_tank_w_in_K, T0_K=T0_K,
-                        dV_stc=dV_tank_refill,
+                        dV_stc=dV_tank_w_in,
                         is_active=False,
                         **stc_kwargs,
                     )
@@ -1163,9 +1067,9 @@ class AirSourceHeatPumpBoiler:
             Q_stc_w_in = stc_result.get('Q_stc_w_in', 0.0)
 
             if stc_active:
-                E_stc_pump_pwr = self.E_stc_pump
+                E_stc_pump_val = self.E_stc_pump
             else:
-                E_stc_pump_pwr = 0.0
+                E_stc_pump_val = 0.0
 
         return {
             'stc_active': stc_active,
@@ -1174,5 +1078,5 @@ class AirSourceHeatPumpBoiler:
             'T_stc_w_final_K': T_stc_w_final_K,
             'Q_stc_w_out': Q_stc_w_out,
             'Q_stc_w_in': Q_stc_w_in,
-            'E_stc_pump_pwr': E_stc_pump_pwr
+            'E_stc_pump': E_stc_pump_val
         }
