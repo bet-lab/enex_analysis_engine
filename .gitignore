@@ -29,6 +29,10 @@ env/
 ENV/
 .venv
 
+# uv / dependency lock (local-only)
+pyproject.toml
+uv.lock
+
 # IDE
 .vscode/
 .idea/
