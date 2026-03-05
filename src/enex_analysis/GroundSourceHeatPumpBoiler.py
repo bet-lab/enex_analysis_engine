@@ -661,7 +661,7 @@ class GroundSourceHeatPumpBoiler:
         simulation_period_sec, 
         dt_s, 
         T_tank_w_init_C,
-        schedule_entries,
+        dhw_usage_schedule,
         T0_schedule,
         result_save_csv_path=None,
         ):
@@ -675,7 +675,7 @@ class GroundSourceHeatPumpBoiler:
             Time step size [s].
         T_tank_w_init_C : float
             Initial tank temperature [°C].
-        schedule_entries : list of tuple
+        dhw_usage_schedule : list of tuple
             DHW schedule ``(start_str, end_str, fraction)``.
         T0_schedule : array-like
             Dead-state temperature per step [°C].
@@ -711,7 +711,7 @@ class GroundSourceHeatPumpBoiler:
         self.dV_tank_w_in = 0.0 
         self.dV_mix_w_in_sup = 0.0 
         
-        self.w_use_frac = build_dhw_usage_ratio(schedule_entries, self.time)
+        self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, self.time)
         
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
         Q_bhe_unit_pulse = np.zeros(tN)

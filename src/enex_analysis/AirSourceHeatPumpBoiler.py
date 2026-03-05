@@ -789,7 +789,7 @@ class AirSourceHeatPumpBoiler:
 
     def analyze_dynamic(
         self, simulation_period_sec, dt_s, T_tank_w_init_C,
-        schedule_entries, T0_schedule,
+        dhw_usage_schedule, T0_schedule,
         I_DN_schedule=None, I_dH_schedule=None,
         tank_level_init=1.0, result_save_csv_path=None):
         """Run a time-stepping dynamic simulation (fully implicit scheme).
@@ -813,14 +813,14 @@ class AirSourceHeatPumpBoiler:
         use_stc = (self.A_stc > 0) and (I_DN_schedule is not None) and (I_dH_schedule is not None)
         self.time, self.dt = time, dt_s
 
-        # schedule_entries: accept pre-computed numpy array (O(N)) or
+        # dhw_usage_schedule: accept pre-computed numpy array (O(N)) or
         #   list of (start, end, frac) interval tuples (converted via build_dhw_usage_ratio)
-        if isinstance(schedule_entries, np.ndarray) and schedule_entries.ndim == 1:
-            if len(schedule_entries) != tN:
-                raise ValueError(f"schedule_entries array length ({len(schedule_entries)}) != time length ({tN})")
-            self.w_use_frac = schedule_entries.astype(float)
+        if isinstance(dhw_usage_schedule, np.ndarray) and dhw_usage_schedule.ndim == 1:
+            if len(dhw_usage_schedule) != tN:
+                raise ValueError(f"dhw_usage_schedule array length ({len(dhw_usage_schedule)}) != time length ({tN})")
+            self.w_use_frac = dhw_usage_schedule.astype(float)
         else:
-            self.w_use_frac = build_dhw_usage_ratio(schedule_entries, time)
+            self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, time)
         stc_kwargs = dict(
             A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
             h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,

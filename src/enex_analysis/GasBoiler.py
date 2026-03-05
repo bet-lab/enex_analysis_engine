@@ -341,7 +341,7 @@ class GasBoiler:
         self,
         simulation_period_sec,
         dt_s,
-        schedule_entries,
+        dhw_usage_schedule,
         T0_schedule,
         heater_capacity_const=None,
         heater_capacity_schedule=None,
@@ -355,7 +355,7 @@ class GasBoiler:
             Total simulation duration [s].
         dt_s : int
             Time step size [s].
-        schedule_entries : list of tuple
+        dhw_usage_schedule : list of tuple
             DHW schedule as ``(start_str, end_str, fraction)`` entries.
         T0_schedule : array-like
             Dead-state temperature per time step [°C].
@@ -375,8 +375,8 @@ class GasBoiler:
             raise ValueError("simulation_period_sec must be divisible by dt_s")
         if self.dV_w_serv_m3s < 0:
             raise ValueError("dV_w_serv_m3s must be greater than 0")
-        if schedule_entries == []:
-            raise ValueError("schedule_entries must be provided")
+        if dhw_usage_schedule == []:
+            raise ValueError("dhw_usage_schedule must be provided")
 
         time = np.arange(0, simulation_period_sec, dt_s)
         tN = len(time)
@@ -392,7 +392,7 @@ class GasBoiler:
         self.dV_w_sup_mix = 0.0
 
         # Build schedule ratio array
-        self.w_use_frac = build_dhw_usage_ratio(schedule_entries, self.time)
+        self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, self.time)
 
         for n in tqdm(range(tN), desc="GasBoiler Simulating"):
             step_results = {}
