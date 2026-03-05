@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
@@ -80,12 +80,16 @@ class StepContext:
 
 
 # ------------------------------------------------------------------
-# Control decisions produced by Phase-A helpers
+# Control decisions produced by Phase-A helpers (HP only)
 # ------------------------------------------------------------------
 
 @dataclass
 class ControlState:
-    """Control decisions and HP cycle results for one timestep.
+    """Heat-pump control decisions for one timestep.
+
+    Contains only HP-specific control results.
+    Subsystem states are managed separately via
+    ``sub_states: dict[str, dict]``.
 
     Attributes
     ----------
@@ -98,27 +102,89 @@ class ControlState:
     dV_tank_w_in_ctrl : float | None
         Refill flow rate [m³/s].  ``None`` = always-full
         sentinel (inflow resolved inside residual).
-    stc_active : bool
-        Whether the STC subsystem is active.
-    E_stc_pump : float
-        STC pump power [W].
-    T_tank_w_in_heated_K : float
-        Tank inlet temperature after STC preheat [K].
-    stc_result : dict
-        STC performance result dictionary.
-    T_stc_pump_w_out_K_mp : float
-        STC pump outlet temperature for mains-preheat [K].
     """
 
     hp_is_on: bool
     hp_result: dict
     Q_ref_cond: float
     dV_tank_w_in_ctrl: float | None
-    stc_active: bool
-    E_stc_pump: float
-    T_tank_w_in_heated_K: float
-    stc_result: dict
-    T_stc_pump_w_out_K_mp: float
+
+
+# ------------------------------------------------------------------
+# Subsystem Protocol
+# ------------------------------------------------------------------
+
+class Subsystem(Protocol):
+    """Pluggable subsystem interface.
+
+    Each subsystem computes its contribution for a single
+    timestep and assembles result columns for the output
+    DataFrame.  New subsystems (PV, battery, …) implement
+    this protocol and register with the boiler model.
+    """
+
+    def step(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt: float,
+        T_tank_w_in_K: float,
+    ) -> dict:
+        """Compute subsystem state for this timestep.
+
+        Parameters
+        ----------
+        ctx : StepContext
+            Current-step immutable context.
+        ctrl : ControlState
+            HP control decisions.
+        dt : float
+            Time-step size [s].
+        T_tank_w_in_K : float
+            Mains water inlet temperature [K].
+
+        Returns
+        -------
+        dict
+            Must include at least:
+            - ``'Q_contribution'`` (float):
+                Net energy contribution to tank [W].
+            - ``'E_subsystem'`` (float):
+                Electrical power consumed [W].
+            - ``'T_tank_w_in_override_K'`` (float | None):
+                If the subsystem modifies the tank inlet
+                temperature (e.g. mains preheat), provide
+                the heated temperature [K].
+                ``None`` means no modification.
+        """
+        ...
+
+    def assemble_results(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        step_state: dict,
+        T_solved_K: float,
+    ) -> dict:
+        """Build result columns for DataFrame output.
+
+        Parameters
+        ----------
+        ctx : StepContext
+            Current-step immutable context.
+        ctrl : ControlState
+            HP control decisions.
+        step_state : dict
+            Dict returned by ``step()``.
+        T_solved_K : float
+            Solved tank temperature [K].
+
+        Returns
+        -------
+        dict
+            Keyed result entries for the output DataFrame.
+        """
+        ...
 
 
 # ------------------------------------------------------------------
@@ -167,7 +233,7 @@ def determine_hp_on_off(
     )
 
 
-def determine_refill_flow(
+def determine_tank_refill_flow(
     dt: float,
     tank_level: float,
     dV_tank_w_out: float,
@@ -275,13 +341,16 @@ def tank_mass_energy_residual(
     C_tank: float,
     UA_tank: float,
     V_tank_full: float,
-    stc: SolarThermalCollector | None,
-    use_stc: bool,
+    subsystems: dict[str, Subsystem],
+    sub_states: dict[str, dict],
 ) -> list[float]:
     """Energy and mass balance residuals at T^{n+1}.
 
     The 3-way mixing valve ratio α(T) makes the outflow a
     nonlinear function of T^{n+1}, requiring ``fsolve``.
+
+    Subsystem energy contributions and tank-inlet temperature
+    overrides are read from ``sub_states``.
 
     Parameters
     ----------
@@ -290,7 +359,7 @@ def tank_mass_energy_residual(
     ctx : StepContext
         Current-step immutable context.
     ctrl : ControlState
-        Current-step control decisions.
+        Current-step HP control decisions.
     dt : float
         Time-step size [s].
     T_tank_w_in_K : float
@@ -305,10 +374,10 @@ def tank_mass_energy_residual(
         Tank overall heat-loss coefficient [W/K].
     V_tank_full : float
         Tank full volume [m³].
-    stc : SolarThermalCollector | None
-        STC subsystem instance (``None`` if absent).
-    use_stc : bool
-        Whether STC is active.
+    subsystems : dict[str, Subsystem]
+        Registered subsystem instances.
+    sub_states : dict[str, dict]
+        Per-subsystem state dicts from ``step()``.
 
     Returns
     -------
@@ -333,42 +402,62 @@ def tank_mass_energy_residual(
     r_mass: float = (
         level_next
         - ctx.tank_level
-        - (dV_tank_w_in - dV_tank_w_out) * dt / V_tank_full
+        - (dV_tank_w_in - dV_tank_w_out)
+        * dt / V_tank_full
     )
 
     C_curr: float = C_tank * max(0.001, ctx.tank_level)
     C_next: float = C_tank * max(0.001, level_next)
     Q_loss: float = UA_tank * (T_next - ctx.T0_K)
 
+    # Effective tank inlet temperature
+    # (subsystems may override, e.g. mains preheat)
+    T_in_eff: float = T_tank_w_in_K
+    for s in sub_states.values():
+        override: float | None = s.get(
+            'T_tank_w_in_override_K',
+        )
+        if override is not None:
+            T_in_eff = override
+            break
+
     Q_flow_net: float = c_w * rho_w * (
-        dV_tank_w_in * ctrl.T_tank_w_in_heated_K
+        dV_tank_w_in * T_in_eff
         - dV_tank_w_out * T_next
     )
 
-    Q_stc_net: float = 0.0
-    if (
-        use_stc
-        and stc is not None
-        and stc.stc_placement == 'tank_circuit'
-        and ctrl.stc_active
-    ):
-        stc_r: dict = stc.calc_performance(
-            I_DN_stc=ctx.I_DN,
-            I_dH_stc=ctx.I_dH,
-            T_stc_w_in_K=T_next,
-            T0_K=ctx.T0_K,
-            is_active=True,
-        )
-        Q_stc_net = (
-            stc_r.get('Q_stc_w_out', 0.0)
-            - stc_r.get('Q_stc_w_in', 0.0)
-        )
+    # Subsystem energy contributions
+    # (e.g. STC tank-circuit heat gain, pump heat)
+    Q_sub_total: float = 0.0
+    E_sub_total: float = 0.0
+    for name, sub in subsystems.items():
+        ss: dict = sub_states.get(name, {})
+        Q_sub_total += ss.get('Q_contribution', 0.0)
+        E_sub_total += ss.get('E_subsystem', 0.0)
+
+        # Tank-circuit STC: recalculate at T_next
+        if (
+            hasattr(sub, 'stc_placement')
+            and sub.stc_placement == 'tank_circuit'
+            and ss.get('stc_active', False)
+        ):
+            stc_r: dict = sub.calc_performance(
+                I_DN_stc=ctx.I_DN,
+                I_dH_stc=ctx.I_dH,
+                T_stc_w_in_K=T_next,
+                T0_K=ctx.T0_K,
+                is_active=True,
+            )
+            Q_sub_total = (
+                stc_r.get('Q_stc_w_out', 0.0)
+                - stc_r.get('Q_stc_w_in', 0.0)
+            )
 
     Q_total: float = (
         ctrl.Q_ref_cond
         + ctx.E_uv
-        + ctrl.E_stc_pump
-        + Q_stc_net
+        + E_sub_total
+        + Q_sub_total
         + Q_flow_net
     )
     r_energy: float = (

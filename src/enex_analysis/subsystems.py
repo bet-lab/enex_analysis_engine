@@ -5,6 +5,11 @@ configuration parameters with the methods that operate on them.
 A boiler model receives subsystem instances as optional
 constructor arguments, enabling plug-in / plug-out composition.
 
+Every subsystem implements the ``Subsystem`` protocol
+(defined in ``dynamic_context``), providing ``step()``
+and ``assemble_results()`` for seamless integration into
+the time-stepping simulation loop.
+
 Subsystem catalogue
 -------------------
 - ``SolarThermalCollector`` — flat-plate / evacuated-tube STC
@@ -14,6 +19,7 @@ Subsystem catalogue
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -21,12 +27,15 @@ from . import calc_util as cu
 from .constants import c_w, rho_w, k_a
 from .enex_functions import calc_energy_flow
 
+if TYPE_CHECKING:
+    from .dynamic_context import ControlState, StepContext
+
 
 # ------------------------------------------------------------------
-# Default "STC OFF" snapshot — used when STC is absent or inactive
+# Default subsystem step() return — STC absent/inactive
 # ------------------------------------------------------------------
 
-STC_OFF: dict = {
+STC_OFF_STEP: dict = {
     'stc_active': False,
     'stc_result': {},
     'T_stc_w_out_K': np.nan,
@@ -35,7 +44,13 @@ STC_OFF: dict = {
     'Q_stc_pump_w_out': 0.0,
     'Q_stc_w_in': 0.0,
     'E_stc_pump': 0.0,
+    'Q_contribution': 0.0,
+    'E_subsystem': 0.0,
+    'T_tank_w_in_override_K': None,
 }
+
+# Backward-compatible alias
+STC_OFF: dict = STC_OFF_STEP
 
 
 @dataclass
@@ -45,7 +60,9 @@ class SolarThermalCollector:
     Bundles collector geometry, optical and thermal properties,
     pump parameters, and preheat-window settings.  The two
     placement modes (``tank_circuit`` and ``mains_preheat``) are
-    handled internally by :meth:`calculate_dynamic`.
+    handled internally by :meth:`step`.
+
+    Implements the ``Subsystem`` protocol.
 
     Parameters
     ----------
@@ -101,15 +118,6 @@ class SolarThermalCollector:
 
     # Placement
     stc_placement: str = 'tank_circuit'
-
-    # ----------------------------------------------------------
-    # Convenience properties
-    # ----------------------------------------------------------
-
-    @property
-    def is_enabled(self) -> bool:
-        """Return ``True`` when the collector area is positive."""
-        return self.A_stc > 0
 
     # ----------------------------------------------------------
     # Physics helpers
@@ -343,7 +351,186 @@ class SolarThermalCollector:
         )
 
     # ----------------------------------------------------------
-    # Core dynamic calculation
+    # Subsystem Protocol: step()
+    # ----------------------------------------------------------
+
+    def step(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt: float,
+        T_tank_w_in_K: float,
+    ) -> dict:
+        """Compute STC state for one simulation timestep.
+
+        Handles both ``tank_circuit`` and ``mains_preheat``
+        placements.  Returns a standardised dict compatible
+        with the ``Subsystem`` protocol.
+
+        Parameters
+        ----------
+        ctx : StepContext
+            Current-step immutable context.
+        ctrl : ControlState
+            HP control decisions.
+        dt : float
+            Time-step size [s].
+        T_tank_w_in_K : float
+            Mains water inlet temperature [K].
+
+        Returns
+        -------
+        dict
+            Keys: ``stc_active``, ``stc_result``,
+            ``T_stc_w_out_K``, ``T_stc_pump_w_out_K``,
+            ``Q_contribution``, ``E_subsystem``,
+            ``T_tank_w_in_override_K``.
+        """
+        # Delegate to internal calculation
+        dV_feed: float = (
+            ctrl.dV_tank_w_in_ctrl
+            if ctrl.dV_tank_w_in_ctrl is not None
+            else 0.0
+        )
+        raw: dict = self.calculate_dynamic(
+            I_DN=ctx.I_DN,
+            I_dH=ctx.I_dH,
+            T_tank_w_K=ctx.T_tank_w_K,
+            T0_K=ctx.T0_K,
+            preheat_on=ctx.preheat_on,
+            dV_tank_w_in=dV_feed,
+            T_tank_w_in_K=T_tank_w_in_K,
+        )
+
+        stc_active: bool = raw['stc_active']
+        E_pump: float = raw['E_stc_pump']
+
+        # Compute protocol-required fields
+        T_tank_w_in_override: float | None = None
+        if (
+            self.stc_placement == 'mains_preheat'
+            and stc_active
+        ):
+            T_tank_w_in_override = raw['T_stc_w_out_K']
+
+        return {
+            'stc_active': stc_active,
+            'stc_result': raw['stc_result'],
+            'T_stc_w_out_K': raw['T_stc_w_out_K'],
+            'T_stc_pump_w_out_K': raw[
+                'T_stc_pump_w_out_K'
+            ],
+            'Q_stc_w_out': raw.get('Q_stc_w_out', 0.0),
+            'Q_stc_pump_w_out': raw.get(
+                'Q_stc_pump_w_out', 0.0,
+            ),
+            'Q_stc_w_in': raw.get('Q_stc_w_in', 0.0),
+            'Q_contribution': 0.0,
+            'E_subsystem': E_pump,
+            'T_tank_w_in_override_K': T_tank_w_in_override,
+        }
+
+    # ----------------------------------------------------------
+    # Subsystem Protocol: assemble_results()
+    # ----------------------------------------------------------
+
+    def assemble_results(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        step_state: dict,
+        T_solved_K: float,
+    ) -> dict:
+        """Build STC-related entries for the step result dict.
+
+        For ``tank_circuit`` placement, re-evaluates STC
+        performance at the solved temperature to obtain
+        accurate reporting values.
+
+        Parameters
+        ----------
+        ctx : StepContext
+            Current-step immutable context.
+        ctrl : ControlState
+            HP control decisions.
+        step_state : dict
+            Dict returned by ``step()``.
+        T_solved_K : float
+            Solved tank temperature [K].
+
+        Returns
+        -------
+        dict
+            Result entries for STC columns.
+        """
+        stc_active: bool = step_state['stc_active']
+        stc_result: dict = step_state['stc_result']
+        E_pump: float = step_state['E_subsystem']
+        T_stc_w_out_K: float = np.nan
+
+        if self.stc_placement == 'tank_circuit':
+            stc_result = self.calc_performance(
+                I_DN_stc=ctx.I_DN,
+                I_dH_stc=ctx.I_dH,
+                T_stc_w_in_K=T_solved_K,
+                T0_K=ctx.T0_K,
+                is_active=stc_active,
+            )
+            T_stc_w_out_K = stc_result['T_stc_w_out_K']
+        elif self.stc_placement == 'mains_preheat':
+            T_stc_w_out_K = step_state[
+                'T_stc_pump_w_out_K'
+            ]
+
+        T_stc_pump_w_out_K: float = stc_result.get(
+            'T_stc_pump_w_out_K', T_stc_w_out_K,
+        )
+
+        r: dict = {
+            'stc_active [-]': stc_active,
+            'I_DN_stc [W/m2]': ctx.I_DN,
+            'I_dH_stc [W/m2]': ctx.I_dH,
+            'I_sol_stc [W/m2]': stc_result.get(
+                'I_sol_stc', np.nan,
+            ),
+            'Q_sol_stc [W]': stc_result.get(
+                'Q_sol_stc', np.nan,
+            ),
+            'Q_stc_w_out [W]': stc_result.get(
+                'Q_stc_w_out', 0.0,
+            ),
+            'Q_stc_pump_w_out [W]': stc_result.get(
+                'Q_stc_pump_w_out', 0.0,
+            ),
+            'Q_stc_w_in [W]': stc_result.get(
+                'Q_stc_w_in', 0.0,
+            ),
+            'Q_l_stc [W]': stc_result.get(
+                'Q_l_stc', np.nan,
+            ),
+            'T_stc_w_out [°C]': (
+                cu.K2C(T_stc_w_out_K)
+                if not np.isnan(T_stc_w_out_K)
+                else np.nan
+            ),
+            'T_stc_w_in [°C]': cu.K2C(T_solved_K),
+            'T_stc [°C]': cu.K2C(
+                stc_result.get('T_stc_K', np.nan),
+            ),
+            'E_stc_pump [W]': E_pump,
+        }
+
+        if self.stc_placement == 'tank_circuit':
+            r['T_stc_pump_w_out [°C]'] = (
+                cu.K2C(T_stc_pump_w_out_K)
+                if not np.isnan(T_stc_pump_w_out_K)
+                else np.nan
+            )
+
+        return r
+
+    # ----------------------------------------------------------
+    # Core dynamic calculation (backward compatible)
     # ----------------------------------------------------------
 
     def calculate_dynamic(
@@ -454,79 +641,6 @@ class SolarThermalCollector:
             'Q_stc_pump_w_out': Q_stc_pump_w_out,
             'Q_stc_w_in': Q_stc_w_in,
             'E_stc_pump': E_stc_pump_val,
-        }
-
-    # ----------------------------------------------------------
-    # Result assembly for DataFrame output
-    # ----------------------------------------------------------
-
-    def assemble_results(
-        self,
-        ctx_I_DN: float,
-        ctx_I_dH: float,
-        ctrl_stc_active: bool,
-        ctrl_E_stc_pump: float,
-        stc_result: dict,
-        T_solved_K: float,
-        T_stc_w_out_K: float,
-    ) -> dict:
-        """Build STC-related entries for the step result dict.
-
-        Parameters
-        ----------
-        ctx_I_DN, ctx_I_dH : float
-            Irradiance values for this step.
-        ctrl_stc_active : bool
-            Whether STC was active.
-        ctrl_E_stc_pump : float
-            STC pump power [W].
-        stc_result : dict
-            Raw STC performance dict.
-        T_solved_K : float
-            Solved tank temperature [K].
-        T_stc_w_out_K : float
-            STC water outlet temperature [K].
-
-        Returns
-        -------
-        dict
-            Result entries for STC columns.
-        """
-        T_stc_pump_w_out_K: float = stc_result.get(
-            'T_stc_pump_w_out_K', T_stc_w_out_K,
-        )
-        return {
-            'stc_active [-]': ctrl_stc_active,
-            'I_DN_stc [W/m2]': ctx_I_DN,
-            'I_dH_stc [W/m2]': ctx_I_dH,
-            'I_sol_stc [W/m2]': stc_result.get(
-                'I_sol_stc', np.nan,
-            ),
-            'Q_sol_stc [W]': stc_result.get(
-                'Q_sol_stc', np.nan,
-            ),
-            'Q_stc_w_out [W]': stc_result.get(
-                'Q_stc_w_out', 0.0,
-            ),
-            'Q_stc_pump_w_out [W]': stc_result.get(
-                'Q_stc_pump_w_out', 0.0,
-            ),
-            'Q_stc_w_in [W]': stc_result.get(
-                'Q_stc_w_in', 0.0,
-            ),
-            'Q_l_stc [W]': stc_result.get(
-                'Q_l_stc', np.nan,
-            ),
-            'T_stc_w_out [°C]': (
-                cu.K2C(T_stc_w_out_K)
-                if not np.isnan(T_stc_w_out_K)
-                else np.nan
-            ),
-            'T_stc_w_in [°C]': cu.K2C(T_solved_K),
-            'T_stc [°C]': cu.K2C(
-                stc_result.get('T_stc_K', np.nan),
-            ),
-            'E_stc_pump [W]': ctrl_E_stc_pump,
         }
 
     # ----------------------------------------------------------

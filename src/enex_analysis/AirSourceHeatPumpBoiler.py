@@ -30,11 +30,12 @@ from .enex_functions import *
 from .dynamic_context import (
     ControlState,
     StepContext,
+    Subsystem,
     determine_hp_on_off,
-    determine_refill_flow,
+    determine_tank_refill_flow,
     tank_mass_energy_residual,
 )
-from .subsystems import SolarThermalCollector, STC_OFF
+from .subsystems import SolarThermalCollector
 
 
 @dataclass
@@ -199,6 +200,9 @@ class AirSourceHeatPumpBoiler:
 
         # --- 8. Subsystems ---
         self.stc: SolarThermalCollector | None = stc
+        self._subsystems: dict[str, Subsystem] = {}
+        if stc is not None:
+            self._subsystems['stc'] = stc
 
         # Flow-rate sync variables
         self.dV_tank_w_in: float = 0.0
@@ -327,7 +331,6 @@ class AirSourceHeatPumpBoiler:
         )
 
         UA_cond: float = self.UA_cond_design
-        Q_cond_w: float = UA_cond * dT_ref_cond
 
         dV_tank_w_out: float = self.dV_tank_w_out
         dV_tank_w_in: float = self.dV_tank_w_in
@@ -461,9 +464,7 @@ class AirSourceHeatPumpBoiler:
             'Q_ref_evap [W]': Q_ref_evap,
             'Q_ou_a [W]': Q_ou_a,
             'E_cmp [W]': E_cmp,
-            'Q_cond_target [W]': Q_cond_target,
             'Q_ref_cond [W]': Q_ref_cond,
-            'Q_cond_w [W]': Q_cond_w,
             'Q_tank_w_in [W]': Q_tank_w_in,
             'Q_tank_w_out [W]': Q_tank_w_out,
             'Q_mix_sup_w_in [W]': Q_mix_sup_w_in,
@@ -644,7 +645,6 @@ class AirSourceHeatPumpBoiler:
                     result = {
                         'hp_is_on': False,
                         'converged': False,
-                        'Q_cond_target [W]': Q_cond_target,
                         'Q_ref_cond [W]': 0.0,
                         'Q_ref_evap [W]': 0.0,
                         'E_cmp [W]': 0.0,
@@ -807,16 +807,19 @@ class AirSourceHeatPumpBoiler:
         print(f"    ↓ hp_capacity")
         print(f"{'=' * 70}\n")
 
-    def _assemble_step_results(
+    def _assemble_core_results(
         self,
         ctx: StepContext,
         ctrl: ControlState,
         T_solved_K: float,
         level_solved: float,
         ier: int,
-        use_stc: bool,
     ) -> dict:
-        """Recompute reporting quantities at solved state."""
+        """Build HP-core result dict at solved state.
+
+        Subsystem results are appended separately by
+        each subsystem's ``assemble_results()``.
+        """
         den: float = max(
             1e-6, T_solved_K - self.T_sup_w_K,
         )
@@ -851,30 +854,6 @@ class AirSourceHeatPumpBoiler:
             if ctx.dV_mix_w_out > 0 else np.nan
         )
 
-        # STC at solved T for reporting
-        stc_result: dict = ctrl.stc_result
-        T_stc_w_out_K: float = np.nan
-
-        if use_stc and self.stc is not None:
-            if self.stc.stc_placement == 'tank_circuit':
-                stc_result_solved: dict = (
-                    self.stc.calc_performance(
-                        I_DN_stc=ctx.I_DN,
-                        I_dH_stc=ctx.I_dH,
-                        T_stc_w_in_K=T_solved_K,
-                        T0_K=ctx.T0_K,
-                        is_active=ctrl.stc_active,
-                    )
-                )
-                stc_result = stc_result_solved
-                T_stc_w_out_K = stc_result[
-                    'T_stc_w_out_K'
-                ]
-            elif (
-                self.stc.stc_placement == 'mains_preheat'
-            ):
-                T_stc_w_out_K = ctrl.T_stc_pump_w_out_K_mp
-
         r: dict = {}
         r.update(ctrl.hp_result)
         r.update({
@@ -884,7 +863,6 @@ class AirSourceHeatPumpBoiler:
             ),
             'T_tank_w [°C]': cu.K2C(T_solved_K),
             'T_mix_w_out [°C]': T_mix_w_out_val,
-            'implicit_converged': (ier == 1),
         })
 
         if self.lamp_power_watts > 0:
@@ -898,30 +876,6 @@ class AirSourceHeatPumpBoiler:
             )
         ):
             r['tank_level [-]'] = level_solved
-
-        if use_stc and self.stc is not None:
-            r.update(self.stc.assemble_results(
-                ctx_I_DN=ctx.I_DN,
-                ctx_I_dH=ctx.I_dH,
-                ctrl_stc_active=ctrl.stc_active,
-                ctrl_E_stc_pump=ctrl.E_stc_pump,
-                stc_result=stc_result,
-                T_solved_K=T_solved_K,
-                T_stc_w_out_K=T_stc_w_out_K,
-            ))
-            if (
-                self.stc.stc_placement == 'tank_circuit'
-            ):
-                T_stc_pump_w_out_K: float = stc_result.get(
-                    'T_stc_pump_w_out_K', T_stc_w_out_K,
-                )
-                r['T_stc_pump_w_out [°C]'] = (
-                    cu.K2C(T_stc_pump_w_out_K)
-                    if not np.isnan(T_stc_pump_w_out_K)
-                    else np.nan
-                )
-        else:
-            r['stc_active [-]'] = False
 
         return r
 
@@ -996,44 +950,17 @@ class AirSourceHeatPumpBoiler:
         if (
             I_dH_schedule is not None
             and len(I_dH_schedule) != tN
-        ):
+        ): 
             raise ValueError(
                 f"I_dH_schedule length "
                 f"({len(I_dH_schedule)}) != tN ({tN})",
             )
 
-        use_stc: bool = (
-            self.stc is not None
-            and self.stc.is_enabled
-            and I_DN_schedule is not None
-            and I_dH_schedule is not None
-        )
         self.time: np.ndarray = time
         self.dt: int = dt_s
 
         # DHW schedule handling
-        if (
-            isinstance(dhw_usage_schedule, np.ndarray)
-            and dhw_usage_schedule.ndim == 1
-        ):
-            if len(dhw_usage_schedule) != tN:
-                raise ValueError(
-                    f"dhw_usage_schedule length "
-                    f"({len(dhw_usage_schedule)}) != "
-                    f"tN ({tN})",
-                )
-            self.w_use_frac: np.ndarray = (
-                dhw_usage_schedule.astype(float)
-            )
-        else:
-            self.w_use_frac = build_dhw_usage_ratio(
-                dhw_usage_schedule, time,
-            )
-
-        stc_placement: str = (
-            self.stc.stc_placement
-            if self.stc is not None else 'tank_circuit'
-        )
+        self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, time)
 
         T_tank_w_K: float = cu.C2K(T_tank_w_init_C)
         tank_level: float = tank_level_init
@@ -1048,12 +975,6 @@ class AirSourceHeatPumpBoiler:
                 (t_s % (24 * cu.h2s)) * cu.s2h
             )
 
-            preheat_on: bool = (
-                self.stc.is_preheat_on(hour_of_day)
-                if self.stc is not None
-                else False
-            )
-
             ctx: StepContext = StepContext(
                 n=n,
                 current_time_s=t_s,
@@ -1064,10 +985,7 @@ class AirSourceHeatPumpBoiler:
                 preheat_on=preheat_on,
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
-                dV_mix_w_out=(
-                    self.w_use_frac[n]
-                    * self.dV_mix_w_out_max
-                ),
+                dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
                 E_uv=calc_uv_lamp_power(
                     t_s,
                     self.period_3hour_sec,
@@ -1075,14 +993,8 @@ class AirSourceHeatPumpBoiler:
                     self.uv_lamp_exposure_duration_sec,
                     self.lamp_power_watts,
                 ),
-                I_DN=(
-                    I_DN_schedule[n]
-                    if use_stc else 0.0
-                ),
-                I_dH=(
-                    I_dH_schedule[n]
-                    if use_stc else 0.0
-                ),
+                I_DN=(I_DN_schedule[n] if use_stc else 0.0),
+                I_dH=(I_dH_schedule[n] if use_stc else 0.0),
             )
 
             # --- Phase A: control decisions ---
@@ -1092,61 +1004,21 @@ class AirSourceHeatPumpBoiler:
             hp_is_on_prev = hp_is_on
 
             dV_tank_w_in_ctrl, is_refilling = (
-                determine_refill_flow(
-                    dt=dt_s,
-                    tank_level=ctx.tank_level,
-                    dV_tank_w_out=self.dV_tank_w_out,
-                    V_tank_full=self.V_tank_full,
-                    tank_always_full=self.tank_always_full,
-                    prevent_simultaneous_flow=(
-                        self.prevent_simultaneous_flow
-                    ),
-                    tank_level_lower_bound=(
-                        self.tank_level_lower_bound
-                    ),
-                    tank_level_upper_bound=(
-                        self.tank_level_upper_bound
-                    ),
-                    dV_tank_w_in_refill=(
-                        self.dV_tank_w_in_refill
-                    ),
-                    is_refilling=is_refilling,
-                    use_stc=use_stc,
-                    stc_placement=stc_placement,
-                    preheat_on=ctx.preheat_on,
+                determine_tank_refill_flow(
+                    dt                        = dt_s,
+                    tank_level                = ctx.tank_level,
+                    dV_tank_w_out             = self.dV_tank_w_out,
+                    V_tank_full               = self.V_tank_full,
+                    tank_always_full          = self.tank_always_full,
+                    prevent_simultaneous_flow = self.prevent_simultaneous_flow,
+                    tank_level_lower_bound    = self.tank_level_lower_bound,
+                    tank_level_upper_bound    = self.tank_level_upper_bound,
+                    dV_tank_w_in_refill       = self.dV_tank_w_in_refill,
+                    is_refilling              = is_refilling,
+                    use_stc                   = use_stc,
+                    stc_placement             = stc_placement,
+                    preheat_on                = ctx.preheat_on,
                 )
-            )
-
-            if use_stc and self.stc is not None:
-                dV_stc_feed: float = (
-                    dV_tank_w_in_ctrl
-                    if dV_tank_w_in_ctrl is not None
-                    else self.dV_tank_w_out
-                )
-                stc_state: dict = (
-                    self.stc.calculate_dynamic(
-                        I_DN=ctx.I_DN,
-                        I_dH=ctx.I_dH,
-                        T_tank_w_K=ctx.T_tank_w_K,
-                        T0_K=ctx.T0_K,
-                        preheat_on=ctx.preheat_on,
-                        dV_tank_w_in=dV_stc_feed,
-                        T_tank_w_in_K=self.T_tank_w_in_K,
-                    )
-                )
-            else:
-                stc_state = STC_OFF
-
-            T_tank_w_in_heated_K: float = (
-                stc_state['T_stc_w_out_K']
-                if (
-                    use_stc
-                    and self.stc is not None
-                    and self.stc.stc_placement
-                    == 'mains_preheat'
-                    and stc_state['stc_active']
-                )
-                else self.T_tank_w_in_K
             )
 
             ctrl: ControlState = ControlState(
@@ -1154,15 +1026,15 @@ class AirSourceHeatPumpBoiler:
                 hp_result=hp_result,
                 Q_ref_cond=Q_ref_cond,
                 dV_tank_w_in_ctrl=dV_tank_w_in_ctrl,
-                stc_active=stc_state['stc_active'],
-                E_stc_pump=stc_state['E_stc_pump'],
-                T_tank_w_in_heated_K=T_tank_w_in_heated_K,
-                stc_result=stc_state['stc_result'],
-                T_stc_pump_w_out_K_mp=stc_state.get(
-                    'T_stc_pump_w_out_K',
-                    self.T_tank_w_in_K,
-                ),
             )
+
+            # --- Phase A-2: subsystem step ---
+            sub_states: dict[str, dict] = {}
+            for name, sub in self._subsystems.items():
+                sub_states[name] = sub.step(
+                    ctx, ctrl, dt_s,
+                    self.T_tank_w_in_K,
+                )
 
             # --- Phase B: implicit solve ---
             sol, _info, ier, _msg = fsolve(
@@ -1176,8 +1048,8 @@ class AirSourceHeatPumpBoiler:
                     self.C_tank,
                     self.UA_tank,
                     self.V_tank_full,
-                    self.stc,
-                    use_stc,
+                    self._subsystems,
+                    sub_states,
                 ),
                 full_output=True,
             )
@@ -1185,13 +1057,17 @@ class AirSourceHeatPumpBoiler:
             T_tank_w_K = sol[0]
             tank_level = max(0.001, min(1.0, sol[1]))
 
-            # --- Phase C: results ---
-            results_data.append(
-                self._assemble_step_results(
-                    ctx, ctrl, T_tank_w_K,
-                    tank_level, ier, use_stc,
-                ),
+            # --- Phase C: core + subsystem results ---
+            r: dict = self._assemble_core_results(
+                ctx, ctrl, T_tank_w_K,
+                tank_level, ier,
             )
+            for name, sub in self._subsystems.items():
+                r.update(sub.assemble_results(
+                    ctx, ctrl,
+                    sub_states[name], T_tank_w_K,
+                ))
+            results_data.append(r)
 
         results_df: pd.DataFrame = pd.DataFrame(
             results_data,
