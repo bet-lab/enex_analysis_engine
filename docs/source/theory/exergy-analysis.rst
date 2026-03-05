@@ -59,6 +59,13 @@ For a mass flow, the exergy includes thermal, mechanical, and chemical component
 
 where :math:`h` is specific enthalpy and :math:`s` is specific entropy.
 
+For ideal liquids (water) or ideal gases (air) with constant specific heat:
+
+.. math::
+   \\dot{X}_{flow} = G \\left[(T - T_0) - T_0 \\ln\\frac{T}{T_0}\\right]
+
+where :math:`G = c \\cdot \\rho \\cdot \\dot{V}` is the heat capacity flow rate [W/K].
+
 System-Specific Exergy Analysis
 --------------------------------
 
@@ -85,8 +92,87 @@ For natural gas combustion, the chemical exergy is related to the heating value:
 
 where :math:`\\eta_{ex,NG} = 0.93` for liquefied natural gas (LNG) based on Shukuya (2013).
 
-Heat Pump Systems
-^^^^^^^^^^^^^^^^^
+Air Source Heat Pump Boiler (ASHPB)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ASHPB system consists of seven exergy-accountable components:
+compressor, condenser, expansion valve, evaporator, outdoor unit fan,
+storage tank, and mixing valve.
+
+**System topology:**
+
+.. code-block:: text
+
+   [outdoor air] ──→ [Evaporator + Fan (OU)] ──→ [cooled air]
+                          ↑ ref state 4        ↓ ref state 1
+                     [Expansion Valve]     [Compressor] ← E_cmp
+                          ↑ ref state 3        ↓ ref state 2
+                     [Condenser (in tank)] ──→ Q_ref_cond
+                               │
+                        [Storage Tank] ← X_uv, X_stc, X_tank_w_in
+                          ↓ X_tank_w_out
+                        [Mixing Valve] ← X_mix_sup_w_in
+                          ↓ X_mix_w_out
+                        [User (DHW)]
+
+**Component-level exergy balances** (general form: :math:`X_c = \\sum X_{in} - \\sum X_{out} \\geq 0`):
+
+.. list-table:: ASHPB exergy consumption per component
+   :header-rows: 1
+   :widths: 20 50 30
+
+   * - Component
+     - Exergy Balance
+     - Notes
+   * - Compressor
+     - :math:`X_{c,cmp} = X_{cmp} + X_{ref,cmp\_in} - X_{ref,cmp\_out}`
+     - :math:`X_{cmp} = E_{cmp}` (electricity = pure exergy)
+   * - Condenser
+     - :math:`X_{c,cond} = X_{ref,cmp\_out} - X_{ref,exp\_in} - X_{ref,cond}`
+     - :math:`X_{ref,cond} = Q_{ref,cond}(1 - T_0/T_{cond,sat})`
+   * - Expansion Valve
+     - :math:`X_{c,exp} = X_{ref,exp\_in} - X_{ref,exp\_out}`
+     - Isenthalpic throttling
+   * - Evaporator (HX)
+     - :math:`X_{c,evap} = (X_{ref,exp\_out} + X_{a,ou\_in}) - (X_{ref,cmp\_in} + X_{a,ou\_mid})`
+     - Air exits at :math:`T_{ou,a,mid}` (before fan)
+   * - OU Fan
+     - :math:`X_{c,fan} = X_{ou\_fan} + X_{a,ou\_mid} - X_{a,ou\_out}`
+     - Fan heat raises air from :math:`T_{mid}` to :math:`T_{out}`
+   * - Storage Tank
+     - :math:`X_{c,tank} = (X_{ref,cond} + X_{tank,w\_in} + X_{uv} + X_{stc}) - (X_{tank,w\_out} + X_{tank,loss} + X_{st,tank})`
+     - :math:`X_{st,tank}` = stored exergy accumulation
+   * - Mixing Valve
+     - :math:`X_{c,mix} = X_{tank,w\_out} + X_{mix,sup\_w\_in} - X_{mix,w\_out}`
+     - Irreversibility from mixing hot and cold streams
+
+**Refrigerant state-point exergy** is evaluated using CoolProp at each state point:
+
+.. math::
+   X_{ref,i} = \\dot{m}_{ref} \\left[(h_i - h_0) - T_0 (s_i - s_0)\\right]
+
+where :math:`h_0, s_0` are evaluated at :math:`(T_0, P_0)`.
+
+**Total system exergy input:**
+
+.. math::
+   X_{tot} = E_{cmp} + E_{ou,fan} + E_{uv} + E_{stc,pump}
+
+where UV lamp and STC pump terms are included only when those subsystems are active.
+
+**Exergy efficiency metrics:**
+
+.. math::
+   \\eta_{X,ref} = \\frac{X_{ref,cond}}{X_{cmp}}, \\qquad
+   \\eta_{X,sys} = \\frac{X_{ref,cond}}{X_{tot}}
+
+**Tank stored exergy** (dynamic accumulation term):
+
+.. math::
+   X_{st,tank} = \\left(1 - \\frac{T_0}{T_{tank}}\\right) \\cdot C_{tank} \\cdot \\frac{\\Delta T_{tank}}{\\Delta t}
+
+Heat Pump COP
+"""""""""""""
 
 The Coefficient of Performance (COP) for a heat pump is:
 
