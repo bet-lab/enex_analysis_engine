@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import calc_util as cu
-from .constants import c_w, rho_w, k_a
+from .constants import c_w, rho_w, k_a, k_D, k_d
 from .enex_functions import calc_energy_flow
 
 if TYPE_CHECKING:
@@ -271,6 +271,8 @@ class SolarThermalCollector:
             return {
                 'I_sol_stc': np.nan,
                 'Q_sol_stc': np.nan,
+                'S_sol_stc': np.nan,
+                'X_sol_stc': np.nan,
                 'Q_stc_w_in': np.nan,
                 'Q_stc_w_out': np.nan,
                 'Q_stc_pump_w_out': np.nan,
@@ -286,6 +288,9 @@ class SolarThermalCollector:
         I_sol_stc, Q_sol_stc = self._calc_solar_absorption(
             I_DN_stc, I_dH_stc,
         )
+        S_sol_stc = (k_D * I_DN_stc**0.9 + k_d * I_dH_stc**0.9) * self.A_stc_pipe
+        X_sol_stc = Q_sol_stc - S_sol_stc * T0_K
+
         G_stc = c_w * rho_w * dV_stc
         Q_stc_w_in = calc_energy_flow(
             G_stc, T_stc_w_in_K, T0_K,
@@ -317,6 +322,8 @@ class SolarThermalCollector:
         return {
             'I_sol_stc': I_sol_stc,
             'Q_sol_stc': Q_sol_stc,
+            'S_sol_stc': S_sol_stc,
+            'X_sol_stc': X_sol_stc,
             'Q_stc_w_in': Q_stc_w_in,
             'Q_stc_w_out': Q_stc_w_out,
             'Q_stc_pump_w_out': Q_stc_pump_w_out,
@@ -495,6 +502,12 @@ class SolarThermalCollector:
             ),
             'Q_sol_stc [W]': stc_result.get(
                 'Q_sol_stc', np.nan,
+            ),
+            'S_sol_stc [W/K]': stc_result.get(
+                'S_sol_stc', np.nan,
+            ),
+            'X_sol_stc [W]': stc_result.get(
+                'X_sol_stc', np.nan,
             ),
             'Q_stc_w_out [W]': stc_result.get(
                 'Q_stc_w_out', 0.0,
@@ -727,3 +740,202 @@ class SolarThermalCollector:
             )
             result['_active'] = False
             return result
+
+# ------------------------------------------------------------------
+# Photovoltaic System
+# ------------------------------------------------------------------
+
+@dataclass
+class PhotovoltaicSystem:
+    """Photovoltaic System (PV + Controller + ESS + Inverter).
+
+    Computes PV energy generation, stores it in a Battery (ESS) with
+    dynamic state-of-charge (SOC) tracking, and calculates entropy/exergy
+    balances for each stage based on the ``nomenclature.md`` conventions.
+
+    Implements the ``Subsystem`` protocol.
+    """
+
+    # Panel physics
+    A_pv: float = 5.0
+    alp_pv: float = 0.9
+    pv_tilt: float = 35.0
+    pv_azimuth: float = 180.0
+    h_o: float = 15.0
+
+    # Efficiencies
+    eta_pv: float = 0.20
+    eta_ctrl: float = 0.95
+    eta_ess_chg: float = 0.90
+    eta_ess_dis: float = 0.90
+    eta_inv: float = 0.95
+
+    # ESS Capacity and Init
+    C_ess_max: float = 3.6e6  # e.g., 1 kWh = 3.6e6 Joules
+    SOC_init: float = 0.0
+
+    # Temperatures (K)
+    T_ctrl_K: float = 308.15
+    T_ess_K: float = 313.15
+    T_inv_K: float = 313.15
+
+    # Internal dynamic state
+    SOC_ess: float = field(init=False)
+
+    def __post_init__(self):
+        self.SOC_ess = self.SOC_init
+
+    def step(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt: float,
+        T_tank_w_in_K: float,
+    ) -> dict:
+        """Compute PV/ESS state for one simulation timestep."""
+        # Note: ctx.I_DN and ctx.I_dH are assumed to be Plane-of-Array (POA)
+        # or already corrected for pv_tilt/pv_azimuth by the external context.
+        I_sol = ctx.I_DN + ctx.I_dH
+
+        # Ensure small non-zero denominator for logs
+        T0_K = max(1e-3, ctx.T0_K)
+
+        # Stage 1: PV Cell
+        # T_pv = T0 + I_sol*(alpha - eta)/(2*h_o)
+        T_pv_K = T0_K + (I_sol * (self.alp_pv - self.eta_pv)) / (2 * self.h_o)
+        E_pv_out = self.A_pv * self.eta_pv * I_sol
+        Q_l_pv = 2 * self.A_pv * self.h_o * (T_pv_K - T0_K)
+
+        # Entropy & Exergy for PV
+        from .constants import k_D, k_d
+        s_DN = k_D * (ctx.I_DN ** 0.9)
+        s_dH = k_d * (ctx.I_dH ** 0.9)
+        s_sol = s_DN + s_dH
+
+        S_sol = self.A_pv * self.alp_pv * s_sol
+        S_pv_out = 0.0  # (1/inf) * E_pv_out
+        S_l_pv = (1.0 / T_pv_K) * Q_l_pv if T_pv_K > 0 else 0.0
+        S_g_pv = S_pv_out + S_l_pv - S_sol
+
+        X_sol = self.A_pv * self.alp_pv * (I_sol - s_sol * T0_K)
+        X_pv_out = E_pv_out
+        X_l_pv = (1.0 - T0_K / T_pv_K) * Q_l_pv if T_pv_K > 0 else 0.0
+        X_c_pv = S_g_pv * T0_K
+
+        # Stage 2: Charge Controller
+        E_ctrl_out = self.eta_ctrl * E_pv_out
+        Q_l_ctrl = (1.0 - self.eta_ctrl) * E_pv_out
+        S_ctrl_out = 0.0
+        S_l_ctrl = (1.0 / self.T_ctrl_K) * Q_l_ctrl
+        S_g_ctrl = S_ctrl_out + S_l_ctrl - S_pv_out
+        
+        X_ctrl_out = E_ctrl_out
+        X_l_ctrl = Q_l_ctrl - S_l_ctrl * T0_K
+        X_c_ctrl = S_g_ctrl * T0_K
+
+        # Stage 3: ESS (Battery)
+        # For now, charge ESS with all available power until full (SOC=1.0)
+        # Discharge is not yet tied to HP logic, so E_ess_dis = 0
+        E_ess_chg = E_ctrl_out
+        E_ess_dis = 0.0
+
+        # Enforce SOC constraint
+        energy_available_to_store = (1.0 - self.SOC_ess) * self.C_ess_max
+        max_chg_power = energy_available_to_store / (self.eta_ess_chg * dt) if dt > 0 else 0.0
+        
+        E_ess_chg_actual = min(E_ess_chg, max_chg_power)
+        # Excess generation goes unused or dumped for now
+        
+        # Update SOC via Euler integration
+        self.SOC_ess += (E_ess_chg_actual * self.eta_ess_chg - E_ess_dis / self.eta_ess_dis) * dt / self.C_ess_max
+        self.SOC_ess = max(0.0, min(1.0, self.SOC_ess))
+
+        # We treat the battery output Exergy/Energy based on what we discharge
+        E_ess_out = E_ess_dis  # The actual power going to inverter
+        Q_l_ess = (1.0 - self.eta_ess_chg) * E_ess_chg_actual + (1.0 / self.eta_ess_dis - 1.0) * E_ess_dis
+        
+        S_ess_out = 0.0
+        S_l_ess = (1.0 / self.T_ess_K) * Q_l_ess
+        # Battery entropy generation includes tracking storage over time, 
+        # but for instant bounds we follow the PV_to_Converter logic:
+        S_g_ess = S_ess_out + S_l_ess - S_ctrl_out
+        
+        X_ess_out = E_ess_out
+        X_l_ess = Q_l_ess - S_l_ess * T0_K
+        X_c_ess = S_g_ess * T0_K
+
+        # Stage 4: Inverter
+        E_inv_out = self.eta_inv * E_ess_out
+        Q_l_inv = (1.0 - self.eta_inv) * E_ess_out
+        S_inv_out = 0.0
+        S_l_inv = (1.0 / self.T_inv_K) * Q_l_inv
+        S_g_inv = S_inv_out + S_l_inv - S_ess_out
+        
+        X_inv_out = E_inv_out
+        X_l_inv = Q_l_inv - S_l_inv * T0_K
+        X_c_inv = S_g_inv * T0_K
+
+        raw_result = {
+            'I_sol_pv': I_sol,
+            'T_pv_K': T_pv_K,
+            'E_pv_out': E_pv_out,
+            'Q_l_pv': Q_l_pv,
+            'X_sol': X_sol,
+            'X_pv_out': X_pv_out,
+            'X_l_pv': X_l_pv,
+            'X_c_pv': X_c_pv,
+            'E_ctrl_out': E_ctrl_out,
+            'Q_l_ctrl': Q_l_ctrl,
+            'X_ctrl_out': X_ctrl_out,
+            'X_l_ctrl': X_l_ctrl,
+            'X_c_ctrl': X_c_ctrl,
+            'E_ess_chg': E_ess_chg_actual,
+            'E_ess_dis': E_ess_dis,
+            'E_ess_out': E_ess_out,
+            'SOC_ess': self.SOC_ess,
+            'Q_l_ess': Q_l_ess,
+            'X_ess_out': X_ess_out,
+            'X_l_ess': X_l_ess,
+            'X_c_ess': X_c_ess,
+            'E_inv_out': E_inv_out,
+            'Q_l_inv': Q_l_inv,
+            'X_inv_out': X_inv_out,
+            'X_l_inv': X_l_inv,
+            'X_c_inv': X_c_inv,
+        }
+
+        return {
+            'Q_contribution': 0.0,
+            'E_subsystem': 0.0,  # Negative if it provides power to HP but currently disconnected
+            'T_tank_w_in_override_K': None,
+            'pv_result': raw_result
+        }
+
+    def assemble_results(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        step_state: dict,
+        T_solved_K: float,
+    ) -> dict:
+        """Assemble dictionary for dataframe insertion."""
+        pvr = step_state.get('pv_result', {})
+        return {
+            'I_sol_pv [W/m2]': pvr.get('I_sol_pv', 0.0),
+            'T_pv [°C]': cu.K2C(pvr.get('T_pv_K', ctx.T0_K)),
+            'E_pv_out [W]': pvr.get('E_pv_out', 0.0),
+            'E_ctrl_out [W]': pvr.get('E_ctrl_out', 0.0),
+            'E_ess_chg [W]': pvr.get('E_ess_chg', 0.0),
+            'E_ess_dis [W]': pvr.get('E_ess_dis', 0.0),
+            'SOC_ess [-]': pvr.get('SOC_ess', 0.0),
+            'E_inv_out [W]': pvr.get('E_inv_out', 0.0),
+            'X_pv_out [W]': pvr.get('X_pv_out', 0.0),
+            'X_ctrl_out [W]': pvr.get('X_ctrl_out', 0.0),
+            'X_ess_out [W]': pvr.get('X_ess_out', 0.0),
+            'X_inv_out [W]': pvr.get('X_inv_out', 0.0),
+            'X_c_pv [W]': pvr.get('X_c_pv', 0.0),
+            'X_c_ctrl [W]': pvr.get('X_c_ctrl', 0.0),
+            'X_c_ess [W]': pvr.get('X_c_ess', 0.0),
+            'X_c_inv [W]': pvr.get('X_c_inv', 0.0),
+            'Q_l_pv [W]': pvr.get('Q_l_pv', 0.0),
+        }

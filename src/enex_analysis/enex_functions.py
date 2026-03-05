@@ -2622,10 +2622,36 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
     df['X_mix_sup_w_in [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_mix_sup_w_in [m3/s]'].fillna(0), cu.C2K(df['T_sup_w [°C]']), T0_K)
 
     # STC exergy
-    if 'Q_stc_w_out [W]' in df.columns and 'Q_stc_w_in [W]' in df.columns:
-        Q_stc_net = (df['Q_stc_w_out [W]'] - df['Q_stc_w_in [W]']).fillna(0)
-        X_stc_net = Q_stc_net * (1 - T0_K / T_tank_K)
-        df['X_stc_tank [W]'] = X_stc_net
+    if 'T_stc_w_in [°C]' in df.columns and 'T_stc_w_out [°C]' in df.columns:
+        T_stc_w_in_K = cu.C2K(df['T_stc_w_in [°C]'])
+        T_stc_w_out_K = cu.C2K(df['T_stc_w_out [°C]'])
+        T_stc_pump_w_out_K = cu.C2K(df.get('T_stc_pump_w_out [°C]', df['T_stc_w_out [°C]']))
+        T_stc_K = cu.C2K(df['T_stc [°C]'])
+
+        # Recover heat capacity rate G_stc [W/K]
+        dT_stc_in = (T_stc_w_in_K - T0_K).replace(0, np.nan)
+        G_stc = (df['Q_stc_w_in [W]'].fillna(0) / dT_stc_in).fillna(0)
+
+        df['X_stc_w_in [W]'] = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
+        df['X_stc_w_out [W]'] = calc_exergy_flow(G_stc, T_stc_w_out_K, T0_K)
+        df['X_stc_pump_w_out [W]'] = calc_exergy_flow(G_stc, T_stc_pump_w_out_K, T0_K)
+        
+        # Heat loss exergy
+        df['X_l_stc [W]'] = df['Q_l_stc [W]'].fillna(0) * (1 - T0_K / T_stc_K.replace(0, np.nan))
+
+        # Solar exergy
+        if 'X_sol_stc [W]' in df.columns:
+            # Exergy Destruction
+            Xc_stc = (
+                df['X_sol_stc [W]'].fillna(0)
+                + df['X_stc_w_in [W]'].fillna(0)
+                + df['E_stc_pump [W]'].fillna(0)
+                - df['X_stc_pump_w_out [W]'].fillna(0)
+                - df['X_l_stc [W]'].fillna(0)
+            )
+            # Mask out when stc is inactive
+            is_stc_active = df.get('stc_active [-]', False)
+            df['Xc_stc [W]'] = np.where(is_stc_active, Xc_stc, 0.0)
 
     # 6. Heat loss exergy
     df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
@@ -2673,17 +2699,18 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
 
     # 9g. Storage tank
     # Balance: Xc_tank = X_in_tank − X_out_tank
-    #   X_in_tank  = X_ref_cond + X_tank_w_in (+ X_stc_tank + X_uv)
-    #   X_out_tank = X_tank_w_out + X_tank_loss + Xst_tank
     X_in_tank = df['X_ref_cond [W]'] + df['X_tank_w_in [W]'].fillna(0)
     if 'X_uv [W]' in df.columns:
         X_in_tank = X_in_tank + df['X_uv [W]'].fillna(0)
-    if 'X_stc_tank [W]' in df.columns:
-        X_in_tank = X_in_tank + df['X_stc_tank [W]'].fillna(0)
 
     X_out_tank = df['X_tank_loss [W]'] + df['Xst_tank [W]']
     if 'X_tank_w_out [W]' in df.columns:
         X_out_tank = X_out_tank + df['X_tank_w_out [W]'].fillna(0)
+
+    # If STC is in tank_circuit, it draws X_stc_w_in from tank and returns X_stc_pump_w_out
+    if 'T_stc_pump_w_out [°C]' in df.columns and 'X_stc_pump_w_out [W]' in df.columns:
+        X_in_tank = X_in_tank + df['X_stc_pump_w_out [W]'].fillna(0)
+        X_out_tank = X_out_tank + df['X_stc_w_in [W]'].fillna(0)
 
     df['Xc_tank [W]'] = X_in_tank - X_out_tank
 

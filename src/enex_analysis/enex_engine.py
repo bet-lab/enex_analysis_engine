@@ -1146,8 +1146,8 @@ class SolarAssistedGasBoiler:
         
         # Entropy balance
         self.S_w_sup = c_w * rho_w * self.dV_w_sup * math.log(self.T_w_sup / self.T0)
-        self.S_DN = k_D * self.I_DN**(0.9)
-        self.S_dH = k_d * self.I_dH**(0.9)
+        self.S_DN = k_D * self.I_DN**(0.9) * self.A_stc
+        self.S_dH = k_d * self.I_dH**(0.9) * self.A_stc
         self.S_sol = self.S_DN + self.S_dH
         self.S_w_stc_out = c_w * rho_w * self.dV_w_sup * math.log(self.T_w_stc_out / self.T0)       
         self.S_l = (1 / self.T_stc) * self.A_stc * self.U * (self.T_stc - self.T0)
