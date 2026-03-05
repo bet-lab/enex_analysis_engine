@@ -291,14 +291,14 @@ class SolarThermalCollector:
         )
 
         # Pump heat addition
-        T_pump_out_K = T_out_K + self.E_stc_pump / G_stc
+        T_stc_pump_w_out_K = T_out_K + self.E_stc_pump / G_stc
 
         # Heat transport rates
         Q_stc_w_out = calc_energy_flow(
             G_stc, T_out_K, T0_K,
         )
         Q_stc_pump_w_out = calc_energy_flow(
-            G_stc, T_pump_out_K, T0_K,
+            G_stc, T_stc_pump_w_out_K, T0_K,
         )
 
         # Collector heat loss
@@ -313,7 +313,7 @@ class SolarThermalCollector:
             'Q_stc_w_out': Q_stc_w_out,
             'Q_stc_pump_w_out': Q_stc_pump_w_out,
             'ksi_stc': ksi,
-            'T_stc_pump_w_out_K': T_pump_out_K,
+            'T_stc_pump_w_out_K': T_stc_pump_w_out_K,
             'T_stc_w_out_K': T_out_K,
             'T_stc_w_in_K': T_stc_w_in_K,
             'T_stc_K': T_stc_K,
