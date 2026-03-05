@@ -125,7 +125,7 @@ be called directly for custom analysis workflows.
 
 | Function | Description |
 |---|---|
-| `calc_stc_performance(I_DN_stc, I_dH_stc, T_stc_w_in_K, T0_K, dV_stc, ...)` | Complete STC thermal analysis; in mains-preheat mode the collector outlet is used as heated tank inlet temperature `T_tank_w_in_heated_K` (unified name) |
+| `calc_stc_performance(I_DN_stc, I_dH_stc, T_stc_w_in_K, T0_K, ...)` | STC thermal analysis (kept for backward compatibility; prefer `subsystems.SolarThermalCollector` for new code) |
 
 ### 16. KMA Weather Data & Solar Decomposition
 

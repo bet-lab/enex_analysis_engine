@@ -86,8 +86,9 @@ Flat-plate or evacuated-tube solar thermal collector with two placement modes.
 |---|---|
 | `is_enabled` | Property: `True` when `A_stc > 0` |
 | `is_preheat_on(hour)` | Check if hour falls in preheat window |
-| `calculate_dynamic(...)` | Compute STC performance for one timestep |
-| `assemble_results(...)` | Build STC result entries for DataFrame |
+| `step(...)` | *Protocol method:* Compute STC state for one simulation timestep |
+| `assemble_results(...)` | *Protocol method:* Build STC result entries for DataFrame |
+| `calculate_dynamic(...)` | Core dynamic calculation (backward compatible) |
 
 ### Usage
 
@@ -121,19 +122,23 @@ df = hp.analyze_dynamic(...)
 
 ## Constants
 
-### `STC_OFF`
+### `STC_OFF_STEP`
 
-Default result dict returned when no STC is attached or when STC is inactive.
+Default result dict returned when no STC is attached or when STC is inactive. An alias `STC_OFF` is provided for backward compatibility.
 
 ```python
-STC_OFF = {
+STC_OFF_STEP = {
     'stc_active': False,
     'stc_result': {},
     'T_stc_w_out_K': np.nan,
-    'T_stc_w_final_K': np.nan,
+    'T_stc_pump_w_out_K': np.nan,
     'Q_stc_w_out': 0.0,
+    'Q_stc_pump_w_out': 0.0,
     'Q_stc_w_in': 0.0,
     'E_stc_pump': 0.0,
+    'Q_contribution': 0.0,
+    'E_subsystem': 0.0,
+    'T_tank_w_in_override_K': None,
 }
 ```
 

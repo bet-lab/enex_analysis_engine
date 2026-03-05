@@ -71,27 +71,33 @@ flowchart TD
     end
 
     CTX --> A1["_determine_hp_state()"]
-    CTX --> A2["determine_refill_flow()"]
-    CTX --> A3["self.stc.calculate_dynamic()"]
+    CTX --> A2["determine_tank_refill_flow()"]
+    CTX --> A3["subsystems[...].step()"]
 
     subgraph CTRL["ControlState (from dynamic_context)"]
         direction LR
         S1["hp_is_on, hp_result, Q_ref_cond"]
         S2["dV_tank_w_in_ctrl"]
-        S3["stc_active, E_stc_pump, T_tank_w_in_heated_K"]
+    end
+    
+    subgraph SUBS["sub_states (dict)"]
+        direction LR
+        S3["stc_active, Q_contribution, E_subsystem"]
     end
 
     A1 --> CTRL
     A2 --> CTRL
-    A3 --> CTRL
+    A3 --> SUBS
 
     CTX --> B["tank_mass_energy_residual()"]
     CTRL --> B
+    SUBS --> B
     B --> SOLVE["fsolve → T_next, level_next"]
 
     SOLVE --> C["_assemble_step_results()"]
     CTX --> C
     CTRL --> C
+    SUBS --> C
     C --> OUT["step_results dict → DataFrame"]
 ```
 
@@ -237,7 +243,7 @@ df_ex = hp.postprocess_exergy(result_df)
 | Function | Description |
 |---|---|
 | `determine_hp_on_off(...)` | Pure hysteresis logic |
-| `determine_refill_flow(...)` | Tank level management |
+| `determine_tank_refill_flow(...)` | Tank level management |
 | `tank_mass_energy_residual(...)` | Energy/mass balance residuals for `fsolve` |
 
 ## References

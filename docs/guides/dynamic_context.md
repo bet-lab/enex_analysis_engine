@@ -53,11 +53,15 @@ Control decisions and HP cycle results produced during Phase A.
 | `hp_result` | `dict` | Full cycle result from `_calc_state` |
 | `Q_ref_cond` | `float` | Condenser heat rate [W] |
 | `dV_tank_w_in_ctrl` | `float \| None` | Refill flow [m³/s]; `None` = always-full |
-| `stc_active` | `bool` | STC subsystem active flag |
-| `E_stc_pump` | `float` | STC pump power [W] |
-| `T_tank_w_in_heated_K` | `float` | Tank inlet after STC preheat [K] |
-| `stc_result` | `dict` | STC performance result |
-| `T_stc_w_out_K_mp` | `float` | STC water outlet for mains-preheat [K] |
+
+*Note: Subsystem states (e.g., STC) are managed separately via `sub_states` dictionaries, following the `Subsystem` protocol.*
+
+### `Subsystem` Protocol
+
+Pluggable subsystem interface. Each subsystem computes its contribution for a single timestep and assembles result columns for the output DataFrame. New subsystems implement this protocol and register with the boiler model.
+
+- `step(ctx, ctrl, dt, T_tank_w_in_K) -> dict`: Compute subsystem state for this timestep. Returns dict with at least `Q_contribution`, `E_subsystem`, and `T_tank_w_in_override_K`.
+- `assemble_results(ctx, ctrl, step_state, T_solved_K) -> dict`: Build result columns for DataFrame output. |
 
 ## Pure Functions
 
@@ -78,9 +82,9 @@ hp_on = determine_hp_on_off(
 )
 ```
 
-### `determine_refill_flow()`
+### `determine_tank_refill_flow()`
 
-Tank water level management logic.  Returns `(dV_tank_w_in, is_refilling)`.
+Tank water level management logic. Returns `(dV_tank_w_in, is_refilling)`.
 When `dV_tank_w_in` is `None`, the tank is in always-full mode (inflow = outflow).
 
 ### `tank_mass_energy_residual()`
@@ -91,4 +95,4 @@ The 3-way mixing valve ratio α(T) makes the system nonlinear in T^{n+1}.
 ## References
 
 - Used by: `AirSourceHeatPumpBoiler.analyze_dynamic()`
-- Depends on: `enex_functions` (mixing valve, UV lamp, HP schedule utilities)
+- Depends on: `enex_functions` (mixing valve, UV lamp, HP schedule utilities), `subsystems` (Subsystem protocol)
