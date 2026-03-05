@@ -37,7 +37,7 @@ This module contains helper functions organized into the following categories:
    - update_tank_temperature: Update tank temperature based on energy balance
 
 9. Schedule Functions
-   - _build_schedule_ratios: Build schedule ratio array
+   - _build_dhw_usage_ratio: Build schedule ratio array
 
 10. Balance Printing Utilities
     - print_balance: Print energy/entropy/exergy balance

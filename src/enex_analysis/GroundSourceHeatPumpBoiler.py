@@ -711,7 +711,7 @@ class GroundSourceHeatPumpBoiler:
         self.dV_tank_w_in = 0.0 
         self.dV_mix_w_in_sup = 0.0 
         
-        self.w_use_frac = build_schedule_ratios(schedule_entries, self.time)
+        self.w_use_frac = build_dhw_usage_ratio(schedule_entries, self.time)
         
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
         Q_bhe_unit_pulse = np.zeros(tN)

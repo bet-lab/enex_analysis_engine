@@ -814,13 +814,13 @@ class AirSourceHeatPumpBoiler:
         self.time, self.dt = time, dt_s
 
         # schedule_entries: accept pre-computed numpy array (O(N)) or
-        #   list of (start, end, frac) interval tuples (converted via build_schedule_ratios)
+        #   list of (start, end, frac) interval tuples (converted via build_dhw_usage_ratio)
         if isinstance(schedule_entries, np.ndarray) and schedule_entries.ndim == 1:
             if len(schedule_entries) != tN:
                 raise ValueError(f"schedule_entries array length ({len(schedule_entries)}) != time length ({tN})")
             self.w_use_frac = schedule_entries.astype(float)
         else:
-            self.w_use_frac = build_schedule_ratios(schedule_entries, time)
+            self.w_use_frac = build_dhw_usage_ratio(schedule_entries, time)
         stc_kwargs = dict(
             A_stc_pipe=self.A_stc_pipe, alpha_stc=self.alpha_stc,
             h_o_stc=self.h_o_stc, h_r_stc=self.h_r_stc,

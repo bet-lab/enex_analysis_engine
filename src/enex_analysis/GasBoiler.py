@@ -18,7 +18,7 @@ from .constants import (
 )
 
 from .enex_functions import (
-    build_schedule_ratios,
+    build_dhw_usage_ratio,
 )
 
 
@@ -392,7 +392,7 @@ class GasBoiler:
         self.dV_w_sup_mix = 0.0
 
         # Build schedule ratio array
-        self.w_use_frac = _build_schedule_ratios(schedule_entries, self.time)
+        self.w_use_frac = build_dhw_usage_ratio(schedule_entries, self.time)
 
         for n in tqdm(range(tN), desc="GasBoiler Simulating"):
             step_results = {}
