@@ -267,6 +267,7 @@ def tank_mass_energy_residual(
     ctrl: ControlState,
     dt: float,
     T_tank_w_in_K: float,
+    T_sup_w_K: float,
     T_mix_w_out_K: float,
     C_tank: float,
     UA_tank: float,
@@ -293,6 +294,8 @@ def tank_mass_energy_residual(
         Time-step size [s].
     T_tank_w_in_K : float
         Mains water inlet temperature [K].
+    T_sup_w_K : float
+        Mains water supply temperature [K] (for mixing valve).
     T_mix_w_out_K : float
         Target mixing-valve outlet temperature [K].
     C_tank : float
@@ -318,10 +321,10 @@ def tank_mass_energy_residual(
     T_next: float = x[0]
     level_next: float = x[1]
 
-    den: float = max(1e-6, T_next - T_tank_w_in_K)
+    den: float = max(1e-6, T_next - T_sup_w_K)
     alp: float = min(
         1.0,
-        max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den),
+        max(0.0, (T_mix_w_out_K - T_sup_w_K) / den),
     )
     dV_tank_w_out: float = alp * ctx.dV_mix_w_out
     dV_tank_w_in: float = (

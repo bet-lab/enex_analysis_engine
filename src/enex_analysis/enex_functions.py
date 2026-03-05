@@ -62,6 +62,83 @@ from . import calc_util as cu
 from .constants import SP, c_a, rho_a, c_w, rho_w
 
 
+__all__ = [
+    # Friction and Flow
+    'darcy_friction_factor',
+    'calc_h_vertical_plate',
+    # Curve-fit helpers
+    'linear_function',
+    'quadratic_function',
+    'cubic_function',
+    'quartic_function',
+    # Balance printing
+    'print_balance',
+    # Heat Pump COP
+    'calc_ASHP_cooling_COP',
+    'calc_ASHP_heating_COP',
+    'calc_GSHP_COP',
+    # G-function
+    'f',
+    'chi',
+    'G_FLS',
+    # Air properties
+    'air_dynamic_viscosity',
+    'air_prandtl_number',
+    # Exergy / Entropy
+    'generate_entropy_exergy_term',
+    'calc_energy_flow',
+    'calc_exergy_flow',
+    # Flow and Mixing
+    'calc_mixing_valve',
+    'calc_uv_lamp_power',
+    'calc_Orifice_flow_coefficient',
+    'calc_boussinessq_mixing_flow',
+    # Tank Heat Transfer
+    'calc_UA_tank_arr',
+    # TDMA
+    'TDMA',
+    # Tank UA
+    'calc_simple_tank_UA',
+    # LMTD
+    'calc_LMTD_counter_flow',
+    'calc_LMTD_parallel_flow',
+    # HX / Fan
+    'calc_UA_from_dV_fan',
+    'calc_HX_perf_for_target_heat',
+    'calc_fan_power_from_dV_fan',
+    # Schedule / Control
+    'check_hp_schedule_active',
+    'build_dhw_usage_ratio',
+    # UV
+    'get_uv_params_from_turbidity',
+    'calc_uv_exposure_time',
+    # DHW
+    'make_dhw_schedule_from_Annex_42_profile',
+    'calc_total_water_use_from_schedule',
+    # Cold water
+    'calc_cold_water_temp',
+    # Refrigerant cycle
+    'calc_ref_state',
+    'create_lmtd_constraints',
+    'find_ref_loop_optimal_operation',
+    # Tank temperature
+    'update_tank_temperature',
+    # Exergy post-processing
+    'postprocess_exergy',
+    # Data loading
+    'load_kma_solar_csv',
+    'load_kma_T0_sol_hourly_csv',
+    'decompose_ghi_to_poa',
+    # STC
+    'calc_stc_performance',
+    # Summary / Plotting
+    'print_simulation_summary',
+    'plot_th_diagram',
+    'plot_ph_diagram',
+    'plot_ts_diagram',
+]
+
+
 def darcy_friction_factor(Re, e_d):
     """
     Calculate the Darcy friction factor for given Reynolds number and relative roughness.
@@ -2480,11 +2557,8 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
     df = df.copy()
     P0 = 101325
 
-    def _C2K(T_C):
-        return T_C + 273.15
-
-    T0_K = _C2K(df['T0 [°C]'])
-    T_tank_K = _C2K(df['T_tank_w [°C]'])
+    T0_K = cu.C2K(df['T0 [°C]'])
+    T_tank_K = cu.C2K(df['T_tank_w [°C]'])
 
     # 1. Refrigerant entropy / exergy
     state_map = {
@@ -2520,76 +2594,63 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
                     pass
 
     # 2. Electricity = exergy
-    df['X_cmp [W]'] = df['E_cmp [W]']
-    if 'E_ou_fan [W]' in df.columns:
-        df['X_ou_fan [W]'] = df['E_ou_fan [W]']
+    if 'E_cmp [W]' in df.columns: df['X_cmp [W]'] = df['E_cmp [W]']
+    if 'E_ou_fan [W]' in df.columns: df['X_ou_fan [W]'] = df['E_ou_fan [W]']
+    if 'E_uv [W]' in df.columns: df['X_uv [W]'] = df['E_uv [W]']
+    if 'E_stc_pump [W]' in df.columns: df['X_stc_pump [W]'] = df['E_stc_pump [W]']
 
     # 3. Air exergy
     if 'dV_ou_a [m3/s]' in df.columns and 'T_ou_a_in [°C]' in df.columns:
         G_a = c_a * rho_a * df['dV_ou_a [m3/s]']
-        Tin = _C2K(df['T_ou_a_in [°C]'])
-        Tout = _C2K(df['T_ou_a_out [°C]']) if 'T_ou_a_out [°C]' in df.columns else Tin
+        Tin = cu.C2K(df['T_ou_a_in [°C]'])
+        Tmid = cu.C2K(df['T_ou_a_mid [°C]'])
+        Tout = cu.C2K(df['T_ou_a_out [°C]']) if 'T_ou_a_out [°C]' in df.columns else Tin
         df['X_a_ou_in [W]'] = calc_exergy_flow(G_a, Tin, T0_K)
         df['X_a_ou_out [W]'] = calc_exergy_flow(G_a, Tout, T0_K)
+        df['X_a_ou_mid [W]'] = calc_exergy_flow(G_a, Tmid, T0_K)
+    
+    # 4. heat exchanger exergy
+    df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / cu.C2K(df['T_ref_cond_sat_v [°C]']))
+    df['X_ref_evap [W]'] = df['Q_ref_evap [W]'] * (1 - T0_K / cu.C2K(df['T_ref_evap_sat [°C]']))   
 
-    # 4. Condenser exergy
-    df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / T_tank_K)
+    # 5. Water exergy (inlet / outlet)
+    df['X_tank_w_in [W]']  = calc_exergy_flow(c_w * rho_w * df['dV_tank_w_in [m3/s]'].fillna(0), cu.C2K(df['T_tank_w_in [°C]']), T0_K)
+    df['X_tank_w_out [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_tank_w_out [m3/s]'].fillna(0), cu.C2K(df['T_tank_w [°C]']), T0_K)
 
-    # 5. Tank water exergy (inlet / outlet)
-    # Inlet: mains (or preheated) water entering the tank
-    if 'dV_tank_w_in [m3/s]' in df.columns:
-        G_in = c_w * rho_w * df['dV_tank_w_in [m3/s]'].fillna(0)
-        df['X_tank_w_in [W]'] = calc_exergy_flow(G_in, _C2K(T_tank_w_in), T0_K)
+    df['X_mix_w_out [W]']  = calc_exergy_flow(c_w * rho_w * df['dV_mix_w_out [m3/s]'].fillna(0), cu.C2K(df['T_mix_w_out [°C]']), T0_K)
+    df['X_mix_sup_w_in [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_mix_sup_w_in [m3/s]'].fillna(0), cu.C2K(df['T_sup_w [°C]']), T0_K)
 
-    # Outlet: mixed service water leaving the tank/mixing valve
-    if 'dV_mix_w_out [m3/s]' in df.columns and 'T_mix_w_out [°C]' in df.columns:
-        G_out = c_w * rho_w * df['dV_mix_w_out [m3/s]'].fillna(0)
-        T_mix_K = _C2K(df['T_mix_w_out [°C]'].fillna(df['T_tank_w [°C]']))
-        df['X_tank_w_out [W]'] = calc_exergy_flow(G_out, T_mix_K, T0_K)
+    # STC exergy
+    if 'Q_stc_w_out [W]' in df.columns and 'Q_stc_w_in [W]' in df.columns:
+        Q_stc_net = (df['Q_stc_w_out [W]'] - df['Q_stc_w_in [W]']).fillna(0)
+        X_stc_net = Q_stc_net * (1 - T0_K / T_tank_K)
+        df['X_stc_tank [W]'] = X_stc_net
 
-    if 'E_uv [W]' in df.columns:
-        df['X_uv [W]'] = df['E_uv [W]']
-
+    # 6. Heat loss exergy
     df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
 
-    # 6. Exergy accumulation in tank
+    # 7. Tank stored exergy
     tank_level = df['tank_level [-]'] if 'tank_level [-]' in df.columns else 1.0
     C_tank_actual = C_tank * tank_level
     T_tank_K_prev = T_tank_K.shift(1)
     df['Xst_tank [W]'] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / dt
     df.loc[df.index[0], 'Xst_tank [W]'] = 0.0
 
-    # 7. Total exergy input (system-level)
+    # 8. Total exergy input (system-level)
     df['X_tot [W]'] = df['E_cmp [W]'] + df['E_ou_fan [W]'] + df['X_uv [W]'] + df['E_stc_pump [W]']
 
-    # 8. Exergy consumption (component-level)
-    # mixing valve
-    df['Xc_mix [W]'] = df['X_tank_w_out [W]'] + df['X_mix_sup_w [W]'] - df['X_mix_w_out [W]']
-    # compressor
-    df['Xc_cmp [W]'] = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']
-    # expansion valve
-    df['Xc_exp [W]'] = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
-    # evaporator
-    df['Xc_ref_evap [W]'] = df['X_ref_exp_out [W]'] - df['X_ref_cmp_in [W]']
-    # condenser
-    df['Xc_ref_cond [W]'] = df['X_ref_cmp_out [W]'] - df['X_ref_exp_in [W]']
+    # 9. Exergy consumption (component-level) (currently only suitable for Air Source Heat Pump Boiler)
+    df['Xc_mix [W]']      = df['X_tank_w_out [W]'] + df['X_mix_sup_w [W]'] - df['X_mix_w_out [W]']  # mixing valve
+    df['Xc_cmp [W]']      = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']      # compressor
+    df['Xc_exp [W]']      = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']                        # expansion valve
+    df['Xc_ref_evap [W]'] = (df['X_ref_cmp_in [W]'] + df['X_a_ou_mid [W]']) - (df['X_ref_exp_out [W]'] + df['X_a_ou_in [W]']) # evaporator
+    df['Xc_ref_cond [W]'] = df['X_ref_cmp_out [W]'] - df['X_ref_exp_in [W]'] - df['X_ref_cond [W]'] # condenser
 
     # 8b. Tank + STC exergy consumption (optional, when required fields exist)
     # Balance for lumped tank control volume:
     #   X_in_tank  = X_ref_cond + X_tank_w_in (+ X_stc_w_net + X_uv)
     #   X_out_tank = X_tank_w_out + X_tank_loss + Xst_tank
     #   Xc_tank    = X_in_tank - X_out_tank
-    X_in_tank = df['X_ref_cond [W]'].copy()
-    if 'X_tank_w_in [W]' in df.columns:
-        X_in_tank = X_in_tank + df['X_tank_w_in [W]'].fillna(0)
-    # STC thermal contribution (if present): net water-side exergy delivered to tank
-    if 'Q_stc_w_out [W]' in df.columns and 'Q_stc_w_in [W]' in df.columns:
-        Q_stc_net = (df['Q_stc_w_out [W]'] - df['Q_stc_w_in [W]']).fillna(0)
-        X_stc_net = Q_stc_net * (1 - T0_K / T_tank_K)
-        df['X_stc_tank [W]'] = X_stc_net
-        X_in_tank = X_in_tank + X_stc_net
-    if 'X_uv [W]' in df.columns:
-        X_in_tank = X_in_tank + df['X_uv [W]'].fillna(0)
 
     X_out_tank = df['X_tank_loss [W]'] + df['Xst_tank [W]']
     if 'X_tank_w_out [W]' in df.columns:

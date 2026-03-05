@@ -73,7 +73,7 @@ class AirSourceHeatPumpBoiler:
         T_tank_w_upper_bound: float = 65.0,
         T_tank_w_lower_bound: float = 60.0,
         T_mix_w_out: float = 40.0,
-        T_tank_w_in: float = 15.0,
+        T_sup_w: float = 15.0,
         hp_capacity: float = 15000.0,
         dV_mix_w_out_max: float = 0.0045,
 
@@ -159,9 +159,11 @@ class AirSourceHeatPumpBoiler:
         self.dV_mix_w_out_max: float = dV_mix_w_out_max
         self.T_tank_w_upper_bound: float = T_tank_w_upper_bound
         self.T_tank_w_lower_bound: float = T_tank_w_lower_bound
-        self.T_tank_w_in: float = T_tank_w_in
+        self.T_sup_w: float = T_sup_w
+        self.T_sup_w_K: float = cu.C2K(T_sup_w)
+        self.T_tank_w_in: float = T_sup_w
         self.T_mix_w_out: float = T_mix_w_out
-        self.T_tank_w_in_K: float = cu.C2K(T_tank_w_in)
+        self.T_tank_w_in_K: float = cu.C2K(T_sup_w)
         self.T_mix_w_out_K: float = cu.C2K(T_mix_w_out)
 
         # --- 5. UV lamp ---
@@ -338,7 +340,7 @@ class AirSourceHeatPumpBoiler:
         else:
             mix: dict = calc_mixing_valve(
                 T_tank_w_K,
-                self.T_tank_w_in_K,
+                self.T_sup_w_K,
                 self.T_mix_w_out_K,
             )
             T_mix_w_out_val = mix['T_mix_w_out']
@@ -354,7 +356,7 @@ class AirSourceHeatPumpBoiler:
         )
         Q_mix_sup_w_in: float = calc_energy_flow(
             G=c_w * rho_w * dV_mix_sup_w_in,
-            T=self.T_tank_w_in_K, T0=T0_K,
+            T=self.T_sup_w_K, T0=T0_K,
         )
         Q_mix_w_out: float = calc_energy_flow(
             G=c_w * rho_w * dV_mix_w_out_val,
@@ -376,12 +378,14 @@ class AirSourceHeatPumpBoiler:
                 cs['T3_star_K'],
             ),
             'T_ou_a_in [°C]': T0,
+            'T_ou_a_mid [°C]': T_ou_a_mid,
             'T_ou_a_out [°C]': T_ou_a_out,
             'T_ref_cmp_in [°C]': cu.K2C(cs['T1_K']),
             'T_ref_cmp_out [°C]': cu.K2C(cs['T2_K']),
             'T_ref_exp_in [°C]': cu.K2C(cs['T3_K']),
             'T_ref_exp_out [°C]': cu.K2C(cs['T4_K']),
             'T_tank_w [°C]': T_tank_w,
+            'T_sup_w [°C]': self.T_sup_w,
             'T_tank_w_in [°C]': self.T_tank_w_in,
             'T_mix_w_out [°C]': T_mix_w_out_val,
             'T0 [°C]': T0,
@@ -392,6 +396,10 @@ class AirSourceHeatPumpBoiler:
             'dV_mix_w_out [m3/s]': (
                 dV_mix_w_out_val
                 if dV_mix_w_out_val > 0 else np.nan
+            ),
+            'dV_tank_w_out [m3/s]': (
+                dV_tank_w_out
+                if dV_tank_w_out > 0 else np.nan
             ),
             'dV_tank_w_in [m3/s]': (
                 dV_tank_w_in
@@ -569,13 +577,13 @@ class AirSourceHeatPumpBoiler:
             self.UA_tank * (T_tank_w_K - T0_K)
         )
         den: float = max(
-            1e-6, T_tank_w_K - self.T_tank_w_in_K,
+            1e-6, T_tank_w_K - self.T_sup_w_K,
         )
         alp: float = min(
             1.0,
             max(
                 0.0,
-                (self.T_mix_w_out_K - self.T_tank_w_in_K)
+                (self.T_mix_w_out_K - self.T_sup_w_K)
                 / den,
             ),
         )
@@ -587,7 +595,7 @@ class AirSourceHeatPumpBoiler:
         if Q_cond_target is None:
             Q_tank_w_use: float = (
                 c_w * rho_w * self.dV_tank_w_out
-                * (T_tank_w_K - self.T_tank_w_in_K)
+                * (T_tank_w_K - self.T_sup_w_K)
             )
             Q_cond_target = Q_tank_loss + Q_tank_w_use
 
@@ -701,13 +709,13 @@ class AirSourceHeatPumpBoiler:
 
         # Mixing valve flows for _calc_state
         den: float = max(
-            1e-6, ctx.T_tank_w_K - self.T_tank_w_in_K,
+            1e-6, ctx.T_tank_w_K - self.T_sup_w_K,
         )
         alp: float = min(
             1.0,
             max(
                 0.0,
-                (self.T_mix_w_out_K - self.T_tank_w_in_K)
+                (self.T_mix_w_out_K - self.T_sup_w_K)
                 / den,
             ),
         )
@@ -810,13 +818,13 @@ class AirSourceHeatPumpBoiler:
     ) -> dict:
         """Recompute reporting quantities at solved state."""
         den: float = max(
-            1e-6, T_solved_K - self.T_tank_w_in_K,
+            1e-6, T_solved_K - self.T_sup_w_K,
         )
         alp: float = min(
             1.0,
             max(
                 0.0,
-                (self.T_mix_w_out_K - self.T_tank_w_in_K)
+                (self.T_mix_w_out_K - self.T_sup_w_K)
                 / den,
             ),
         )
@@ -837,7 +845,7 @@ class AirSourceHeatPumpBoiler:
         T_mix_w_out_val: float = (
             calc_mixing_valve(
                 T_solved_K,
-                self.T_tank_w_in_K,
+                self.T_sup_w_K,
                 self.T_mix_w_out_K,
             )['T_mix_w_out']
             if ctx.dV_mix_w_out > 0 else np.nan
@@ -1172,6 +1180,7 @@ class AirSourceHeatPumpBoiler:
                 args=(
                     ctx, ctrl, dt_s,
                     self.T_tank_w_in_K,
+                    self.T_sup_w_K,
                     self.T_mix_w_out_K,
                     self.C_tank,
                     self.UA_tank,
@@ -1232,5 +1241,5 @@ class AirSourceHeatPumpBoiler:
         )
         return _postprocess_exergy(
             df, self.ref, self.C_tank,
-            self.dt, self.T_tank_w_in,
+            self.dt, self.T_sup_w,
         )
