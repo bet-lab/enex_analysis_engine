@@ -2533,44 +2533,75 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
         df['X_a_ou_out [W]'] = calc_exergy_flow(G_a, Tout, T0_K)
 
     # 4. Condenser exergy
-    if 'Q_ref_cond [W]' in df.columns:
-        df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / T_tank_K)
+    df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / T_tank_K)
 
-    # 5. Tank water exergy
+    # 5. Tank water exergy (inlet / outlet)
+    # Inlet: mains (or preheated) water entering the tank
     if 'dV_tank_w_in [m3/s]' in df.columns:
         G_in = c_w * rho_w * df['dV_tank_w_in [m3/s]'].fillna(0)
-        df['X_w_tank_in [W]'] = calc_exergy_flow(G_in, _C2K(T_tank_w_in), T0_K)
+        df['X_tank_w_in [W]'] = calc_exergy_flow(G_in, _C2K(T_tank_w_in), T0_K)
+
+    # Outlet: mixed service water leaving the tank/mixing valve
+    if 'dV_mix_w_out [m3/s]' in df.columns and 'T_mix_w_out [°C]' in df.columns:
+        G_out = c_w * rho_w * df['dV_mix_w_out [m3/s]'].fillna(0)
+        T_mix_K = _C2K(df['T_mix_w_out [°C]'].fillna(df['T_tank_w [°C]']))
+        df['X_tank_w_out [W]'] = calc_exergy_flow(G_out, T_mix_K, T0_K)
 
     if 'E_uv [W]' in df.columns:
         df['X_uv [W]'] = df['E_uv [W]']
 
-    if 'Q_tank_loss [W]' in df.columns:
-        df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
+    df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
 
-    # 6. Exergy accumulation
+    # 6. Exergy accumulation in tank
     tank_level = df['tank_level [-]'] if 'tank_level [-]' in df.columns else 1.0
     C_tank_actual = C_tank * tank_level
     T_tank_K_prev = T_tank_K.shift(1)
     df['Xst_tank [W]'] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / dt
     df.loc[df.index[0], 'Xst_tank [W]'] = 0.0
 
-    # 7. Total exergy
-    E_fan = df['E_ou_fan [W]'] if 'E_ou_fan [W]' in df.columns else 0
-    E_pump = df['E_stc_pump [W]'] if 'E_stc_pump [W]' in df.columns else 0
-    X_uv = df['X_uv [W]'] if 'X_uv [W]' in df.columns else 0
-    df['X_tot [W]'] = df['E_cmp [W]'] + E_fan + X_uv + E_pump
+    # 7. Total exergy input (system-level)
+    df['X_tot [W]'] = df['E_cmp [W]'] + df['E_ou_fan [W]'] + df['X_uv [W]'] + df['E_stc_pump [W]']
 
-    # 8. Exergy consumption
-    if all(c in df.columns for c in ['X_cmp [W]', 'X_ref_cmp_in [W]', 'X_ref_cmp_out [W]']):
-        df['Xc_cmp [W]'] = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']
+    # 8. Exergy consumption (component-level)
+    # mixing valve
+    df['Xc_mix [W]'] = df['X_tank_w_out [W]'] + df['X_mix_sup_w [W]'] - df['X_mix_w_out [W]']
+    # compressor
+    df['Xc_cmp [W]'] = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']
+    # expansion valve
+    df['Xc_exp [W]'] = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
+    # evaporator
+    df['Xc_ref_evap [W]'] = df['X_ref_exp_out [W]'] - df['X_ref_cmp_in [W]']
+    # condenser
+    df['Xc_ref_cond [W]'] = df['X_ref_cmp_out [W]'] - df['X_ref_exp_in [W]']
 
-    if all(c in df.columns for c in ['X_ref_exp_in [W]', 'X_ref_exp_out [W]']):
-        df['Xc_exp [W]'] = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
+    # 8b. Tank + STC exergy consumption (optional, when required fields exist)
+    # Balance for lumped tank control volume:
+    #   X_in_tank  = X_ref_cond + X_tank_w_in (+ X_stc_w_net + X_uv)
+    #   X_out_tank = X_tank_w_out + X_tank_loss + Xst_tank
+    #   Xc_tank    = X_in_tank - X_out_tank
+    X_in_tank = df['X_ref_cond [W]'].copy()
+    if 'X_tank_w_in [W]' in df.columns:
+        X_in_tank = X_in_tank + df['X_tank_w_in [W]'].fillna(0)
+    # STC thermal contribution (if present): net water-side exergy delivered to tank
+    if 'Q_stc_w_out [W]' in df.columns and 'Q_stc_w_in [W]' in df.columns:
+        Q_stc_net = (df['Q_stc_w_out [W]'] - df['Q_stc_w_in [W]']).fillna(0)
+        X_stc_net = Q_stc_net * (1 - T0_K / T_tank_K)
+        df['X_stc_tank [W]'] = X_stc_net
+        X_in_tank = X_in_tank + X_stc_net
+    if 'X_uv [W]' in df.columns:
+        X_in_tank = X_in_tank + df['X_uv [W]'].fillna(0)
 
-    # 9. COP
-    if 'Q_cond_target [W]' in df.columns:
-        df['cop_ref [-]'] = df['Q_cond_target [W]'] / df['E_cmp [W]'].replace(0, np.nan)
-        df['cop_sys [-]'] = df['Q_cond_target [W]'] / df['E_tot [W]'].replace(0, np.nan)
+    X_out_tank = df['X_tank_loss [W]'] + df['Xst_tank [W]']
+    if 'X_tank_w_out [W]' in df.columns:
+        X_out_tank = X_out_tank + df['X_tank_w_out [W]'].fillna(0)
+
+    df['Xc_tank [W]'] = X_in_tank - X_out_tank
+
+    # 9. Exergetic "COP" metrics
+    df['X_eff_ref [-]'] = df['X_ref_cond [W]'] / df['X_cmp [W]'].replace(0, np.nan)
+    df['X_eff_sys [-]'] = df['X_ref_cond [W]'] / df['X_tot [W]'].replace(0, np.nan)
+    
+    
 
     return df
 

@@ -1,0 +1,381 @@
+"""Shared dynamic simulation context and control helpers.
+
+Provides reusable dataclasses and pure functions that form the
+backbone of time-stepping heat-pump simulations.  Extracted from
+``AirSourceHeatPumpBoiler`` so that ``GroundSourceHeatPumpBoiler``
+and future models can share the same infrastructure.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from . import calc_util as cu
+from .constants import c_w, rho_w
+from .enex_functions import (
+    calc_mixing_valve,
+    calc_stc_performance,
+    calc_uv_lamp_power,
+    check_hp_schedule_active,
+)
+
+
+# ------------------------------------------------------------------
+# Per-timestep immutable context
+# ------------------------------------------------------------------
+
+@dataclass
+class StepContext:
+    """Per-timestep immutable context (time, environment, demand).
+
+    Attributes
+    ----------
+    n : int
+        Current step index.
+    current_time_s : float
+        Elapsed simulation time [s].
+    current_hour : float
+        Elapsed simulation time [h].
+    hour_of_day : float
+        Hour within the current day (0–24, repeating).
+    T0 : float
+        Dead-state / outdoor-air temperature [°C].
+    T0_K : float
+        Dead-state temperature [K].
+    preheat_on : bool
+        Whether the preheat window is active.
+    T_tank_w_K : float
+        Current tank water temperature [K].
+    tank_level : float
+        Fractional tank fill level (0–1).
+    dV_mix_w_out : float
+        Service water draw-off flow rate [m³/s].
+    E_uv : float
+        Instantaneous UV lamp power [W].
+    I_DN : float
+        Direct-normal irradiance on collector plane [W/m²].
+    I_dH : float
+        Diffuse-horizontal irradiance [W/m²].
+    """
+
+    n: int
+    current_time_s: float
+    current_hour: float
+    hour_of_day: float
+    T0: float
+    T0_K: float
+    preheat_on: bool
+    T_tank_w_K: float
+    tank_level: float
+    dV_mix_w_out: float
+    E_uv: float
+    I_DN: float = 0.0
+    I_dH: float = 0.0
+
+
+# ------------------------------------------------------------------
+# Control decisions produced by Phase-A helpers
+# ------------------------------------------------------------------
+
+@dataclass
+class ControlState:
+    """Control decisions and HP cycle results for one timestep.
+
+    Attributes
+    ----------
+    hp_is_on : bool
+        Whether the heat pump is running.
+    hp_result : dict
+        Full result dictionary from ``_calc_state``.
+    Q_ref_cond : float
+        Condenser heat rate [W].
+    dV_tank_w_in_ctrl : float | None
+        Refill flow rate [m³/s].  ``None`` = always-full
+        sentinel (inflow resolved inside residual).
+    stc_active : bool
+        Whether the STC subsystem is active.
+    E_stc_pump : float
+        STC pump power [W].
+    T_tank_w_in_heated_K : float
+        Tank inlet temperature after STC preheat [K].
+    stc_result : dict
+        STC performance result dictionary.
+    T_stc_w_out_K_mp : float
+        STC water outlet temperature for mains-preheat [K].
+    """
+
+    hp_is_on: bool
+    hp_result: dict
+    Q_ref_cond: float
+    dV_tank_w_in_ctrl: float | None
+    stc_active: bool
+    E_stc_pump: float
+    T_tank_w_in_heated_K: float
+    stc_result: dict
+    T_stc_w_out_K_mp: float
+
+
+# ------------------------------------------------------------------
+# Pure helper functions
+# ------------------------------------------------------------------
+
+def determine_hp_on_off(
+    T_tank_w_C: float,
+    T_lower: float,
+    T_upper: float,
+    hp_is_on_prev: bool,
+    hour_of_day: float,
+    hp_on_schedule: list[tuple[float, float]],
+) -> bool:
+    """Hysteresis-based heat-pump on/off decision.
+
+    Parameters
+    ----------
+    T_tank_w_C : float
+        Current tank water temperature [°C].
+    T_lower : float
+        Lower hysteresis bound [°C].
+    T_upper : float
+        Upper hysteresis bound [°C].
+    hp_is_on_prev : bool
+        HP state at the previous timestep.
+    hour_of_day : float
+        Hour within the day (0–24).
+    hp_on_schedule : list[tuple[float, float]]
+        Active operating windows ``(start_h, end_h)``.
+
+    Returns
+    -------
+    bool
+        Whether the HP should run this timestep.
+    """
+    if T_tank_w_C <= T_lower:
+        hp_on: bool = True
+    elif T_tank_w_C >= T_upper:
+        hp_on = False
+    else:
+        hp_on = hp_is_on_prev
+
+    return hp_on and check_hp_schedule_active(
+        hour_of_day, hp_on_schedule,
+    )
+
+
+def determine_refill_flow(
+    dt: float,
+    tank_level: float,
+    dV_tank_w_out: float,
+    V_tank_full: float,
+    tank_always_full: bool,
+    prevent_simultaneous_flow: bool,
+    tank_level_lower_bound: float,
+    tank_level_upper_bound: float,
+    dV_tank_w_in_refill: float,
+    is_refilling: bool,
+    use_stc: bool,
+    stc_placement: str,
+    preheat_on: bool,
+) -> tuple[float | None, bool]:
+    """Determine refill flow rate from current level and mode.
+
+    Parameters
+    ----------
+    dt : float
+        Time-step size [s].
+    tank_level : float
+        Current fractional tank level (0–1).
+    dV_tank_w_out : float
+        Current outflow rate [m³/s].
+    V_tank_full : float
+        Tank full volume [m³].
+    tank_always_full : bool
+        Whether the tank is forced to stay full.
+    prevent_simultaneous_flow : bool
+        Exclusive-flow mode flag.
+    tank_level_lower_bound : float
+        Level lower bound for refill trigger.
+    tank_level_upper_bound : float
+        Level upper bound for refill cut-off.
+    dV_tank_w_in_refill : float
+        Refill flow rate [m³/s].
+    is_refilling : bool
+        Whether we are currently in a refill cycle.
+    use_stc : bool
+        Whether STC is active for this simulation.
+    stc_placement : str
+        ``'tank_circuit'`` or ``'mains_preheat'``.
+    preheat_on : bool
+        Whether the preheat window is active.
+
+    Returns
+    -------
+    tuple[float | None, bool]
+        ``(dV_tank_w_in, is_refilling)``.
+        ``None`` means always-full sentinel (no PSF).
+    """
+    lv: float = tank_level
+    if (
+        not tank_always_full
+        or (tank_always_full and prevent_simultaneous_flow)
+    ):
+        lv = max(
+            0.0,
+            tank_level - (dV_tank_w_out * dt) / V_tank_full,
+        )
+
+    dV_tank_w_in: float = 0.0
+
+    if tank_always_full and prevent_simultaneous_flow:
+        if dV_tank_w_out > 0:
+            is_refilling = False
+        elif lv < 1.0:
+            req: float = (1.0 - lv) * V_tank_full
+            if dV_tank_w_in_refill * dt <= req:
+                dV_tank_w_in = dV_tank_w_in_refill
+    elif tank_always_full:
+        return None, is_refilling  # sentinel
+    else:
+        lo: float = tank_level_lower_bound
+        hi: float = tank_level_upper_bound
+        if (
+            use_stc
+            and stc_placement == 'mains_preheat'
+            and preheat_on
+        ):
+            lo, hi = 1.0, 1.0
+        if not is_refilling and lv < lo - 1e-6:
+            is_refilling = True
+        if is_refilling:
+            req = (hi - lv) * V_tank_full
+            if dV_tank_w_in_refill * dt <= req:
+                dV_tank_w_in = dV_tank_w_in_refill
+            chk: float = (
+                lv + dV_tank_w_in * dt / V_tank_full
+            )
+            if chk >= hi - 1e-6:
+                is_refilling = False
+
+    return dV_tank_w_in, is_refilling
+
+
+def tank_mass_energy_residual(
+    x: list[float],
+    ctx: StepContext,
+    ctrl: ControlState,
+    dt: float,
+    T_tank_w_in_K: float,
+    T_mix_w_out_K: float,
+    C_tank: float,
+    UA_tank: float,
+    V_tank_full: float,
+    stc_kwargs: dict,
+    use_stc: bool,
+    stc_placement: str,
+    dV_stc_w: float,
+) -> list[float]:
+    """Energy and mass balance residuals at T^{n+1}.
+
+    The 3-way mixing valve ratio α(T) makes the outflow a
+    nonlinear function of T^{n+1}, requiring ``fsolve``.
+
+    Parameters
+    ----------
+    x : list[float]
+        ``[T_next_K, level_next]``.
+    ctx : StepContext
+        Current-step immutable context.
+    ctrl : ControlState
+        Current-step control decisions.
+    dt : float
+        Time-step size [s].
+    T_tank_w_in_K : float
+        Mains water inlet temperature [K].
+    T_mix_w_out_K : float
+        Target mixing-valve outlet temperature [K].
+    C_tank : float
+        Tank thermal capacitance [J/K].
+    UA_tank : float
+        Tank overall heat-loss coefficient [W/K].
+    V_tank_full : float
+        Tank full volume [m³].
+    stc_kwargs : dict
+        Keyword arguments for ``calc_stc_performance``.
+    use_stc : bool
+        Whether STC is active.
+    stc_placement : str
+        ``'tank_circuit'`` or ``'mains_preheat'``.
+    dV_stc_w : float
+        STC loop flow rate [m³/s].
+
+    Returns
+    -------
+    list[float]
+        ``[r_energy, r_mass]``.
+    """
+    T_next: float = x[0]
+    level_next: float = x[1]
+
+    den: float = max(1e-6, T_next - T_tank_w_in_K)
+    alp: float = min(
+        1.0,
+        max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den),
+    )
+    dV_tank_w_out: float = alp * ctx.dV_mix_w_out
+    dV_tank_w_in: float = (
+        dV_tank_w_out
+        if ctrl.dV_tank_w_in_ctrl is None
+        else ctrl.dV_tank_w_in_ctrl
+    )
+
+    r_mass: float = (
+        level_next
+        - ctx.tank_level
+        - (dV_tank_w_in - dV_tank_w_out) * dt / V_tank_full
+    )
+
+    C_curr: float = C_tank * max(0.001, ctx.tank_level)
+    C_next: float = C_tank * max(0.001, level_next)
+    Q_loss: float = UA_tank * (T_next - ctx.T0_K)
+
+    Q_flow_net: float = c_w * rho_w * (
+        dV_tank_w_in * ctrl.T_tank_w_in_heated_K
+        - dV_tank_w_out * T_next
+    )
+
+    Q_stc_net: float = 0.0
+    if (
+        use_stc
+        and stc_placement == 'tank_circuit'
+        and ctrl.stc_active
+    ):
+        stc_r: dict = calc_stc_performance(
+            I_DN_stc=ctx.I_DN,
+            I_dH_stc=ctx.I_dH,
+            T_stc_w_in_K=T_next,
+            T0_K=ctx.T0_K,
+            dV_stc=dV_stc_w,
+            is_active=True,
+            **stc_kwargs,
+        )
+        Q_stc_net = (
+            stc_r.get('Q_stc_w_out', 0.0)
+            - stc_r.get('Q_stc_w_in', 0.0)
+        )
+
+    Q_total: float = (
+        ctrl.Q_ref_cond
+        + ctx.E_uv
+        + ctrl.E_stc_pump
+        + Q_stc_net
+        + Q_flow_net
+    )
+    r_energy: float = (
+        C_next * T_next
+        - C_curr * ctx.T_tank_w_K
+        - dt * (Q_total - Q_loss)
+    )
+
+    return [r_energy, r_mass]

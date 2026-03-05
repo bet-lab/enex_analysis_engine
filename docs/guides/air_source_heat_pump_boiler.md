@@ -5,7 +5,7 @@
 ## Overview
 
 Physics-based air source heat pump boiler model with refrigerant cycle resolution,
-dynamic tank simulation, and optional solar thermal collector (STC) integration.
+dynamic tank simulation, and optional subsystem integration via class-based injection.
 The model finds the optimal evaporator approach temperature at each time step by
 minimizing total electrical power (`E_cmp + E_ou_fan`) via Brent's bounded 1-D method
 (`scipy.optimize.minimize_scalar`).
@@ -22,7 +22,7 @@ at each timestep for unconditional stability.
                 └─────────┬───────────┘
                           │
                 ┌─────────▼───────────┐
-                │  Compressor (VSD)   │  ← Optimization variable: dT_ref_evap
+                │  Compressor (VSD)   │  ← Optimisation: dT_ref_evap
                 └─────────┬───────────┘
                           │
                 ┌─────────▼───────────┐
@@ -33,16 +33,36 @@ at each timestep for unconditional stability.
                 │  Expansion Valve    │
                 └─────────────────────┘
 
-  Optional:  Solar Thermal Collector → Tank (preheat or circuit mode)
+  Optional subsystems (class-based injection):
+    SolarThermalCollector → Tank (preheat or circuit mode)
+    PVPanel → (future)
 ```
 
-## Code Structure
+## Modular Structure (v2)
+
+The model uses **composition-based** architecture:
+
+```mermaid
+graph TB
+  ASHPB["AirSourceHeatPumpBoiler"]
+  DC["dynamic_context<br/>StepContext · ControlState<br/>Shared control helpers"]
+  SS["subsystems<br/>SolarThermalCollector<br/>PVPanel (future)"]
+
+  ASHPB -->|imports| DC
+  ASHPB -->|self.stc| SS
+```
+
+| Module | Responsibility |
+|---|---|
+| `dynamic_context` | `StepContext`, `ControlState`, HP hysteresis, tank level, residual solver |
+| `subsystems` | `SolarThermalCollector` class (config + methods), future `PVPanel` |
+| `AirSourceHeatPumpBoiler` | ASHP-specific physics, optimisation, simulation loop |
 
 ### Data Flow — `analyze_dynamic` per-timestep
 
 ```mermaid
 flowchart TD
-    subgraph CTX["StepContext (immutable)"]
+    subgraph CTX["StepContext (from dynamic_context)"]
         direction LR
         C1["time, T0, preheat_on"]
         C2["T_tank_w_K, tank_level"]
@@ -51,10 +71,10 @@ flowchart TD
     end
 
     CTX --> A1["_determine_hp_state()"]
-    CTX --> A2["_determine_refill_flow()"]
-    CTX --> A3["_calculate_stc_dynamic()"]
+    CTX --> A2["determine_refill_flow()"]
+    CTX --> A3["self.stc.calculate_dynamic()"]
 
-    subgraph CTRL["ControlState"]
+    subgraph CTRL["ControlState (from dynamic_context)"]
         direction LR
         S1["hp_is_on, hp_result, Q_ref_cond"]
         S2["dV_tank_w_in_ctrl"]
@@ -65,7 +85,7 @@ flowchart TD
     A2 --> CTRL
     A3 --> CTRL
 
-    CTX --> B["_tank_mass_energy_residual()"]
+    CTX --> B["tank_mass_energy_residual()"]
     CTRL --> B
     B --> SOLVE["fsolve → T_next, level_next"]
 
@@ -75,50 +95,9 @@ flowchart TD
     C --> OUT["step_results dict → DataFrame"]
 ```
 
-### Class Method Overview
-
-```mermaid
-classDiagram
-    class AirSourceHeatPumpBoiler {
-        +analyze_steady()
-        +analyze_dynamic()
-        +postprocess_exergy()
-        -_calc_state()
-        -_optimize_operation()
-        -_determine_hp_state()
-        -_determine_refill_flow()
-        -_tank_mass_energy_residual()
-        -_assemble_step_results()
-        -_calculate_stc_dynamic()
-        -_setup_stc_parameters()
-    }
-    class StepContext {
-        n, current_time_s, current_hour
-        T0, T0_K, preheat_on
-        T_tank_w_K, tank_level
-        dV_mix_w_out, E_uv
-        I_DN, I_dH
-    }
-    class ControlState {
-        hp_is_on, hp_result, Q_ref_cond
-        dV_tank_w_in_ctrl
-        stc_active, E_stc_pump
-        T_tank_w_in_heated_K, stc_result
-        T_stc_w_out_K_mp
-    }
-    AirSourceHeatPumpBoiler ..> StepContext : creates per step
-    AirSourceHeatPumpBoiler ..> ControlState : creates per step
-```
-
-### Implicit Solver — Why `fsolve`?
-
-The 3-way mixing valve ratio `α(T) = (T_mix − T_in) / (T − T_in)` makes the
-tank outflow a **nonlinear function** of `T^{n+1}`. This couples the energy
-balance into a 2×2 nonlinear system `[r_energy, r_mass] = 0`, solved by
-Newton-Raphson (`fsolve`).
-
-> If α were frozen at time n, the energy residual becomes linear in T and
-> admits a direct algebraic solution without iteration.
+`SolarThermalCollector`가 mains-preheat 모드로 동작할 때 집열기 출구 온도는 항상
+**가열된 저탕조 유입수 온도**인 `T_tank_w_in_heated_K`로 전달되며, 관련 문서와
+코드에서는 이 이름으로 통일한다.
 
 ## Key Parameters
 
@@ -155,59 +134,17 @@ Newton-Raphson (`fsolve`).
 |---|---|---|---|
 | `r0` | 0.2 | m | Tank inner radius |
 | `H` | 1.2 | m | Tank height |
-| `x_shell` | 0.005 | m | Shell thickness |
-| `x_ins` | 0.05 | m | Insulation thickness |
-| `k_shell` | 25 | W/(m·K) | Shell conductivity |
-| `k_ins` | 0.03 | W/(m·K) | Insulation conductivity |
-| `h_o` | 15 | W/(m²·K) | External convective coefficient |
 | `T_tank_w_upper_bound` | 65.0 | °C | Tank upper setpoint |
 | `T_tank_w_lower_bound` | 60.0 | °C | Tank lower setpoint |
 | `T_mix_w_out` | 40.0 | °C | Service water delivery temperature |
 | `T_tank_w_in` | 15.0 | °C | Mains water supply temperature |
 | `dV_mix_w_out_max` | 0.0045 | m³/s | Max service flow rate |
 
-### Tank Water Level Management
+### Subsystems (class-based injection)
 
-| Parameter | Default | Unit | Description |
-|---|---|---|---|
-| `tank_always_full` | `True` | — | Keep tank at full level |
-| `tank_level_lower_bound` | 0.5 | — | Tank level lower bound |
-| `tank_level_upper_bound` | 1.0 | — | Tank level upper bound |
-| `dV_tank_w_in_refill` | 0.001 | m³/s | Refill flow rate |
-| `prevent_simultaneous_flow` | `False` | — | Prevent draw-off during refill |
-
-### UV Lamp
-
-| Parameter | Default | Unit | Description |
-|---|---|---|---|
-| `lamp_power_watts` | 0 | W | UV lamp power (0 = disabled) |
-| `uv_lamp_exposure_duration_min` | 0 | min | UV exposure per cycle |
-| `num_switching_per_3hour` | 1 | — | Switching count per 3 h |
-
-### HP Operating Schedule
-
-| Parameter | Default | Unit | Description |
-|---|---|---|---|
-| `hp_on_schedule` | `[(0.0, 24.0)]` | — | Active operating windows (start_h, end_h) |
-
-### Solar Thermal Collector (STC)
-
-| Parameter | Default | Unit | Description |
-|---|---|---|---|
-| `A_stc` | 0.0 | m² | Collector area (0 = disabled) |
-| `stc_tilt` | 35.0 | ° | Collector tilt from horizontal |
-| `stc_azimuth` | 180.0 | ° | Collector azimuth (180 = south) |
-| `stc_placement` | `'tank_circuit'` | — | `'tank_circuit'` or `'mains_preheat'` |
-| `dV_stc_w` | 0.001 | m³/s | STC loop flow rate |
-| `E_stc_pump` | 50.0 | W | STC pump power |
-| `preheat_start_hour` | 6 | h | Preheat window start |
-| `preheat_end_hour` | 18 | h | Preheat window end |
-
-### VSD Fan Coefficients
-
-| Parameter | Default | Description |
+| Parameter | Type | Description |
 |---|---|---|
-| `vsd_coeffs_ou` | ASHRAE 90.1-2022 | `c1=0.0013, c2=0.1470, c3=0.9506, c4=−0.0998, c5=0.0` |
+| `stc` | `SolarThermalCollector \| None` | Solar thermal collector (see `subsystems` guide) |
 
 ## Usage
 
@@ -218,66 +155,57 @@ from enex_analysis import AirSourceHeatPumpBoiler
 
 hp = AirSourceHeatPumpBoiler(
     ref='R134a',
-    V_disp_cmp=0.0002,
     UA_cond_design=2000.0,
     UA_evap_design=1000.0,
 )
 
 result = hp.analyze_steady(
-    T_tank_w=55.0,       # Tank water temperature [°C]
-    T0=5.0,              # Outdoor air temperature [°C]
-    Q_cond_target=5000,  # Target heat rate [W]
+    T_tank_w=55.0,
+    T0=5.0,
+    Q_cond_target=5000,
 )
 
-print(f"Compressor power: {result['E_cmp [W]']:.1f} W")
 print(f"Total power: {result['E_tot [W]']:.1f} W")
 ```
 
-### Dynamic Simulation
+### Dynamic Simulation (without STC)
 
 ```python
 import numpy as np
 
-schedule_entries = [
-    ("7:00", "8:00",  1.0),     # Morning peak
-    ("12:00", "13:00", 0.5),    # Midday
-    ("19:00", "21:00", 1.0),    # Evening peak
-]
-
-# T0_schedule must be a per-timestep array (length = tN)
 dt_s = 60
-simulation_period_sec = 86400
-tN = len(np.arange(0, simulation_period_sec, dt_s))
-T0_schedule = np.full(tN, 5.0)  # Constant 5 °C outdoor air
+tN = len(np.arange(0, 86400, dt_s))
+T0_schedule = np.full(tN, 5.0)
 
-result_df = hp.analyze_dynamic(
-    simulation_period_sec=simulation_period_sec,
+schedule = [("7:00", "8:00", 1.0), ("19:00", "21:00", 1.0)]
+
+df = hp.analyze_dynamic(
+    simulation_period_sec=86400,
     dt_s=dt_s,
     T_tank_w_init_C=20.0,
-    schedule_entries=schedule_entries,
+    dhw_usage_schedule=schedule,
     T0_schedule=T0_schedule,
-    result_save_csv_path='result.csv',
 )
 ```
 
-### Dynamic Simulation with STC
+### Dynamic Simulation with STC (class injection)
 
 ```python
-hp_stc = AirSourceHeatPumpBoiler(
+from enex_analysis.subsystems import SolarThermalCollector
+
+stc = SolarThermalCollector(
     A_stc=4.0,
     stc_placement='tank_circuit',
     stc_tilt=35.0,
     stc_azimuth=180.0,
 )
 
-result_df = hp_stc.analyze_dynamic(
-    simulation_period_sec=simulation_period_sec,
-    dt_s=dt_s,
-    T_tank_w_init_C=20.0,
-    schedule_entries=schedule_entries,
-    T0_schedule=T0_schedule,
-    I_DN_schedule=I_DN_array,   # Direct-normal irradiance [W/m²]
-    I_dH_schedule=I_dH_array,   # Diffuse-horizontal irradiance [W/m²]
+hp_stc = AirSourceHeatPumpBoiler(..., stc=stc)
+
+df = hp_stc.analyze_dynamic(
+    ...,
+    I_DN_schedule=I_DN_array,
+    I_dH_schedule=I_dH_array,
 )
 ```
 
@@ -285,7 +213,6 @@ result_df = hp_stc.analyze_dynamic(
 
 ```python
 df_ex = hp.postprocess_exergy(result_df)
-print(f"Total exergy consumption: {df_ex['Xc_tot [W]'].sum():.0f} W")
 ```
 
 ## API Reference
@@ -295,16 +222,26 @@ print(f"Total exergy consumption: {df_ex['Xc_tot [W]'].sum():.0f} W")
 | `analyze_steady(T_tank_w, T0, ...)` | Single operating point analysis |
 | `analyze_dynamic(...)` | Time-stepping dynamic simulation (fully implicit) |
 | `postprocess_exergy(df)` | Add exergy columns to result DataFrame |
-| `_calc_state(dT_ref_evap, T_tank_w, Q_cond_target, T0)` | Evaluate refrigerant cycle at a given operating point |
-| `_optimize_operation(T_tank_w, Q_cond_target, T0)` | Brent 1-D minimization of `E_tot` over `dT_ref_evap` |
-| `_determine_hp_state(ctx, hp_is_on_prev)` | HP hysteresis + cycle optimisation |
-| `_determine_refill_flow(ctx, is_refilling, use_stc)` | Refill control decision |
-| `_tank_mass_energy_residual(x, ctx, ctrl, dt, ...)` | Energy / mass balance residuals for fsolve |
-| `_assemble_step_results(ctx, ctrl, T_solved_K, ...)` | Post-solve reporting dict assembly |
-| `_calculate_stc_dynamic(I_DN, I_dH, T_tank_w_K, ...)` | STC probe & performance (both placements) |
-| `_setup_stc_parameters(...)` | Initialise STC parameters (called from `__init__`) |
+
+### Internal Methods (ASHP-specific)
+
+| Method | Description |
+|---|---|
+| `_calc_state(...)` | Evaluate refrigerant cycle at a given operating point |
+| `_optimize_operation(...)` | Brent 1-D minimisation of `E_tot` |
+| `_determine_hp_state(ctx, ...)` | HP hysteresis + cycle optimisation |
+| `_assemble_step_results(...)` | Post-solve reporting dict assembly |
+
+### Shared Functions (from `dynamic_context`)
+
+| Function | Description |
+|---|---|
+| `determine_hp_on_off(...)` | Pure hysteresis logic |
+| `determine_refill_flow(...)` | Tank level management |
+| `tank_mass_energy_residual(...)` | Energy/mass balance residuals for `fsolve` |
 
 ## References
 
 - ASHRAE Standard 90.1-2022 (VSD fan power curves)
 - CoolProp library for refrigerant properties
+- See also: [dynamic_context guide](dynamic_context.md), [subsystems guide](subsystems.md)

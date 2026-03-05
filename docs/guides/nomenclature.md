@@ -113,7 +113,7 @@ When a flow exists between two subsystems, name it after the **upstream (source)
 6. **Saturation**: `_sat` suffix (e.g., `T_ref_evap_sat`)
 7. **Target/Setpoint Values**: `_target` suffix (e.g., `Q_cond_target`). Replaces legacy `_load` suffix.
 8. **Heated/Modified Inputs**: `_heated` suffix for values modified by an upstream process (e.g., `T_tank_w_in_heated` = mains water preheated by STC).
-9. **Supplemental Flows**: `_sup` suffix for bypass flows that supplement the main path (e.g., `dV_mix_w_in_sup` = mains water bypassing the tank into the mixing valve).
+9. **Flow Qualifiers (Modifier Before Medium)**: Qualifiers like `sup` (supply/supplemental), `serv` (service), or `heated` that describe the *type* of medium are placed **before** the medium symbol `w`, following the subsystem hierarchy (e.g., `dV_mix_sup_w_in` = supplemental water entering the mixing valve, not `dV_mix_w_in_sup`).
 
 ## 6. Heat Exchanger Variable Naming
 

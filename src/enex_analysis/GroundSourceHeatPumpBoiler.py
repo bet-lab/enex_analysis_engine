@@ -241,7 +241,7 @@ class GroundSourceHeatPumpBoiler:
             # === Flow rates [m3/s] ===
             'dV_mix_w_out [m3/s]': getattr(self, 'dV_mix_w_out', 0.0),
             'dV_tank_w_in [m3/s]': getattr(self, 'dV_tank_w_in', 0.0),
-            'dV_mix_w_in_sup [m3/s]': getattr(self, 'dV_mix_w_in_sup', 0.0),
+            'dV_mix_sup_w_in [m3/s]': getattr(self, 'dV_mix_sup_w_in', 0.0),
             'dV_bhe_f [m3/s]': self.dV_b_f_m3s,
 
             # === Pressures [Pa] ===
@@ -441,7 +441,7 @@ class GroundSourceHeatPumpBoiler:
             'dV_bhe_f [m3/s]': self.dV_b_f_m3s,
             'dV_mix_w_out [m3/s]': getattr(self, 'dV_mix_w_out', 0.0),
             'dV_tank_w_in [m3/s]': getattr(self, 'dV_tank_w_in', 0.0),
-            'dV_mix_w_in_sup [m3/s]': getattr(self, 'dV_mix_w_in_sup', 0.0),
+            'dV_mix_sup_w_in [m3/s]': getattr(self, 'dV_mix_sup_w_in', 0.0),
 
             # === Pressures [Pa] ===
             'P_ref_cmp_in [Pa]': P_ref_cmp_in,
@@ -549,7 +549,7 @@ class GroundSourceHeatPumpBoiler:
         alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / den))
         self.dV_mix_w_out = dV_mix_w_out
         self.dV_tank_w_in = alp * dV_mix_w_out
-        self.dV_mix_w_in_sup = (1 - alp) * dV_mix_w_out
+        self.dV_mix_sup_w_in = (1 - alp) * dV_mix_w_out
         
         if Q_cond_load is None:
             Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
@@ -709,7 +709,7 @@ class GroundSourceHeatPumpBoiler:
         
         self.dV_mix_w_out = 0.0 
         self.dV_tank_w_in = 0.0 
-        self.dV_mix_w_in_sup = 0.0 
+        self.dV_mix_sup_w_in = 0.0 
         
         self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, self.time)
         
@@ -732,7 +732,7 @@ class GroundSourceHeatPumpBoiler:
 
             self.dV_mix_w_out = self.w_use_frac[n] * self.dV_mix_w_out_max 
             self.dV_tank_w_in = alp * self.dV_mix_w_out
-            self.dV_mix_w_in_sup = (1 - alp) * self.dV_mix_w_out 
+            self.dV_mix_sup_w_in = (1 - alp) * self.dV_mix_w_out 
 
             Q_use_loss = c_w * rho_w * self.dV_tank_w_in * (T_tank_w_K - self.T_tank_w_in_K)
             total_loss = Q_tank_loss + Q_use_loss
