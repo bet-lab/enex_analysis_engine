@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -17,10 +18,12 @@ from . import calc_util as cu
 from .constants import c_w, rho_w
 from .enex_functions import (
     calc_mixing_valve,
-    calc_stc_performance,
     calc_uv_lamp_power,
     check_hp_schedule_active,
 )
+
+if TYPE_CHECKING:
+    from .subsystems import SolarThermalCollector
 
 
 # ------------------------------------------------------------------
@@ -103,8 +106,8 @@ class ControlState:
         Tank inlet temperature after STC preheat [K].
     stc_result : dict
         STC performance result dictionary.
-    T_stc_w_out_K_mp : float
-        STC water outlet temperature for mains-preheat [K].
+    T_stc_pump_w_out_K_mp : float
+        STC pump outlet temperature for mains-preheat [K].
     """
 
     hp_is_on: bool
@@ -115,7 +118,7 @@ class ControlState:
     E_stc_pump: float
     T_tank_w_in_heated_K: float
     stc_result: dict
-    T_stc_w_out_K_mp: float
+    T_stc_pump_w_out_K_mp: float
 
 
 # ------------------------------------------------------------------
@@ -272,10 +275,8 @@ def tank_mass_energy_residual(
     C_tank: float,
     UA_tank: float,
     V_tank_full: float,
-    stc_kwargs: dict,
+    stc: SolarThermalCollector | None,
     use_stc: bool,
-    stc_placement: str,
-    dV_stc_w: float,
 ) -> list[float]:
     """Energy and mass balance residuals at T^{n+1}.
 
@@ -304,14 +305,10 @@ def tank_mass_energy_residual(
         Tank overall heat-loss coefficient [W/K].
     V_tank_full : float
         Tank full volume [m³].
-    stc_kwargs : dict
-        Keyword arguments for ``calc_stc_performance``.
+    stc : SolarThermalCollector | None
+        STC subsystem instance (``None`` if absent).
     use_stc : bool
         Whether STC is active.
-    stc_placement : str
-        ``'tank_circuit'`` or ``'mains_preheat'``.
-    dV_stc_w : float
-        STC loop flow rate [m³/s].
 
     Returns
     -------
@@ -351,17 +348,16 @@ def tank_mass_energy_residual(
     Q_stc_net: float = 0.0
     if (
         use_stc
-        and stc_placement == 'tank_circuit'
+        and stc is not None
+        and stc.stc_placement == 'tank_circuit'
         and ctrl.stc_active
     ):
-        stc_r: dict = calc_stc_performance(
+        stc_r: dict = stc.calc_performance(
             I_DN_stc=ctx.I_DN,
             I_dH_stc=ctx.I_dH,
             T_stc_w_in_K=T_next,
             T0_K=ctx.T0_K,
-            dV_stc=dV_stc_w,
             is_active=True,
-            **stc_kwargs,
         )
         Q_stc_net = (
             stc_r.get('Q_stc_w_out', 0.0)

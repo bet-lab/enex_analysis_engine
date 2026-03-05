@@ -858,14 +858,12 @@ class AirSourceHeatPumpBoiler:
         if use_stc and self.stc is not None:
             if self.stc.stc_placement == 'tank_circuit':
                 stc_result_solved: dict = (
-                    calc_stc_performance(
+                    self.stc.calc_performance(
                         I_DN_stc=ctx.I_DN,
                         I_dH_stc=ctx.I_dH,
                         T_stc_w_in_K=T_solved_K,
                         T0_K=ctx.T0_K,
-                        dV_stc=self.stc.dV_stc_w,
                         is_active=ctrl.stc_active,
-                        **self.stc._stc_kwargs,
                     )
                 )
                 stc_result = stc_result_solved
@@ -875,7 +873,7 @@ class AirSourceHeatPumpBoiler:
             elif (
                 self.stc.stc_placement == 'mains_preheat'
             ):
-                T_stc_w_out_K = ctrl.T_stc_w_out_K_mp
+                T_stc_w_out_K = ctrl.T_stc_pump_w_out_K_mp
 
         r: dict = {}
         r.update(ctrl.hp_result)
@@ -914,12 +912,12 @@ class AirSourceHeatPumpBoiler:
             if (
                 self.stc.stc_placement == 'tank_circuit'
             ):
-                T_final_K: float = stc_result.get(
-                    'T_stc_w_final_K', T_stc_w_out_K,
+                T_stc_pump_w_out_K: float = stc_result.get(
+                    'T_stc_pump_w_out_K', T_stc_w_out_K,
                 )
-                r['T_stc_w_final [°C]'] = (
-                    cu.K2C(T_final_K)
-                    if not np.isnan(T_final_K)
+                r['T_stc_pump_w_out [°C]'] = (
+                    cu.K2C(T_stc_pump_w_out_K)
+                    if not np.isnan(T_stc_pump_w_out_K)
                     else np.nan
                 )
         else:
@@ -1032,18 +1030,9 @@ class AirSourceHeatPumpBoiler:
                 dhw_usage_schedule, time,
             )
 
-        # STC kwargs for residual calc
-        stc_kwargs: dict = (
-            self.stc._stc_kwargs
-            if self.stc is not None else {}
-        )
         stc_placement: str = (
             self.stc.stc_placement
             if self.stc is not None else 'tank_circuit'
-        )
-        dV_stc_w: float = (
-            self.stc.dV_stc_w
-            if self.stc is not None else 0.0
         )
 
         T_tank_w_K: float = cu.C2K(T_tank_w_init_C)
@@ -1153,7 +1142,8 @@ class AirSourceHeatPumpBoiler:
                 if (
                     use_stc
                     and self.stc is not None
-                    and stc_placement == 'mains_preheat'
+                    and self.stc.stc_placement
+                    == 'mains_preheat'
                     and stc_state['stc_active']
                 )
                 else self.T_tank_w_in_K
@@ -1168,8 +1158,9 @@ class AirSourceHeatPumpBoiler:
                 E_stc_pump=stc_state['E_stc_pump'],
                 T_tank_w_in_heated_K=T_tank_w_in_heated_K,
                 stc_result=stc_state['stc_result'],
-                T_stc_w_out_K_mp=stc_state.get(
-                    'T_stc_w_out_K', self.T_tank_w_in_K,
+                T_stc_pump_w_out_K_mp=stc_state.get(
+                    'T_stc_pump_w_out_K',
+                    self.T_tank_w_in_K,
                 ),
             )
 
@@ -1185,10 +1176,8 @@ class AirSourceHeatPumpBoiler:
                     self.C_tank,
                     self.UA_tank,
                     self.V_tank_full,
-                    stc_kwargs,
+                    self.stc,
                     use_stc,
-                    stc_placement,
-                    dV_stc_w,
                 ),
                 full_output=True,
             )
