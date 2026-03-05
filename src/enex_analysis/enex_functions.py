@@ -1379,7 +1379,7 @@ def check_hp_schedule_active(hour, hp_on_schedule):
             return True
     return False
 
-def build_schedule_ratios(entries, t_array):
+def build_dhw_usage_ratio(entries, t_array):
     """
     Build schedule ratio array from schedule entries for each timestep (t_array).
 
