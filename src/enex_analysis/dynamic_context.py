@@ -23,6 +23,8 @@ from .enex_functions import (
 )
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from .subsystems import SolarThermalCollector
 
 
@@ -111,6 +113,39 @@ class ControlState:
 
 
 # ------------------------------------------------------------------
+# Subsystem exergy result (AND type, immutable)
+# ------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SubsystemExergy:
+    """Subsystem-specific exergy calculation results.
+
+    Each subsystem's ``calc_exergy()`` returns this object
+    so that the host boiler can merge subsystem columns into
+    the result DataFrame and adjust system-level totals.
+
+    Attributes
+    ----------
+    columns : dict[str, pd.Series]
+        Exergy columns to append (key = column name).
+    X_tot_add : pd.Series | float
+        Additive contribution to system total exergy input
+        ``X_tot [W]`` (e.g. pump electricity).
+    X_in_tank_add : pd.Series | float
+        Additive exergy entering the tank boundary
+        (e.g. heated return water in ``tank_circuit``).
+    X_out_tank_add : pd.Series | float
+        Additive exergy leaving the tank boundary
+        (e.g. water drawn to STC in ``tank_circuit``).
+    """
+
+    columns: dict  # dict[str, pd.Series]
+    X_tot_add: object = 0.0      # pd.Series | float
+    X_in_tank_add: object = 0.0  # pd.Series | float
+    X_out_tank_add: object = 0.0 # pd.Series | float
+
+
+# ------------------------------------------------------------------
 # Subsystem Protocol
 # ------------------------------------------------------------------
 
@@ -183,6 +218,34 @@ class Subsystem(Protocol):
         -------
         dict
             Keyed result entries for the output DataFrame.
+        """
+        ...
+
+    def calc_exergy(
+        self,
+        df: pd.DataFrame,
+        T0_K: pd.Series,
+    ) -> SubsystemExergy | None:
+        """Compute subsystem-level exergy items.
+
+        Called during exergy post-processing on the full
+        simulation result DataFrame.  Each subsystem
+        computes its own exergy columns and declares
+        how much exergy it adds/removes from the tank
+        boundary and the system total.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Simulation result DataFrame (energy columns
+            already present).
+        T0_K : pd.Series
+            Dead-state temperature per timestep [K].
+
+        Returns
+        -------
+        SubsystemExergy | None
+            Exergy results; ``None`` if not applicable.
         """
         ...
 

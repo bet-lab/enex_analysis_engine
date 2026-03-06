@@ -2555,6 +2555,14 @@ def postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in):
         DataFrame with exergy columns appended.
     """
     df = df.copy()
+    import warnings
+    warnings.warn(
+        "enex_functions.postprocess_exergy() is deprecated. "
+        "Use the per-class postprocess_exergy() method instead "
+        "(e.g. AirSourceHeatPumpBoiler.postprocess_exergy).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     P0 = 101325
 
     T0_K = cu.C2K(df['T0 [°C]'])

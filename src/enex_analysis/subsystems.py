@@ -25,10 +25,12 @@ import numpy as np
 
 from . import calc_util as cu
 from .constants import c_w, rho_w, k_a, k_D, k_d
-from .enex_functions import calc_energy_flow
+from .enex_functions import calc_energy_flow, calc_exergy_flow
 
 if TYPE_CHECKING:
-    from .dynamic_context import ControlState, StepContext
+    import pandas as pd
+
+    from .dynamic_context import ControlState, StepContext, SubsystemExergy
 
 
 # ------------------------------------------------------------------
@@ -543,6 +545,130 @@ class SolarThermalCollector:
         return r
 
     # ----------------------------------------------------------
+    # Subsystem Protocol: calc_exergy()
+    # ----------------------------------------------------------
+
+    def calc_exergy(
+        self,
+        df: pd.DataFrame,
+        T0_K: pd.Series,
+    ) -> SubsystemExergy | None:
+        """Compute STC exergy items from simulation results.
+
+        Migrated from ``enex_functions.postprocess_exergy``
+        STC block (L2624-2654).  Mode-aware: ``tank_circuit``
+        adds to tank boundary; ``mains_preheat`` returns zero
+        tank contributions (core ``X_tank_w_in`` already
+        reflects preheated temperature).
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Simulation result DataFrame.
+        T0_K : pd.Series
+            Dead-state temperature per timestep [K].
+
+        Returns
+        -------
+        SubsystemExergy | None
+            STC exergy columns and tank-boundary addends.
+        """
+        import pandas as pd
+
+        from .dynamic_context import SubsystemExergy
+
+        # Guard: required columns must be present
+        if (
+            'T_stc_w_in [°C]' not in df.columns
+            or 'T_stc_w_out [°C]' not in df.columns
+        ):
+            return None
+
+        cols: dict[str, pd.Series] = {}
+
+        T_stc_w_in_K = cu.C2K(df['T_stc_w_in [°C]'])
+        T_stc_w_out_K = cu.C2K(df['T_stc_w_out [°C]'])
+        T_stc_pump_w_out_K = cu.C2K(
+            df.get(
+                'T_stc_pump_w_out [°C]',
+                df['T_stc_w_out [°C]'],
+            ),
+        )
+        T_stc_K = cu.C2K(df['T_stc [°C]'])
+
+        # Heat capacity rate G_stc [W/K]
+        dT_stc_in = (
+            T_stc_w_in_K - T0_K
+        ).replace(0, np.nan)
+        G_stc = (
+            df['Q_stc_w_in [W]'].fillna(0) / dT_stc_in
+        ).fillna(0)
+
+        # Water exergy flows
+        cols['X_stc_w_in [W]'] = calc_exergy_flow(
+            G_stc, T_stc_w_in_K, T0_K,
+        )
+        cols['X_stc_w_out [W]'] = calc_exergy_flow(
+            G_stc, T_stc_w_out_K, T0_K,
+        )
+        cols['X_stc_pump_w_out [W]'] = calc_exergy_flow(
+            G_stc, T_stc_pump_w_out_K, T0_K,
+        )
+
+        # Electricity = exergy (pump)
+        E_pump = df['E_stc_pump [W]'].fillna(0)
+        cols['X_stc_pump [W]'] = E_pump
+
+        # Heat loss exergy
+        cols['X_l_stc [W]'] = (
+            df['Q_l_stc [W]'].fillna(0)
+            * (1 - T0_K / T_stc_K.replace(0, np.nan))
+        )
+
+        # STC exergy destruction
+        is_stc_active = df.get(
+            'stc_active [-]', False,
+        )
+
+        if 'X_sol_stc [W]' in df.columns:
+            Xc_stc_raw = (
+                df['X_sol_stc [W]'].fillna(0)
+                + cols['X_stc_w_in [W]'].fillna(0)
+                + E_pump
+                - cols[
+                    'X_stc_pump_w_out [W]'
+                ].fillna(0)
+                - cols['X_l_stc [W]'].fillna(0)
+            )
+            cols['Xc_stc [W]'] = np.where(
+                is_stc_active, Xc_stc_raw, 0.0,
+            )
+
+        # Mode-aware tank boundary contributions
+        X_tot_add = E_pump
+
+        if self.mode == 'tank_circuit':
+            # STC draws water from tank and returns it
+            X_in_tank_add = cols[
+                'X_stc_pump_w_out [W]'
+            ].fillna(0)
+            X_out_tank_add = cols[
+                'X_stc_w_in [W]'
+            ].fillna(0)
+        else:
+            # mains_preheat: core X_tank_w_in already
+            # accounts for the preheated temperature
+            X_in_tank_add = 0.0
+            X_out_tank_add = 0.0
+
+        return SubsystemExergy(
+            columns=cols,
+            X_tot_add=X_tot_add,
+            X_in_tank_add=X_in_tank_add,
+            X_out_tank_add=X_out_tank_add,
+        )
+
+    # ----------------------------------------------------------
     # Core dynamic calculation (backward compatible)
     # ----------------------------------------------------------
 
@@ -939,3 +1065,15 @@ class PhotovoltaicSystem:
             'X_c_inv [W]': pvr.get('X_c_inv', 0.0),
             'Q_l_pv [W]': pvr.get('Q_l_pv', 0.0),
         }
+
+    def calc_exergy(
+        self,
+        df: pd.DataFrame,
+        T0_K: pd.Series,
+    ) -> SubsystemExergy | None:
+        """PV exergy is computed inline in ``step()``.
+
+        No additional post-processing or tank-boundary
+        contributions are needed.  Returns ``None``.
+        """
+        return None
