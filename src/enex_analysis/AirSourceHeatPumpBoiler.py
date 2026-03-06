@@ -250,23 +250,23 @@ class AirSourceHeatPumpBoiler:
         )
 
         m_dot_ref: float = (
-            Q_cond_target / (cs['h2'] - cs['h3'])
+            Q_cond_target / (cs['h_ref_cmp_out'] - cs['h_ref_exp_in'])
             if is_active else 0.0
         )
         Q_ref_cond: float = (
-            m_dot_ref * (cs['h2'] - cs['h3'])
+            m_dot_ref * (cs['h_ref_cmp_out'] - cs['h_ref_exp_in'])
             if is_active else 0.0
         )
         Q_ref_evap: float = (
-            m_dot_ref * (cs['h1'] - cs['h4'])
+            m_dot_ref * (cs['h_ref_cmp_in'] - cs['h_ref_exp_out'])
             if is_active else 0.0
         )
         E_cmp: float = (
-            m_dot_ref * (cs['h2'] - cs['h1'])
+            m_dot_ref * (cs['h_ref_cmp_out'] - cs['h_ref_cmp_in'])
             if is_active else 0.0
         )
         cmp_rps: float = (
-            m_dot_ref / (self.V_disp_cmp * cs['rho'])
+            m_dot_ref / (self.V_disp_cmp * cs['rho_ref_cmp_in'])
             if is_active else 0.0
         )
 
@@ -275,8 +275,8 @@ class AirSourceHeatPumpBoiler:
                 Q_ref_evap if is_active else 0.0
             ),
             T_ou_a_in_C=T0,
-            T1_star_K=cs['T1_star_K'],
-            T3_star_K=cs['T3_star_K'],
+            T_ref_evap_sat_K=cs['T_ref_evap_sat_K'],
+            T_ref_cond_sat_l_K=cs['T_ref_cond_sat_l_K'],
             A_cross=self.A_cross_ou,
             UA_design=self.UA_evap_design,
             dV_fan_design=self.dV_ou_fan_a_design,
@@ -357,21 +357,21 @@ class AirSourceHeatPumpBoiler:
 
             # Temperatures [°C]
             'T_ref_evap_sat [°C]': cu.K2C(
-                cs['T1_star_K'],
+                cs['T_ref_evap_sat_K'],
             ),
             'T_ref_cond_sat_v [°C]': cu.K2C(
-                cs['T2_star_K'],
+                cs['T_ref_cond_sat_v_K'],
             ),
             'T_ref_cond_sat_l [°C]': cu.K2C(
-                cs['T3_star_K'],
+                cs['T_ref_cond_sat_l_K'],
             ),
             'T_ou_a_in [°C]': T0,
             'T_ou_a_mid [°C]': T_ou_a_mid,
             'T_ou_a_out [°C]': T_ou_a_out,
-            'T_ref_cmp_in [°C]': cu.K2C(cs['T1_K']),
-            'T_ref_cmp_out [°C]': cu.K2C(cs['T2_K']),
-            'T_ref_exp_in [°C]': cu.K2C(cs['T3_K']),
-            'T_ref_exp_out [°C]': cu.K2C(cs['T4_K']),
+            'T_ref_cmp_in [°C]': cu.K2C(cs['T_ref_cmp_in_K']),
+            'T_ref_cmp_out [°C]': cu.K2C(cs['T_ref_cmp_out_K']),
+            'T_ref_exp_in [°C]': cu.K2C(cs['T_ref_exp_in_K']),
+            'T_ref_exp_out [°C]': cu.K2C(cs['T_ref_exp_out_K']),
             'T_tank_w [°C]': T_tank_w,
             'T_sup_w [°C]': self.T_sup_w,
             'T_tank_w_in [°C]': self.T_tank_w_in,
@@ -399,18 +399,18 @@ class AirSourceHeatPumpBoiler:
             ),
 
             # Pressures [Pa]
-            'P_ref_cmp_in [Pa]': cs['P1'],
-            'P_ref_cmp_out [Pa]': cs['P2'],
-            'P_ref_exp_in [Pa]': cs['P3'],
-            'P_ref_exp_out [Pa]': cs['P4'],
+            'P_ref_cmp_in [Pa]': cs['P_ref_cmp_in'],
+            'P_ref_cmp_out [Pa]': cs['P_ref_cmp_out'],
+            'P_ref_exp_in [Pa]': cs['P_ref_exp_in'],
+            'P_ref_exp_out [Pa]': cs['P_ref_exp_out'],
             'P_ref_evap_sat [Pa]': (
-                cs['P1'] if is_active else np.nan
+                cs['P_ref_cmp_in'] if is_active else np.nan
             ),
             'P_ref_cond_sat_v [Pa]': (
-                cs['P2'] if is_active else np.nan
+                cs['P_ref_cmp_out'] if is_active else np.nan
             ),
             'P_ref_cond_sat_l [Pa]': (
-                cs['P3'] if is_active else np.nan
+                cs['P_ref_exp_in'] if is_active else np.nan
             ),
             'dP_ou_fan_static [Pa]': (
                 self.dP_ou_fan_design
@@ -427,20 +427,20 @@ class AirSourceHeatPumpBoiler:
             'cmp_rpm [rpm]': cmp_rps * 60,
 
             # Specific enthalpy [J/kg]
-            'h_ref_cmp_in [J/kg]': cs['h1'],
-            'h_ref_cmp_out [J/kg]': cs['h2'],
-            'h_ref_exp_in [J/kg]': cs['h3'],
-            'h_ref_exp_out [J/kg]': cs['h4'],
+            'h_ref_cmp_in [J/kg]': cs['h_ref_cmp_in'],
+            'h_ref_cmp_out [J/kg]': cs['h_ref_cmp_out'],
+            'h_ref_exp_in [J/kg]': cs['h_ref_exp_in'],
+            'h_ref_exp_out [J/kg]': cs['h_ref_exp_out'],
             'h_ref_evap_sat [J/kg]': (
-                cs.get('h1_star', np.nan)
+                cs.get('h_ref_cmp_in', np.nan)
                 if is_active else np.nan
             ),
             'h_ref_cond_sat_v [J/kg]': (
-                cs.get('h2_star', np.nan)
+                cs.get('h_ref_cond_sat_v', np.nan)
                 if is_active else np.nan
             ),
             'h_ref_cond_sat_l [J/kg]': (
-                cs.get('h3_star', np.nan)
+                cs.get('h_ref_exp_in', np.nan)
                 if is_active else np.nan
             ),
 
@@ -693,22 +693,11 @@ class AirSourceHeatPumpBoiler:
         )
 
         # Mixing valve flows for _calc_state
-        den: float = max(
-            1e-6, ctx.T_tank_w_K - self.T_sup_w_K,
-        )
-        alp: float = min(
-            1.0,
-            max(
-                0.0,
-                (self.T_mix_w_out_K - self.T_sup_w_K)
-                / den,
-            ),
-        )
+        den: float = max(1e-6, ctx.T_tank_w_K - self.T_sup_w_K,)
+        alp: float = min(1.0, max(0.0,(self.T_mix_w_out_K - self.T_sup_w_K) / den,),)
         self.dV_mix_w_out = ctx.dV_mix_w_out
         self.dV_tank_w_out = alp * ctx.dV_mix_w_out
-        self.dV_mix_sup_w_in = (
-            (1 - alp) * ctx.dV_mix_w_out
-        )
+        self.dV_mix_sup_w_in = (1 - alp) * ctx.dV_mix_w_out
 
         if Q_cond_target == 0:
             hp_result: dict = self._calc_state(
@@ -874,6 +863,7 @@ class AirSourceHeatPumpBoiler:
         T0_schedule,
         I_DN_schedule=None,
         I_dH_schedule=None,
+        T_sup_w_schedule=None,
         tank_level_init: float = 1.0,
         result_save_csv_path: str | None = None,
     ) -> pd.DataFrame:
@@ -898,6 +888,10 @@ class AirSourceHeatPumpBoiler:
             Direct-normal irradiance per step [W/m²].
         I_dH_schedule : array-like | None
             Diffuse-horizontal irradiance [W/m²].
+        T_sup_w_schedule : array-like | None
+            Mains water supply temperature per step [°C].
+            If ``None``, the constructor value ``T_sup_w``
+            is used for every step (backward-compatible).
         tank_level_init : float
             Initial fractional tank level (0–1).
         result_save_csv_path : str | None
@@ -938,6 +932,19 @@ class AirSourceHeatPumpBoiler:
                 f"({len(I_dH_schedule)}) != tN ({tN})",
             )
 
+        # T_sup_w schedule: fallback to constructor constant
+        if T_sup_w_schedule is not None:
+            T_sup_w_arr: np.ndarray = np.array(
+                T_sup_w_schedule, dtype=float,
+            )
+            if len(T_sup_w_arr) != tN:
+                raise ValueError(
+                    f"T_sup_w_schedule length "
+                    f"({len(T_sup_w_arr)}) != tN ({tN})",
+                )
+        else:
+            T_sup_w_arr = np.full(tN, self.T_sup_w)
+
         self.time: np.ndarray = time
         self.dt: int = dt_s
 
@@ -950,11 +957,34 @@ class AirSourceHeatPumpBoiler:
         hp_is_on_prev: bool = False
         results_data: list[dict] = []
 
+        # STC-related defaults
+        use_stc: bool = self.stc is not None
+        mode: str = (
+            self.stc.mode if use_stc else 'tank_circuit'
+        )
+
         for n in tqdm(range(tN), desc="ASHPB Simulating"):
             t_s: float = time[n]
             hr: float = t_s * cu.s2h
             hour_of_day: float = (
                 (t_s % (24 * cu.h2s)) * cu.s2h
+            )
+
+            # Per-step mains water supply temperature
+            T_sup_w_n: float = T_sup_w_arr[n]
+            T_sup_w_K_n: float = cu.C2K(T_sup_w_n)
+            T_tank_w_in_K_n: float = T_sup_w_K_n
+
+            # Sync self fields for _calc_state compat
+            self.T_sup_w = T_sup_w_n
+            self.T_sup_w_K = T_sup_w_K_n
+            self.T_tank_w_in = T_sup_w_n
+            self.T_tank_w_in_K = T_tank_w_in_K_n
+
+            # Preheat window (STC only)
+            preheat_on: bool = (
+                self.stc.is_preheat_on(hour_of_day)
+                if use_stc else False
             )
 
             ctx: StepContext = StepContext(
@@ -970,6 +1000,7 @@ class AirSourceHeatPumpBoiler:
                 dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
                 I_DN=(I_DN_schedule[n] if use_stc else 0.0),
                 I_dH=(I_dH_schedule[n] if use_stc else 0.0),
+                T_sup_w_K=T_sup_w_K_n,
             )
 
             # --- Phase A: control decisions ---
@@ -1008,7 +1039,7 @@ class AirSourceHeatPumpBoiler:
             for name, sub in self._subsystems.items():
                 sub_states[name] = sub.step(
                     ctx, ctrl, dt_s,
-                    self.T_tank_w_in_K,
+                    T_tank_w_in_K_n,
                 )
 
             # --- Phase B: implicit solve ---
@@ -1017,8 +1048,8 @@ class AirSourceHeatPumpBoiler:
                 [ctx.T_tank_w_K, ctx.tank_level],
                 args=(
                     ctx, ctrl, dt_s,
-                    self.T_tank_w_in_K,
-                    self.T_sup_w_K,
+                    T_tank_w_in_K_n,
+                    T_sup_w_K_n,
                     self.T_mix_w_out_K,
                     self.C_tank,
                     self.UA_tank,

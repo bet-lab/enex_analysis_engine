@@ -334,17 +334,17 @@ class GroundSourceHeatPumpBoiler:
             dT_superheat=self.dT_superheat, dT_subcool=self.dT_subcool
         )
 
-        rho_ref_cmp_in = cycle_states['rho']
+        rho_ref_cmp_in = cycle_states['rho_ref_cmp_in']
 
         # --- Step 4: Extract state-point properties (descriptive names) ---
-        T_ref_cmp_in_K  = cycle_states['T1_K'];  P_ref_cmp_in  = cycle_states['P1']
-        h_ref_cmp_in    = cycle_states['h1'];     s_ref_cmp_in  = cycle_states['s1']
-        T_ref_cmp_out_K = cycle_states['T2_K'];   P_ref_cmp_out = cycle_states['P2']
-        h_ref_cmp_out   = cycle_states['h2'];     s_ref_cmp_out = cycle_states['s2']
-        T_ref_exp_in_K  = cycle_states['T3_K'];   P_ref_exp_in  = cycle_states['P3']
-        h_ref_exp_in    = cycle_states['h3'];     s_ref_exp_in  = cycle_states['s3']
-        T_ref_exp_out_K = cycle_states['T4_K'];   P_ref_exp_out = cycle_states['P4']
-        h_ref_exp_out   = cycle_states['h4'];     s_ref_exp_out = cycle_states['s4']
+        T_ref_cmp_in_K  = cycle_states['T_ref_cmp_in_K'];  P_ref_cmp_in  = cycle_states['P_ref_cmp_in']
+        h_ref_cmp_in    = cycle_states['h_ref_cmp_in'];     s_ref_cmp_in  = cycle_states['s_ref_cmp_in']
+        T_ref_cmp_out_K = cycle_states['T_ref_cmp_out_K'];   P_ref_cmp_out = cycle_states['P_ref_cmp_out']
+        h_ref_cmp_out   = cycle_states['h_ref_cmp_out'];     s_ref_cmp_out = cycle_states['s_ref_cmp_out']
+        T_ref_exp_in_K  = cycle_states['T_ref_exp_in_K'];   P_ref_exp_in  = cycle_states['P_ref_exp_in']
+        h_ref_exp_in    = cycle_states['h_ref_exp_in'];     s_ref_exp_in  = cycle_states['s_ref_exp_in']
+        T_ref_exp_out_K = cycle_states['T_ref_exp_out_K'];   P_ref_exp_out = cycle_states['P_ref_exp_out']
+        h_ref_exp_out   = cycle_states['h_ref_exp_out'];     s_ref_exp_out = cycle_states['s_ref_exp_out']
 
         if (h_ref_exp_in - h_ref_cmp_out) == 0:
             return None
@@ -389,18 +389,18 @@ class GroundSourceHeatPumpBoiler:
         x_ref_exp_out = (h_ref_exp_out - h0) - T0_K * (s_ref_exp_out - s0)
 
         # Saturation-point properties
-        T_ref_evap_sat_K_star = cycle_states.get('T1_star_K', np.nan)
-        T_ref_cond_sat_v_K    = cycle_states.get('T2_star_K', np.nan)
-        T_ref_cond_sat_l_K    = cycle_states.get('T3_star_K', np.nan)
-        P_ref_cond_sat_v      = cycle_states.get('P2_star', P_ref_cmp_out)
+        T_ref_evap_sat_K_star = cycle_states.get('T_ref_evap_sat_K', np.nan)
+        T_ref_cond_sat_v_K    = cycle_states.get('T_ref_cond_sat_v_K', np.nan)
+        T_ref_cond_sat_l_K    = cycle_states.get('T_ref_cond_sat_l_K', np.nan)
+        P_ref_cond_sat_v      = cycle_states.get('P_ref_cond_sat_v', P_ref_cmp_out)
 
         P_ref_evap_sat = P_ref_cmp_in
         h_ref_evap_sat = CP.PropsSI('H', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
         s_ref_evap_sat = CP.PropsSI('S', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
         x_ref_evap_sat = (h_ref_evap_sat - h0) - T0_K * (s_ref_evap_sat - s0)
 
-        h_ref_cond_sat_v = cycle_states.get('h2_star', np.nan)
-        s_ref_cond_sat_v = cycle_states.get('s2_star', np.nan)
+        h_ref_cond_sat_v = cycle_states.get('h_ref_cond_sat_v', np.nan)
+        s_ref_cond_sat_v = cycle_states.get('s_ref_cond_sat_v', np.nan)
         if np.isnan(h_ref_cond_sat_v) or np.isnan(s_ref_cond_sat_v):
             h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)
             s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)

@@ -1316,7 +1316,7 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     v_design = dV_fan_design / A_cross if A_cross > 0 else 0
     return UA * (v / v_design) ** 0.8
 
-def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K, A_cross, UA_design, dV_fan_design, is_active=True):
+def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T_ref_evap_sat_K, T_ref_cond_sat_l_K, A_cross, UA_design, dV_fan_design, is_active=True):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
@@ -1332,11 +1332,11 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K
     T_ou_a_in_C : float
         Inlet temperature of air [°C].
 
-    T1_star_K : float
+    T_ref_evap_sat_K : float
         Saturation temperature at evaporator (dew point, x=1) [K].
         Used as the constant-temperature side for evaporator heat exchange.
         
-    T3_star_K : float
+    T_ref_cond_sat_l_K : float
         Saturation temperature at condenser (bubble point, x=0) [K].
         Used as the constant-temperature side for condenser heat exchange.
         (Currently not used, reserved for future condenser calculations)
@@ -1401,13 +1401,13 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K
     def _error_function(dV_fan):
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = (1 - np.exp(-UA / (c_a * rho_a * dV_fan)))
-        # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T1_star_K) * epsilon # Heating assumption (Q_ref_target > 0)
+        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
+        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon # Heating assumption (Q_ref_target > 0)
         
         # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
         Q_ou_air = c_a * rho_a * dV_fan * (T_ou_a_in_K - T_ou_a_mid_K) # 흡열이므로 (입구 - 출구) * C_min
         # Heating 모드 기준: Refrigerant가 열 흡수, Air가 열 방출. 
-        # T_ou_a_in > T_ou_a_mid > T1_star
+        # T_ou_a_in > T_ou_a_mid > T_ref_evap_sat_K
         # Q_ref_target > 0 (Refrigerant gains heat)
         # Q_air (Air loses heat) = m_dot * cp * (Tin - Tout) > 0
         
@@ -1432,7 +1432,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K
 
         UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
         eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
-        T_mid_fb = T1_star_K + eps_fb * (T_ou_a_in_K - T1_star_K)
+        T_mid_fb = T_ref_evap_sat_K + eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
         Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
 
         # Diagnostic hint (stored in return dict, not printed)
@@ -1470,8 +1470,8 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T1_star_K, T3_star_K
         dV_fan_converged = sol.root
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
-        # 증발기 계산이므로 T1_star_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = T1_star_K + epsilon * (T_ou_a_in_K - T1_star_K)  # Heating assumption (Q_ref_target > 0)
+        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
+        T_ou_a_mid_K = T_ref_evap_sat_K + epsilon * (T_ou_a_in_K - T_ref_evap_sat_K)  # Heating assumption (Q_ref_target > 0)
         
         Q_ou_air = c_a * rho_a * dV_fan_converged * (T_ou_a_in_K - T_ou_a_mid_K)
         
@@ -2111,43 +2111,43 @@ def calc_ref_state(
     # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
     if not is_active:
         return {
-            'P1': np.nan,
-            'P2': np.nan,
-            'P3': np.nan,
-            'P4': np.nan,
-            'T1_K': np.nan,
-            'T2_K': np.nan,
-            'T3_K': np.nan,
-            'T4_K': np.nan,
-            'T1_star_K': np.nan,
-            'T2_star_K': np.nan,
-            'T3_star_K': np.nan,
-            'P2_star': np.nan,
-            'h1': np.nan,
-            'h2': np.nan,
-            'h2_star': np.nan,
-            'h3': np.nan,
-            'h4': np.nan,
-            's1': np.nan,
-            's2': np.nan,
-            's2_star': np.nan,
-            's3': np.nan,
-            's4': np.nan,
-            'rho': np.nan,
-            'x1': np.nan,
-            'x2': np.nan,
-            'x2_star': np.nan,
-            'x3': np.nan,
-            'x4': np.nan,
+            'P_ref_cmp_in': np.nan,
+            'P_ref_cmp_out': np.nan,
+            'P_ref_exp_in': np.nan,
+            'P_ref_exp_out': np.nan,
+            'T_ref_cmp_in_K': np.nan,
+            'T_ref_cmp_out_K': np.nan,
+            'T_ref_exp_in_K': np.nan,
+            'T_ref_exp_out_K': np.nan,
+            'T_ref_evap_sat_K': np.nan,
+            'T_ref_cond_sat_v_K': np.nan,
+            'T_ref_cond_sat_l_K': np.nan,
+            'P_ref_cond_sat_v': np.nan,
+            'h_ref_cmp_in': np.nan,
+            'h_ref_cmp_out': np.nan,
+            'h_ref_cond_sat_v': np.nan,
+            'h_ref_exp_in': np.nan,
+            'h_ref_exp_out': np.nan,
+            's_ref_cmp_in': np.nan,
+            's_ref_cmp_out': np.nan,
+            's_ref_cond_sat_v': np.nan,
+            's_ref_exp_in': np.nan,
+            's_ref_exp_out': np.nan,
+            'rho_ref_cmp_in': np.nan,
+            'x_ref_cmp_in': np.nan,
+            'x_ref_cmp_out': np.nan,
+            'x_ref_cond_sat_v': np.nan,
+            'x_ref_exp_in': np.nan,
+            'x_ref_exp_out': np.nan,
             'mode': mode,
         }
     
     # 1단계: 포화 온도 및 압력 계산
-    T1_star_K = T_evap_K  # 증발기 포화 증기 온도 (State 1*)
-    T3_star_K = T_cond_K  # 응축기 포화 액체 온도 (State 3*)
+    T_ref_evap_sat_K = T_evap_K  # 증발기 포화 증기 온도 (State 1*)
+    T_ref_cond_sat_l_K = T_cond_K  # 응축기 포화 액체 온도 (State 3*)
     
-    P_evap = CP.PropsSI('P', 'T', T1_star_K, 'Q', 1, refrigerant)  # 증발기 포화 압력
-    P_cond = CP.PropsSI('P', 'T', T3_star_K, 'Q', 0, refrigerant)  # 응축기 포화 압력
+    P_evap = CP.PropsSI('P', 'T', T_ref_evap_sat_K, 'Q', 1, refrigerant)  # 증발기 포화 압력
+    P_cond = CP.PropsSI('P', 'T', T_ref_cond_sat_l_K, 'Q', 0, refrigerant)  # 응축기 포화 압력
     
     # 2단계: State 1* (포화 증기) 및 State 1 (실제 과열 증기) 계산
     # State 1*: 포화 증기 상태 (참조용)
@@ -2155,32 +2155,32 @@ def calc_ref_state(
     s1_star = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
     
     # State 1: 실제 압축기 입구 (과열 증기)
-    T1_K = T1_star_K + dT_superheat  # 과열도 적용
+    T_ref_cmp_in_K = T_ref_evap_sat_K + dT_superheat  # 과열도 적용
     
     # dT_superheat = 0일 때는 포화 증기 상태로 처리 (CoolProp 에러 방지)
     if abs(dT_superheat) < 1e-6:  # 0에 가까우면 포화 상태
-        h1 = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
-        s1 = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
-        rho = CP.PropsSI('D', 'P', P_evap, 'Q', 1, refrigerant)  # 압축기 유입 밀도
+        h_ref_cmp_in = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
+        s_ref_cmp_in = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
+        rho_ref_cmp_in = CP.PropsSI('D', 'P', P_evap, 'Q', 1, refrigerant)  # 압축기 유입 밀도
     else:  # 과열 상태
-        h1 = CP.PropsSI('H', 'T', T1_K, 'P', P_evap, refrigerant)
-        s1 = CP.PropsSI('S', 'T', T1_K, 'P', P_evap, refrigerant)
-        rho = CP.PropsSI('D', 'T', T1_K, 'P', P_evap, refrigerant)  # 압축기 유입 밀도
+        h_ref_cmp_in = CP.PropsSI('H', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)
+        s_ref_cmp_in = CP.PropsSI('S', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)
+        rho_ref_cmp_in = CP.PropsSI('D', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)  # 압축기 유입 밀도
     
     # 3단계: State 2 계산 - 압축기 출구 (고압 과열 증기)
-    h2_isen = CP.PropsSI('H', 'P', P_cond, 'S', s1, refrigerant)  # 등엔트로피 압축 후 엔탈피
+    h2_isen = CP.PropsSI('H', 'P', P_cond, 'S', s_ref_cmp_in, refrigerant)  # 등엔트로피 압축 후 엔탈피
     
-    h2 = h1 + (h2_isen - h1) / eta_cmp_isen
-    T2_K = CP.PropsSI('T', 'P', P_cond, 'H', h2, refrigerant)  # 과열 온도
-    P2 = P_cond  # 압력은 응축기 압력과 동일
-    s2 = CP.PropsSI('S', 'P', P_cond, 'H', h2, refrigerant)  # 실제 엔트로피 (s1보다 큼)
+    h_ref_cmp_out = h_ref_cmp_in + (h2_isen - h_ref_cmp_in) / eta_cmp_isen
+    T_ref_cmp_out_K = CP.PropsSI('T', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)  # 과열 온도
+    P_ref_cmp_out = P_cond  # 압력은 응축기 압력과 동일
+    s_ref_cmp_out = CP.PropsSI('S', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)  # 실제 엔트로피 (s1보다 큼)
     
     # 3.5단계: State 2* 계산 - 응축기 입구에서 포화 증기에 처음 도달하는 지점
     # T2_star: P_cond 압력에서 포화 증기(Q=1) 상태
-    T2_star_K = T3_star_K  # 응축기 포화 온도와 동일
-    P2_star = P_cond  # 응축기 포화 압력
-    h2_star = CP.PropsSI('H', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔탈피
-    s2_star = CP.PropsSI('S', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔트로피
+    T_ref_cond_sat_v_K = T_ref_cond_sat_l_K  # 응축기 포화 온도와 동일
+    P_ref_cond_sat_v = P_cond  # 응축기 포화 압력
+    h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔탈피
+    s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔트로피
     
     # 4단계: State 3* (포화 액체) 및 State 3 (실제 과냉 액체) 계산
     # State 3*: 포화 액체 상태 (참조용)
@@ -2188,21 +2188,21 @@ def calc_ref_state(
     s3_star = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
     
     # State 3: 실제 응축기 출구 (과냉 액체)
-    T3_K = T3_star_K - dT_subcool  # 과냉각도 적용
+    T_ref_exp_in_K = T_ref_cond_sat_l_K - dT_subcool  # 과냉각도 적용
     
     # dT_subcool = 0일 때는 포화 액체 상태로 처리 (CoolProp 에러 방지)
     if abs(dT_subcool) < 1e-6:  # 0에 가까우면 포화 상태
-        h3 = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
-        s3 = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
+        h_ref_exp_in = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
+        s_ref_exp_in = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
     else:  # 과냉 상태
-        h3 = CP.PropsSI('H', 'T', T3_K, 'P', P_cond, refrigerant)
-        s3 = CP.PropsSI('S', 'T', T3_K, 'P', P_cond, refrigerant)
+        h_ref_exp_in = CP.PropsSI('H', 'T', T_ref_exp_in_K, 'P', P_cond, refrigerant)
+        s_ref_exp_in = CP.PropsSI('S', 'T', T_ref_exp_in_K, 'P', P_cond, refrigerant)
     
     # 5단계: State 4 계산 - 팽창밸브 출구 (저압 액체+기체 혼합물)
-    h4 = h3  # 등엔탈피 팽창
-    P4 = P_evap  # 압력은 증발기 압력과 동일
-    T4_K = CP.PropsSI('T', 'P', P_evap, 'H', h4, refrigerant)  # 저압에서 엔탈피 h4에 해당하는 온도
-    s4 = CP.PropsSI('S', 'P', P_evap, 'H', h4, refrigerant)  # 팽창 후 엔트로피
+    h_ref_exp_out = h_ref_exp_in  # 등엔탈피 팽창
+    P_ref_exp_out = P_evap  # 압력은 증발기 압력과 동일
+    T_ref_exp_out_K = CP.PropsSI('T', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)  # 저압에서 엔탈피 h4에 해당하는 온도
+    s_ref_exp_out = CP.PropsSI('S', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)  # 팽창 후 엔트로피
     
     # 엑서지 계산용 기준 상태
     h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, refrigerant)
@@ -2211,58 +2211,58 @@ def calc_ref_state(
     if mode == 'cooling':
         result = {
             # 냉방 모드 기준 물성치 (물리적 위치에 따라 재매핑)
-            'P1': P2,
-            'P2': P_evap,
-            'P3': P4,
-            'P4': P_cond,
-            'T1_K': T2_K,
-            'T2_K': T1_K,
-            'T3_K': T4_K,
-            'T4_K': T3_K,
-            'T1_star_K': T2_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
-            'T3_star_K': T3_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
-            'h1': h2,
-            'h2': h1,
-            'h3': h4,
-            'h4': h3,
-            's1': s2,
-            's2': s1,
-            's3': s4,
-            's4': s3,
-            'rho': rho,
+            'P_ref_cmp_in': P_ref_cmp_out,
+            'P_ref_cmp_out': P_evap,
+            'P_ref_exp_in': P_ref_exp_out,
+            'P_ref_exp_out': P_cond,
+            'T_ref_cmp_in_K': T_ref_cmp_out_K,
+            'T_ref_cmp_out_K': T_ref_cmp_in_K,
+            'T_ref_exp_in_K': T_ref_exp_out_K,
+            'T_ref_exp_out_K': T_ref_exp_in_K,
+            'T_ref_evap_sat_K': T_ref_cmp_out_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
+            'T_ref_cond_sat_l_K': T_ref_exp_in_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
+            'h_ref_cmp_in': h_ref_cmp_out,
+            'h_ref_cmp_out': h_ref_cmp_in,
+            'h_ref_exp_in': h_ref_exp_out,
+            'h_ref_exp_out': h_ref_exp_in,
+            's_ref_cmp_in': s_ref_cmp_out,
+            's_ref_cmp_out': s_ref_cmp_in,
+            's_ref_exp_in': s_ref_exp_out,
+            's_ref_exp_out': s_ref_exp_in,
+            'rho_ref_cmp_in': rho_ref_cmp_in,
             'mode': 'cooling',
         }
     else:
         # 난방 모드: 기본 계산값 그대로 사용
         result = {
-            'P1': P_evap,
-            'P2': P_cond,
-            'P3': P_cond,
-            'P4': P_evap,
-            'T1_K': T1_K,
-            'T2_K': T2_K,
-            'T3_K': T3_K,
-            'T4_K': T4_K,
-            'T1_star_K': T1_star_K,  # 포화 증기 온도
-            'T2_star_K': T2_star_K,  # 응축기 포화 증기 온도
-            'T3_star_K': T3_star_K,  # 포화 액체 온도
-            'P2_star': P2_star,  # 응축기 포화 압력
-            'h1': h1,
-            'h2': h2,
-            'h2_star': h2_star,  # 포화 증기 엔탈피
-            'h3': h3,
-            'h4': h4,
-            's1': s1,
-            's2': s2,
-            's2_star': s2_star,  # 포화 증기 엔트로피
-            's3': s3,
-            's4': s4,
-            'rho': rho,  # 압축기 유입 밀도 (State 1)
-            'x1': (h1-h0) - T0_K*(s1 - s0),
-            'x2': (h2-h0) - T0_K*(s2 - s0),
-            'x2_star': (h2_star-h0) - T0_K*(s2_star - s0),  # 포화 증기 엑서지
-            'x3': (h3-h0) - T0_K*(s3 - s0),
-            'x4': (h4-h0) - T0_K*(s4 - s0),
+            'P_ref_cmp_in': P_evap,
+            'P_ref_cmp_out': P_cond,
+            'P_ref_exp_in': P_cond,
+            'P_ref_exp_out': P_evap,
+            'T_ref_cmp_in_K': T_ref_cmp_in_K,
+            'T_ref_cmp_out_K': T_ref_cmp_out_K,
+            'T_ref_exp_in_K': T_ref_exp_in_K,
+            'T_ref_exp_out_K': T_ref_exp_out_K,
+            'T_ref_evap_sat_K': T_ref_evap_sat_K,  # 포화 증기 온도
+            'T_ref_cond_sat_v_K': T_ref_cond_sat_v_K,  # 응축기 포화 증기 온도
+            'T_ref_cond_sat_l_K': T_ref_cond_sat_l_K,  # 포화 액체 온도
+            'P_ref_cond_sat_v': P_ref_cond_sat_v,  # 응축기 포화 압력
+            'h_ref_cmp_in': h_ref_cmp_in,
+            'h_ref_cmp_out': h_ref_cmp_out,
+            'h_ref_cond_sat_v': h_ref_cond_sat_v,  # 포화 증기 엔탈피
+            'h_ref_exp_in': h_ref_exp_in,
+            'h_ref_exp_out': h_ref_exp_out,
+            's_ref_cmp_in': s_ref_cmp_in,
+            's_ref_cmp_out': s_ref_cmp_out,
+            's_ref_cond_sat_v': s_ref_cond_sat_v,  # 포화 증기 엔트로피
+            's_ref_exp_in': s_ref_exp_in,
+            's_ref_exp_out': s_ref_exp_out,
+            'rho_ref_cmp_in': rho_ref_cmp_in,  # 압축기 유입 밀도 (State 1)
+            'x_ref_cmp_in': (h_ref_cmp_in-h0) - T0_K*(s_ref_cmp_in - s0),
+            'x_ref_cmp_out': (h_ref_cmp_out-h0) - T0_K*(s_ref_cmp_out - s0),
+            'x_ref_cond_sat_v': (h_ref_cond_sat_v-h0) - T0_K*(s_ref_cond_sat_v - s0),  # 포화 증기 엑서지
+            'x_ref_exp_in': (h_ref_exp_in-h0) - T0_K*(s_ref_exp_in - s0),
+            'x_ref_exp_out': (h_ref_exp_out-h0) - T0_K*(s_ref_exp_out - s0),
             'mode': 'heating',
         }
     

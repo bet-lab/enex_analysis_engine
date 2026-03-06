@@ -61,6 +61,8 @@ class StepContext:
         Direct-normal irradiance on collector plane [W/m²].
     I_dH : float
         Diffuse-horizontal irradiance [W/m²].
+    T_sup_w_K : float
+        Mains water supply temperature [K].
     """
 
     n: int
@@ -75,6 +77,7 @@ class StepContext:
     dV_mix_w_out: float
     I_DN: float = 0.0
     I_dH: float = 0.0
+    T_sup_w_K: float = 288.15  # Mains supply water [K]
 
 
 # ------------------------------------------------------------------
