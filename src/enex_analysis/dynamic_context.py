@@ -18,7 +18,6 @@ from . import calc_util as cu
 from .constants import c_w, rho_w
 from .enex_functions import (
     calc_mixing_valve,
-    calc_uv_lamp_power,
     check_hp_schedule_active,
 )
 
@@ -58,8 +57,6 @@ class StepContext:
         Fractional tank fill level (0–1).
     dV_mix_w_out : float
         Service water draw-off flow rate [m³/s].
-    E_uv : float
-        Instantaneous UV lamp power [W].
     I_DN : float
         Direct-normal irradiance on collector plane [W/m²].
     I_dH : float
@@ -76,40 +73,41 @@ class StepContext:
     T_tank_w_K: float
     tank_level: float
     dV_mix_w_out: float
-    E_uv: float
     I_DN: float = 0.0
     I_dH: float = 0.0
 
 
 # ------------------------------------------------------------------
-# Control decisions produced by Phase-A helpers (HP only)
+# Control decisions produced by Phase-A helpers
 # ------------------------------------------------------------------
 
 @dataclass
 class ControlState:
-    """Heat-pump control decisions for one timestep.
+    """Heat-source control decisions for one timestep.
 
-    Contains only HP-specific control results.
-    Subsystem states are managed separately via
-    ``sub_states: dict[str, dict]``.
+    Model-agnostic container: any boiler model populates
+    these fields in its Phase-A helper.  Subsystem states
+    are managed separately via ``sub_states: dict[str, dict]``.
 
     Attributes
     ----------
-    hp_is_on : bool
-        Whether the heat pump is running.
-    hp_result : dict
-        Full result dictionary from ``_calc_state``.
-    Q_ref_cond : float
-        Condenser heat rate [W].
+    is_on : bool
+        Whether the heat source is running.
+    Q_heat_source : float
+        Net heat delivered to the tank from the heat
+        source [W].
     dV_tank_w_in_ctrl : float | None
         Refill flow rate [m³/s].  ``None`` = always-full
         sentinel (inflow resolved inside residual).
+    result : dict
+        Full result dictionary from the model's
+        ``_calc_state``.  Contents are model-specific.
     """
 
-    hp_is_on: bool
-    hp_result: dict
-    Q_ref_cond: float
+    is_on: bool
+    Q_heat_source: float
     dV_tank_w_in_ctrl: float | None
+    result: dict = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------
@@ -172,7 +170,7 @@ class Subsystem(Protocol):
         ctx : StepContext
             Current-step immutable context.
         ctrl : ControlState
-            HP control decisions.
+            Heat-source control decisions.
         dt : float
             Time-step size [s].
         T_tank_w_in_K : float
@@ -254,15 +252,15 @@ class Subsystem(Protocol):
 # Pure helper functions
 # ------------------------------------------------------------------
 
-def determine_hp_on_off(
+def determine_heat_source_on_off(
     T_tank_w_C: float,
     T_lower: float,
     T_upper: float,
-    hp_is_on_prev: bool,
+    is_on_prev: bool,
     hour_of_day: float,
-    hp_on_schedule: list[tuple[float, float]],
+    on_schedule: list[tuple[float, float]],
 ) -> bool:
-    """Hysteresis-based heat-pump on/off decision.
+    """Hysteresis-based heat-source on/off decision.
 
     Parameters
     ----------
@@ -272,27 +270,27 @@ def determine_hp_on_off(
         Lower hysteresis bound [°C].
     T_upper : float
         Upper hysteresis bound [°C].
-    hp_is_on_prev : bool
-        HP state at the previous timestep.
+    is_on_prev : bool
+        Heat-source state at the previous timestep.
     hour_of_day : float
         Hour within the day (0–24).
-    hp_on_schedule : list[tuple[float, float]]
+    on_schedule : list[tuple[float, float]]
         Active operating windows ``(start_h, end_h)``.
 
     Returns
     -------
     bool
-        Whether the HP should run this timestep.
+        Whether the heat source should run this timestep.
     """
     if T_tank_w_C <= T_lower:
-        hp_on: bool = True
+        is_on: bool = True
     elif T_tank_w_C >= T_upper:
-        hp_on = False
+        is_on = False
     else:
-        hp_on = hp_is_on_prev
+        is_on = is_on_prev
 
-    return hp_on and check_hp_schedule_active(
-        hour_of_day, hp_on_schedule,
+    return is_on and check_hp_schedule_active(
+        hour_of_day, on_schedule,
     )
 
 
@@ -517,8 +515,7 @@ def tank_mass_energy_residual(
             )
 
     Q_total: float = (
-        ctrl.Q_ref_cond
-        + ctx.E_uv
+        ctrl.Q_heat_source
         + E_sub_total
         + Q_sub_total
         + Q_flow_net

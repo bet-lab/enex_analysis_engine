@@ -18,7 +18,7 @@ Subsystem catalogue
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -1077,3 +1077,84 @@ class PhotovoltaicSystem:
         contributions are needed.  Returns ``None``.
         """
         return None
+
+
+# ------------------------------------------------------------------
+# UV Disinfection Lamp
+# ------------------------------------------------------------------
+
+@dataclass
+class UVLamp:
+    """UV disinfection lamp subsystem.
+
+    The lamp switches on periodically (``num_switching``
+    times per ``period_sec``, each for ``exposure_sec``).
+    All electrical input is converted to heat inside the
+    tank (``Q_contribution = E_uv``).
+
+    Parameters
+    ----------
+    lamp_watts : float
+        Rated lamp power [W].
+    exposure_sec : float
+        Duration of each on-cycle [s].
+    num_switching : int
+        Number of on-cycles per period.
+    period_sec : float
+        Switching period [s] (default 3 h = 10 800 s).
+    """
+
+    lamp_watts: float = 0.0
+    exposure_sec: float = 0.0
+    num_switching: int = 1
+    period_sec: float = 3 * 3600
+
+    def step(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt: float,
+        T_tank_w_in_K: float,
+    ) -> dict:
+        """Compute UV lamp state for one timestep."""
+        from .enex_functions import calc_uv_lamp_power
+
+        E_uv: float = calc_uv_lamp_power(
+            ctx.current_time_s,
+            self.period_sec,
+            self.num_switching,
+            self.exposure_sec,
+            self.lamp_watts,
+        )
+        return {
+            'Q_contribution': E_uv,
+            'E_subsystem': E_uv,
+            'T_tank_w_in_override_K': None,
+            'E_uv': E_uv,
+        }
+
+    def assemble_results(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        step_state: dict,
+        T_solved_K: float,
+    ) -> dict:
+        """Report UV power for DataFrame output."""
+        E_uv: float = step_state.get('E_uv', 0.0)
+        if E_uv > 0 or self.lamp_watts > 0:
+            return {'E_uv [W]': E_uv}
+        return {}
+
+    def calc_exergy(
+        self,
+        df: pd.DataFrame,
+        T0_K: pd.Series,
+    ) -> SubsystemExergy | None:
+        """UV exergy = electricity (handled by E→X conversion).
+
+        No additional post-processing needed.
+        Returns ``None``.
+        """
+        return None
+

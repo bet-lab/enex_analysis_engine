@@ -31,7 +31,7 @@ from .dynamic_context import (
     ControlState,
     StepContext,
     Subsystem,
-    determine_hp_on_off,
+    determine_heat_source_on_off,
     determine_tank_refill_flow,
     tank_mass_energy_residual,
 )
@@ -87,12 +87,7 @@ class AirSourceHeatPumpBoiler:
         k_ins: float = 0.03,
         h_o: float = 15,
 
-        # 5. UV lamp ------------------------------------
-        lamp_power_watts: float = 0,
-        uv_lamp_exposure_duration_min: float = 0,
-        num_switching_per_3hour: int = 1,
-
-        # 6. Tank water level management ----------------
+        # 5. Tank water level management ----------------
         tank_always_full: bool = True,
         tank_level_lower_bound: float = 0.5,
         tank_level_upper_bound: float = 1.0,
@@ -105,6 +100,7 @@ class AirSourceHeatPumpBoiler:
 
         # 8. Subsystems (class-based injection) ---------
         stc: SolarThermalCollector | None = None,
+        uv=None,
 
         # ASHRAE 90.1-2022 VSD coefficients
         vsd_coeffs_ou: dict | None = None,
@@ -167,20 +163,7 @@ class AirSourceHeatPumpBoiler:
         self.T_tank_w_in_K: float = cu.C2K(T_sup_w)
         self.T_mix_w_out_K: float = cu.C2K(T_mix_w_out)
 
-        # --- 5. UV lamp ---
-        self.lamp_power_watts: float = lamp_power_watts
-        self.uv_lamp_exposure_duration_min: float = (
-            uv_lamp_exposure_duration_min
-        )
-        self.num_switching_per_3hour: int = (
-            num_switching_per_3hour
-        )
-        self.period_3hour_sec: float = 3 * cu.h2s
-        self.uv_lamp_exposure_duration_sec: float = (
-            uv_lamp_exposure_duration_min * cu.m2s
-        )
-
-        # --- 6. Tank water level management ---
+        # --- 5. Tank water level management ---
         self.tank_always_full: bool = tank_always_full
         self.tank_level_lower_bound: float = (
             tank_level_lower_bound
@@ -193,16 +176,18 @@ class AirSourceHeatPumpBoiler:
             prevent_simultaneous_flow
         )
 
-        # --- 7. HP operating schedule ---
+        # --- 6. HP operating schedule ---
         self.hp_on_schedule: list[tuple[float, float]] = (
             hp_on_schedule
         )
 
-        # --- 8. Subsystems ---
+        # --- 7. Subsystems ---
         self.stc: SolarThermalCollector | None = stc
         self._subsystems: dict[str, Subsystem] = {}
         if stc is not None:
             self._subsystems['stc'] = stc
+        if uv is not None:
+            self._subsystems['uv'] = uv
 
         # Flow-rate sync variables
         self.dV_tank_w_in: float = 0.0
@@ -694,13 +679,13 @@ class AirSourceHeatPumpBoiler:
         """
         T_tank_w: float = cu.K2C(ctx.T_tank_w_K)
 
-        hp_is_on: bool = determine_hp_on_off(
+        hp_is_on: bool = determine_heat_source_on_off(
             T_tank_w_C=T_tank_w,
             T_lower=self.T_tank_w_lower_bound,
             T_upper=self.T_tank_w_upper_bound,
-            hp_is_on_prev=hp_is_on_prev,
+            is_on_prev=hp_is_on_prev,
             hour_of_day=ctx.hour_of_day,
-            hp_on_schedule=self.hp_on_schedule,
+            on_schedule=self.hp_on_schedule,
         )
 
         Q_cond_target: float = (
@@ -855,18 +840,15 @@ class AirSourceHeatPumpBoiler:
         )
 
         r: dict = {}
-        r.update(ctrl.hp_result)
+        r.update(ctrl.result)
         r.update({
-            'hp_is_on': ctrl.hp_is_on,
+            'hp_is_on': ctrl.is_on,
             'Q_tank_loss [W]': (
                 self.UA_tank * (T_solved_K - ctx.T0_K)
             ),
             'T_tank_w [°C]': cu.K2C(T_solved_K),
             'T_mix_w_out [°C]': T_mix_w_out_val,
         })
-
-        if self.lamp_power_watts > 0:
-            r['E_uv [W]'] = ctx.E_uv
 
         if (
             not self.tank_always_full
@@ -986,13 +968,6 @@ class AirSourceHeatPumpBoiler:
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
                 dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
-                E_uv=calc_uv_lamp_power(
-                    t_s,
-                    self.period_3hour_sec,
-                    self.num_switching_per_3hour,
-                    self.uv_lamp_exposure_duration_sec,
-                    self.lamp_power_watts,
-                ),
                 I_DN=(I_DN_schedule[n] if use_stc else 0.0),
                 I_dH=(I_dH_schedule[n] if use_stc else 0.0),
             )
@@ -1022,10 +997,10 @@ class AirSourceHeatPumpBoiler:
             )
 
             ctrl: ControlState = ControlState(
-                hp_is_on=hp_is_on,
-                hp_result=hp_result,
-                Q_ref_cond=Q_ref_cond,
+                is_on=hp_is_on,
+                Q_heat_source=Q_ref_cond,
                 dV_tank_w_in_ctrl=dV_tank_w_in_ctrl,
+                result=hp_result,
             )
 
             # --- Phase A-2: subsystem step ---
@@ -1083,9 +1058,7 @@ class AirSourceHeatPumpBoiler:
     # Exergy post-processing (ASHP-specific)
     # =============================================================
 
-    def postprocess_exergy(
-        self, df: pd.DataFrame,
-    ) -> pd.DataFrame:
+    def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute ASHP-specific exergy variables.
 
         Owns the full HP exergy topology:
@@ -1111,192 +1084,53 @@ class AirSourceHeatPumpBoiler:
             DataFrame with exergy columns appended.
         """
         from .enex_functions import (
-            calc_exergy_flow,
+            calc_exergy_flow, calc_refrigerant_exergy, convert_electricity_to_exergy,
         )
 
         df = df.copy()
-        P0 = 101325
-
         T0_K = cu.C2K(df['T0 [°C]'])
         T_tank_K = cu.C2K(df['T_tank_w [°C]'])
 
         # ── 1. Refrigerant entropy / exergy ────────────────
         state_map = {
-            1: (
-                'cmp_in',
-                'P_ref_cmp_in [Pa]',
-                'h_ref_cmp_in [J/kg]',
-            ),
-            2: (
-                'cmp_out',
-                'P_ref_cmp_out [Pa]',
-                'h_ref_cmp_out [J/kg]',
-            ),
-            3: (
-                'exp_in',
-                'P_ref_exp_in [Pa]',
-                'h_ref_exp_in [J/kg]',
-            ),
-            4: (
-                'exp_out',
-                'P_ref_exp_out [Pa]',
-                'h_ref_exp_out [J/kg]',
-            ),
+            1: ('cmp_in', 'P_ref_cmp_in [Pa]', 'h_ref_cmp_in [J/kg]'),
+            2: ('cmp_out', 'P_ref_cmp_out [Pa]', 'h_ref_cmp_out [J/kg]'),
+            3: ('exp_in', 'P_ref_exp_in [Pa]', 'h_ref_exp_in [J/kg]'),
+            4: ('exp_out', 'P_ref_exp_out [Pa]', 'h_ref_exp_out [J/kg]'),
         }
-
-        for idx in df.index:
-            t0_k = T0_K.iloc[idx]
-            try:
-                h0 = CP.PropsSI(
-                    'H', 'T', t0_k, 'P', P0, self.ref,
-                )
-                s0 = CP.PropsSI(
-                    'S', 'T', t0_k, 'P', P0, self.ref,
-                )
-            except Exception:
-                h0, s0 = np.nan, np.nan
-
-            m_dot = (
-                df.loc[idx, 'm_dot_ref [kg/s]']
-                if 'm_dot_ref [kg/s]' in df.columns
-                else np.nan
-            )
-
-            for _num, (name, P_col, h_col) in (
-                state_map.items()
-            ):
-                if (
-                    P_col in df.columns
-                    and h_col in df.columns
-                ):
-                    P = df.loc[idx, P_col]
-                    h = df.loc[idx, h_col]
-                    try:
-                        if not np.isnan(P) and not np.isnan(h):
-                            s_val = CP.PropsSI(
-                                'S', 'P', P, 'H', h,
-                                self.ref,
-                            )
-                            x_val = (
-                                (h - h0)
-                                - t0_k * (s_val - s0)
-                            )
-                            X_val = (
-                                m_dot * x_val
-                                if not np.isnan(m_dot)
-                                else np.nan
-                            )
-                            df.loc[
-                                idx,
-                                f's_ref_{name} '
-                                f'[J/(kg·K)]',
-                            ] = s_val
-                            df.loc[
-                                idx,
-                                f'x_ref_{name} [J/kg]',
-                            ] = x_val
-                            df.loc[
-                                idx,
-                                f'X_ref_{name} [W]',
-                            ] = X_val
-                    except Exception:
-                        pass
+        df = calc_refrigerant_exergy(df, self.ref, state_map, T0_K)
 
         # ── 2. Electricity = exergy ────────────────────────
-        if 'E_cmp [W]' in df.columns:
-            df['X_cmp [W]'] = df['E_cmp [W]']
-        if 'E_ou_fan [W]' in df.columns:
-            df['X_ou_fan [W]'] = df['E_ou_fan [W]']
-        if 'E_uv [W]' in df.columns:
-            df['X_uv [W]'] = df['E_uv [W]']
+        df = convert_electricity_to_exergy(df)
 
         # ── 3. Air exergy (outdoor unit) ───────────────────
-        if (
-            'dV_ou_a [m3/s]' in df.columns
-            and 'T_ou_a_in [°C]' in df.columns
-        ):
+        if 'dV_ou_a [m3/s]' in df.columns and 'T_ou_a_in [°C]' in df.columns:
             G_a = c_a * rho_a * df['dV_ou_a [m3/s]']
             Tin = cu.C2K(df['T_ou_a_in [°C]'])
             Tmid = cu.C2K(df['T_ou_a_mid [°C]'])
-            Tout = (
-                cu.C2K(df['T_ou_a_out [°C]'])
-                if 'T_ou_a_out [°C]' in df.columns
-                else Tin
-            )
-            df['X_a_ou_in [W]'] = calc_exergy_flow(
-                G_a, Tin, T0_K,
-            )
-            df['X_a_ou_out [W]'] = calc_exergy_flow(
-                G_a, Tout, T0_K,
-            )
-            df['X_a_ou_mid [W]'] = calc_exergy_flow(
-                G_a, Tmid, T0_K,
-            )
+            Tout = cu.C2K(df['T_ou_a_out [°C]']) if 'T_ou_a_out [°C]' in df.columns else Tin
+            df['X_a_ou_in [W]'] = calc_exergy_flow(G_a, Tin, T0_K)
+            df['X_a_ou_out [W]'] = calc_exergy_flow(G_a, Tout, T0_K)
+            df['X_a_ou_mid [W]'] = calc_exergy_flow(G_a, Tmid, T0_K)
 
         # ── 4. HX exergy (Carnot form) ─────────────────────
-        df['X_ref_cond [W]'] = (
-            df['Q_ref_cond [W]']
-            * (
-                1
-                - T0_K
-                / cu.C2K(df['T_ref_cond_sat_v [°C]'])
-            )
-        )
-        df['X_ref_evap [W]'] = (
-            df['Q_ref_evap [W]']
-            * (
-                1
-                - T0_K
-                / cu.C2K(df['T_ref_evap_sat [°C]'])
-            )
-        )
+        df['X_ref_cond [W]'] = df['Q_ref_cond [W]'] * (1 - T0_K / cu.C2K(df['T_ref_cond_sat_v [°C]']))
+        df['X_ref_evap [W]'] = df['Q_ref_evap [W]'] * (1 - T0_K / cu.C2K(df['T_ref_evap_sat [°C]']))
 
         # ── 5. Water exergy (inlet / outlet) ───────────────
-        df['X_tank_w_in [W]'] = calc_exergy_flow(
-            c_w * rho_w
-            * df['dV_tank_w_in [m3/s]'].fillna(0),
-            cu.C2K(df['T_tank_w_in [°C]']),
-            T0_K,
-        )
-        df['X_tank_w_out [W]'] = calc_exergy_flow(
-            c_w * rho_w
-            * df['dV_tank_w_out [m3/s]'].fillna(0),
-            cu.C2K(df['T_tank_w [°C]']),
-            T0_K,
-        )
-        df['X_mix_w_out [W]'] = calc_exergy_flow(
-            c_w * rho_w
-            * df['dV_mix_w_out [m3/s]'].fillna(0),
-            cu.C2K(df['T_mix_w_out [°C]']),
-            T0_K,
-        )
-        df['X_mix_sup_w_in [W]'] = calc_exergy_flow(
-            c_w * rho_w
-            * df['dV_mix_sup_w_in [m3/s]'].fillna(0),
-            cu.C2K(df['T_sup_w [°C]']),
-            T0_K,
-        )
+        df['X_tank_w_in [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_tank_w_in [m3/s]'].fillna(0), cu.C2K(df['T_tank_w_in [°C]']), T0_K)
+        df['X_tank_w_out [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_tank_w_out [m3/s]'].fillna(0), cu.C2K(df['T_tank_w [°C]']), T0_K)
+        df['X_mix_w_out [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_mix_w_out [m3/s]'].fillna(0), cu.C2K(df['T_mix_w_out [°C]']), T0_K)
+        df['X_mix_sup_w_in [W]'] = calc_exergy_flow(c_w * rho_w * df['dV_mix_sup_w_in [m3/s]'].fillna(0), cu.C2K(df['T_sup_w [°C]']), T0_K)
 
         # ── 6. Heat loss exergy ────────────────────────────
-        df['X_tank_loss [W]'] = (
-            df['Q_tank_loss [W]']
-            * (1 - T0_K / T_tank_K)
-        )
+        df['X_tank_loss [W]'] = df['Q_tank_loss [W]'] * (1 - T0_K / T_tank_K)
 
         # ── 7. Tank stored exergy ──────────────────────────
-        tank_level = (
-            df['tank_level [-]']
-            if 'tank_level [-]' in df.columns
-            else 1.0
-        )
+        tank_level = df['tank_level [-]'] if 'tank_level [-]' in df.columns else 1.0
         C_tank_actual = self.C_tank * tank_level
         T_tank_K_prev = T_tank_K.shift(1)
-        df['Xst_tank [W]'] = (
-            (1 - T0_K / T_tank_K)
-            * C_tank_actual
-            * (T_tank_K - T_tank_K_prev)
-            / self.dt
-        )
+        df['Xst_tank [W]'] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / self.dt
         df.loc[df.index[0], 'Xst_tank [W]'] = 0.0
 
         # ── 8. Subsystem exergy (protocol) ─────────────────
@@ -1308,22 +1142,11 @@ class AirSourceHeatPumpBoiler:
             if hasattr(sub, 'calc_exergy'):
                 ex_res = sub.calc_exergy(df, T0_K)
                 if ex_res is not None:
-                    for col_name, s in (
-                        ex_res.columns.items()
-                    ):
+                    for col_name, s in ex_res.columns.items():
                         df[col_name] = s
-                    X_sub_tot_add = (
-                        X_sub_tot_add
-                        + ex_res.X_tot_add
-                    )
-                    X_sub_in_tank_add = (
-                        X_sub_in_tank_add
-                        + ex_res.X_in_tank_add
-                    )
-                    X_sub_out_tank_add = (
-                        X_sub_out_tank_add
-                        + ex_res.X_out_tank_add
-                    )
+                    X_sub_tot_add = X_sub_tot_add + ex_res.X_tot_add
+                    X_sub_in_tank_add = X_sub_in_tank_add + ex_res.X_in_tank_add
+                    X_sub_out_tank_add = X_sub_out_tank_add + ex_res.X_out_tank_add
 
         # ── 9. Total exergy input (system-level) ──────────
         X_tot = df['E_cmp [W]'] + df['E_ou_fan [W]']
@@ -1334,85 +1157,28 @@ class AirSourceHeatPumpBoiler:
 
         # ── 10. Component exergy destruction ───────────────
         # Xc = ΣX_in − ΣX_out ≥ 0 (2nd law)
-
-        # 10a. Compressor
-        df['Xc_cmp [W]'] = (
-            df['X_cmp [W]']
-            + df['X_ref_cmp_in [W]']
-            - df['X_ref_cmp_out [W]']
-        )
-
-        # 10b. Condenser
-        df['Xc_ref_cond [W]'] = (
-            df['X_ref_cmp_out [W]']
-            - df['X_ref_exp_in [W]']
-            - df['X_ref_cond [W]']
-        )
-
-        # 10c. Expansion valve
-        df['Xc_exp [W]'] = (
-            df['X_ref_exp_in [W]']
-            - df['X_ref_exp_out [W]']
-        )
-
-        # 10d. Evaporator (HX only)
-        df['Xc_ref_evap [W]'] = (
-            (
-                df['X_ref_exp_out [W]']
-                + df['X_a_ou_in [W]']
-            )
-            - (
-                df['X_ref_cmp_in [W]']
-                + df['X_a_ou_mid [W]']
-            )
-        )
-
-        # 10e. OU Fan
-        df['Xc_ou_fan [W]'] = (
-            df['X_ou_fan [W]']
-            + df['X_a_ou_mid [W]']
-            - df['X_a_ou_out [W]']
-        )
-
-        # 10f. Mixing valve
-        df['Xc_mix [W]'] = (
-            df['X_tank_w_out [W]']
-            + df['X_mix_sup_w_in [W]']
-            - df['X_mix_w_out [W]']
-        )
+        df['Xc_cmp [W]']      = df['X_cmp [W]'] + df['X_ref_cmp_in [W]'] - df['X_ref_cmp_out [W]']
+        df['Xc_ref_cond [W]'] = df['X_ref_cmp_out [W]'] - df['X_ref_exp_in [W]'] - df['X_ref_cond [W]']
+        df['Xc_exp [W]']      = df['X_ref_exp_in [W]'] - df['X_ref_exp_out [W]']
+        df['Xc_ref_evap [W]'] = (df['X_ref_exp_out [W]'] + df['X_a_ou_in [W]']) - (df['X_ref_cmp_in [W]'] + df['X_a_ou_mid [W]'])
+        df['Xc_ou_fan [W]']   = df['X_ou_fan [W]'] + df['X_a_ou_mid [W]'] - df['X_a_ou_out [W]']
+        df['Xc_mix [W]']      = df['X_tank_w_out [W]'] + df['X_mix_sup_w_in [W]'] - df['X_mix_w_out [W]']
 
         # 10g. Storage tank
-        X_in_tank = (
-            df['X_ref_cond [W]']
-            + df['X_tank_w_in [W]'].fillna(0)
-        )
+        X_in_tank = df['X_ref_cond [W]'] + df['X_tank_w_in [W]'].fillna(0)
         if 'X_uv [W]' in df.columns:
-            X_in_tank = (
-                X_in_tank + df['X_uv [W]'].fillna(0)
-            )
+            X_in_tank = X_in_tank + df['X_uv [W]'].fillna(0)
         X_in_tank = X_in_tank + X_sub_in_tank_add
 
-        X_out_tank = (
-            df['X_tank_loss [W]']
-            + df['Xst_tank [W]']
-        )
+        X_out_tank = df['X_tank_loss [W]'] + df['Xst_tank [W]']
         if 'X_tank_w_out [W]' in df.columns:
-            X_out_tank = (
-                X_out_tank
-                + df['X_tank_w_out [W]'].fillna(0)
-            )
+            X_out_tank = X_out_tank + df['X_tank_w_out [W]'].fillna(0)
         X_out_tank = X_out_tank + X_sub_out_tank_add
 
         df['Xc_tank [W]'] = X_in_tank - X_out_tank
 
         # ── 11. Exergetic efficiency metrics ───────────────
-        df['X_eff_ref [-]'] = (
-            df['X_ref_cond [W]']
-            / df['X_cmp [W]'].replace(0, np.nan)
-        )
-        df['X_eff_sys [-]'] = (
-            df['X_ref_cond [W]']
-            / df['X_tot [W]'].replace(0, np.nan)
-        )
+        df['X_eff_ref [-]'] = df['X_ref_cond [W]'] / df['X_cmp [W]'].replace(0, np.nan)
+        df['X_eff_sys [-]'] = df['X_ref_cond [W]'] / df['X_tot [W]'].replace(0, np.nan)
 
         return df
