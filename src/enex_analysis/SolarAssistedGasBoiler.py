@@ -34,7 +34,6 @@ from .enex_functions import (
     calc_exergy_flow,
     calc_mixing_valve,
     calc_simple_tank_UA,
-    calc_uv_lamp_power,
     convert_electricity_to_exergy,
 )
 from .dynamic_context import (
@@ -78,24 +77,22 @@ class SolarAssistedGasBoiler:
         T_sup_w: float = 10.0,
         dV_mix_w_out_max: float = 0.001,
 
-        # 4. UV lamp ---------------------------------------
-        lamp_power_watts: float = 0,
-        uv_lamp_exposure_duration_min: float = 0,
-        num_switching_per_3hour: int = 1,
-
-        # 5. Tank water level management -------------------
+        # 4. Tank water level management -------------------
         tank_always_full: bool = True,
         tank_level_lower_bound: float = 0.5,
         tank_level_upper_bound: float = 1.0,
         dV_tank_w_in_refill: float = 0.001,
         prevent_simultaneous_flow: bool = False,
 
-        # 6. Operating schedule ----------------------------
+        # 5. Operating schedule ----------------------------
         on_schedule: list[tuple[float, float]]
             | None = None,
 
-        # 7. STC subsystem (required) ----------------------
+        # 6. STC subsystem (required) ----------------------
         stc=None,
+
+        # 7. UV lamp subsystem -----------------------------
+        uv=None,
 
         # 8. STC placement mode ----------------------------
         stc_mode: str = 'tank_circuit',
@@ -147,20 +144,7 @@ class SolarAssistedGasBoiler:
         self.T_mix_w_out_K: float = cu.C2K(T_mix_w_out)
         self.dV_mix_w_out_max: float = dV_mix_w_out_max
 
-        # --- 4. UV lamp ---
-        self.lamp_power_watts: float = lamp_power_watts
-        self.uv_lamp_exposure_duration_min: float = (
-            uv_lamp_exposure_duration_min
-        )
-        self.num_switching_per_3hour: int = (
-            num_switching_per_3hour
-        )
-        self.period_3hour_sec: float = 3 * cu.h2s
-        self.uv_lamp_exposure_duration_sec: float = (
-            uv_lamp_exposure_duration_min * cu.m2s
-        )
-
-        # --- 5. Tank water level ---
+        # --- 4. Tank water level ---
         self.tank_always_full: bool = tank_always_full
         self.tank_level_lower_bound: float = (
             tank_level_lower_bound
@@ -173,17 +157,19 @@ class SolarAssistedGasBoiler:
             prevent_simultaneous_flow
         )
 
-        # --- 6. Operating schedule ---
+        # --- 5. Operating schedule ---
         self.on_schedule: list[tuple[float, float]] = (
             on_schedule
         )
 
-        # --- 7/8. STC subsystem ---
+        # --- 6/7. STC + UV subsystems ---
         self._subsystems: dict[str, Subsystem] = {}
         self.use_stc: bool = stc is not None
         self.stc_mode: str = stc_mode
         if self.use_stc:
             self._subsystems['stc'] = stc
+        if uv is not None:
+            self._subsystems['uv'] = uv
 
         # --- 9. Preheat schedule ---
         self.preheat_schedule: list[tuple[float, float]] = (
@@ -433,9 +419,6 @@ class SolarAssistedGasBoiler:
             'T_mix_w_out [°C]': T_mix_w_out_val,
         })
 
-        if self.lamp_power_watts > 0:
-            r['E_uv [W]'] = ctx.E_uv
-
         if (
             not self.tank_always_full
             or (
@@ -569,13 +552,6 @@ class SolarAssistedGasBoiler:
                 dV_mix_w_out=(
                     self.w_use_frac[n]
                     * self.dV_mix_w_out_max
-                ),
-                E_uv=calc_uv_lamp_power(
-                    t_s,
-                    self.period_3hour_sec,
-                    self.num_switching_per_3hour,
-                    self.uv_lamp_exposure_duration_sec,
-                    self.lamp_power_watts,
                 ),
                 I_DN_stc=float(I_DN_schedule[n]),
                 I_dH_stc=float(I_dH_schedule[n]),
