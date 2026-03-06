@@ -94,7 +94,7 @@ class SolarThermalCollector:
         STC loop flow rate [m³/s].
     E_stc_pump : float
         STC pump rated power [W].
-    stc_placement : str
+    mode : str
         ``'tank_circuit'`` or ``'mains_preheat'``.
     """
 
@@ -117,7 +117,7 @@ class SolarThermalCollector:
     E_stc_pump: float = 50.0
 
     # Placement
-    stc_placement: str = 'tank_circuit'
+    mode: str = 'tank_circuit'
 
     # ----------------------------------------------------------
     # Physics helpers
@@ -415,7 +415,7 @@ class SolarThermalCollector:
         # Compute protocol-required fields
         T_tank_w_in_override: float | None = None
         if (
-            self.stc_placement == 'mains_preheat'
+            self.mode == 'mains_preheat'
             and stc_active
         ):
             T_tank_w_in_override = raw['T_stc_w_out_K']
@@ -475,7 +475,7 @@ class SolarThermalCollector:
         E_pump: float = step_state['E_subsystem']
         T_stc_w_out_K: float = np.nan
 
-        if self.stc_placement == 'tank_circuit':
+        if self.mode == 'tank_circuit':
             stc_result = self.calc_performance(
                 I_DN_stc=ctx.I_DN,
                 I_dH_stc=ctx.I_dH,
@@ -484,7 +484,7 @@ class SolarThermalCollector:
                 is_active=stc_active,
             )
             T_stc_w_out_K = stc_result['T_stc_w_out_K']
-        elif self.stc_placement == 'mains_preheat':
+        elif self.mode == 'mains_preheat':
             T_stc_w_out_K = step_state[
                 'T_stc_pump_w_out_K'
             ]
@@ -533,7 +533,7 @@ class SolarThermalCollector:
             'E_stc_pump [W]': E_pump,
         }
 
-        if self.stc_placement == 'tank_circuit':
+        if self.mode == 'tank_circuit':
             r['T_stc_pump_w_out [°C]'] = (
                 cu.K2C(T_stc_pump_w_out_K)
                 if not np.isnan(T_stc_pump_w_out_K)
@@ -596,7 +596,7 @@ class SolarThermalCollector:
         Q_stc_w_in: float = 0.0
         E_stc_pump_val: float = 0.0
 
-        if self.stc_placement == 'tank_circuit':
+        if self.mode == 'tank_circuit':
             stc_result = self._calc_tank_circuit(
                 I_DN, I_dH, T_tank_w_K, T0_K,
                 preheat_on,
@@ -619,7 +619,7 @@ class SolarThermalCollector:
                 'Q_stc_w_in', 0.0,
             )
 
-        elif self.stc_placement == 'mains_preheat':
+        elif self.mode == 'mains_preheat':
             stc_result = self._calc_mains_preheat(
                 I_DN, I_dH, T_tank_w_in_K, T0_K,
                 preheat_on, dV_tank_w_in,

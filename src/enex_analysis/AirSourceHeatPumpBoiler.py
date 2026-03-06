@@ -1016,7 +1016,7 @@ class AirSourceHeatPumpBoiler:
                     dV_tank_w_in_refill       = self.dV_tank_w_in_refill,
                     is_refilling              = is_refilling,
                     use_stc                   = use_stc,
-                    stc_placement             = stc_placement,
+                    mode                      = mode,
                     preheat_on                = ctx.preheat_on,
                 )
             )

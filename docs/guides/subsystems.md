@@ -14,7 +14,7 @@ optional constructor injection.
 from enex_analysis.subsystems import SolarThermalCollector
 from enex_analysis import AirSourceHeatPumpBoiler
 
-stc = SolarThermalCollector(A_stc=4.0, stc_placement='tank_circuit')
+stc = SolarThermalCollector(A_stc=4.0, mode='tank_circuit')
 hp = AirSourceHeatPumpBoiler(..., stc=stc)
 ```
 
@@ -71,7 +71,7 @@ Flat-plate or evacuated-tube solar thermal collector with two placement modes.
 | `preheat_end_hour` | 18.0 | h | Preheat window end |
 | `dV_stc_w` | 0.001 | m³/s | STC loop flow rate |
 | `E_stc_pump` | 50.0 | W | STC pump rated power |
-| `stc_placement` | `'tank_circuit'` | – | `'tank_circuit'` or `'mains_preheat'` |
+| `mode` | `'tank_circuit'` | – | `'tank_circuit'` or `'mains_preheat'` |
 
 ### Placement Modes
 
@@ -97,7 +97,7 @@ stc = SolarThermalCollector(
     A_stc=4.0,
     stc_tilt=35.0,
     stc_azimuth=180.0,
-    stc_placement='tank_circuit',
+    mode='tank_circuit',
     preheat_start_hour=6,
     preheat_end_hour=18,
 )

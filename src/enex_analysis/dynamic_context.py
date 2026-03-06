@@ -245,7 +245,7 @@ def determine_tank_refill_flow(
     dV_tank_w_in_refill: float,
     is_refilling: bool,
     use_stc: bool,
-    stc_placement: str,
+    mode: str,
     preheat_on: bool,
 ) -> tuple[float | None, bool]:
     """Determine refill flow rate from current level and mode.
@@ -274,7 +274,7 @@ def determine_tank_refill_flow(
         Whether we are currently in a refill cycle.
     use_stc : bool
         Whether STC is active for this simulation.
-    stc_placement : str
+    mode : str
         ``'tank_circuit'`` or ``'mains_preheat'``.
     preheat_on : bool
         Whether the preheat window is active.
@@ -311,7 +311,7 @@ def determine_tank_refill_flow(
         hi: float = tank_level_upper_bound
         if (
             use_stc
-            and stc_placement == 'mains_preheat'
+            and mode == 'mains_preheat'
             and preheat_on
         ):
             lo, hi = 1.0, 1.0
@@ -437,8 +437,8 @@ def tank_mass_energy_residual(
 
         # Tank-circuit STC: recalculate at T_next
         if (
-            hasattr(sub, 'stc_placement')
-            and sub.stc_placement == 'tank_circuit'
+            hasattr(sub, 'mode')
+            and sub.mode == 'tank_circuit'
             and ss.get('stc_active', False)
         ):
             stc_r: dict = sub.calc_performance(

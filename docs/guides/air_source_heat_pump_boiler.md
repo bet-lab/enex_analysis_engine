@@ -201,7 +201,7 @@ from enex_analysis.subsystems import SolarThermalCollector
 
 stc = SolarThermalCollector(
     A_stc=4.0,
-    stc_placement='tank_circuit',
+    mode='tank_circuit',
     stc_tilt=35.0,
     stc_azimuth=180.0,
 )
