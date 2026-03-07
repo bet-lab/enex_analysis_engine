@@ -88,6 +88,15 @@ from .heat_transfer import (
     calc_UA_tank_arr,
     darcy_friction_factor,
 )
+from .hx_fan import (
+    calc_fan_power_from_dV_fan as calc_fan_power_from_dV_fan,
+)
+from .hx_fan import (
+    calc_UA_from_dV_fan as calc_UA_from_dV_fan,
+)
+from .hx_fan import (
+    check_hp_schedule_active as check_hp_schedule_active,
+)
 from .refrigerant import (
     calc_ref_state,
     create_lmtd_constraints,
@@ -105,6 +114,15 @@ from .thermodynamics import (
     calc_refrigerant_exergy,
     convert_electricity_to_exergy,
     generate_entropy_exergy_term,
+)
+from .uv_treatment import (
+    calc_uv_exposure_time as calc_uv_exposure_time,
+)
+from .uv_treatment import (
+    calc_uv_lamp_power as calc_uv_lamp_power,
+)
+from .uv_treatment import (
+    get_uv_params_from_turbidity as get_uv_params_from_turbidity,
 )
 from .visualization import (
     plot_ph_diagram,
@@ -332,44 +350,8 @@ def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
     }
 
 
-def calc_uv_lamp_power(
-    current_time_s, period_sec, num_switching, exposure_sec, lamp_watts
-):
-    """Calculate UV lamp power at a given time instant.
-
-    The lamp switches on ``num_switching`` times per ``period_sec``,
-    each activation lasting ``exposure_sec``.
-
-    Parameters
-    ----------
-    current_time_s : float
-        Current simulation time [s].
-    period_sec : float
-        Switching period (e.g. 3 h → 10800 s).
-    num_switching : int
-        Number of on-cycles per period.
-    exposure_sec : float
-        Duration of each on-cycle [s].
-    lamp_watts : float
-        Rated lamp power [W].
-
-    Returns
-    -------
-    float
-        Instantaneous lamp power [W] (0 or ``lamp_watts``).
-    """
-    if num_switching <= 0 or lamp_watts <= 0:
-        return 0.0
-
-    time_in_period = current_time_s % period_sec
-    interval = (period_sec - num_switching * exposure_sec) / (
-        num_switching + 1
-    )
-    for i in range(num_switching):
-        start_time = interval * (i + 1) + i * exposure_sec
-        if start_time <= time_in_period < start_time + exposure_sec:
-            return lamp_watts
-    return 0.0
+# UV functions have been moved to uv_treatment.py.
+# Re-exported above via ``from .uv_treatment import …``
 
 
 def calc_Orifice_flow_coefficient(D0, D1):
@@ -459,40 +441,9 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
 # Re-exported above via ``from .tdma import …`` for backward compatibility.
 
 
-def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
-    """
-    Calculate heat transfer coefficient based on Dittus-Boelter equation.
 
-    This function calculates heat transfer coefficient based on air velocity.
-    Dittus-Boelter equation: Nu = 0.023 * Re^0.8 * Pr^n
-    Proportional to velocity^0.8.
-
-    Parameters:
-    -----------
-    dV_fan : float
-        Fan flow rate [m3/s]
-    dV_fan_design : float
-        Design fan flow rate [m3/s]
-    A_cross : float
-        Heat exchanger cross-sectional area [m²]
-    UA : float
-        Refrigerant-side resistance and correction factor [W/K]
-        Coefficient for Dittus-Boelter equation, U = UA * V^0.8 form
-
-    Returns:
-    --------
-    float
-        Overall heat transfer coefficient U [W/K]
-
-    Notes:
-    ------
-    - Velocity calculation: v = dV_fan / A_cross
-    - Heat transfer coefficient: U = UA * v^0.8
-    """
-    # Velocity calculation
-    v = dV_fan / A_cross if A_cross > 0 else 0
-    v_design = dV_fan_design / A_cross if A_cross > 0 else 0
-    return UA * (v / v_design) ** 0.8
+# calc_UA_from_dV_fan has been moved to hx_fan.py.
+# Re-exported above via ``from .hx_fan import …``
 
 
 def calc_HX_perf_for_target_heat(
@@ -697,255 +648,12 @@ def calc_HX_perf_for_target_heat(
         }
 
 
-def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs, is_active=True):
-    """
-    Calculate fan power using ASHRAE 90.1 VSD Curve.
-
-    Parameters:
-    -----------
-    dV_fan : float
-        Current flow rate [m3/s]
-    fan_params : dict
-        Fan parameters (fan_design_flow_rate, fan_design_power)
-    vsd_coeffs : dict
-        VSD Curve coefficients (c1~c5)
-    is_active : bool, optional
-        활성화 여부 (기본값: True)
-        is_active=False일 때 np.nan 반환
-
-    Returns:
-    --------
-    float
-        Fan power [W]
-        Returns np.nan if is_active=False
-    """
-    if not is_active:
-        return np.nan
-
-    # Extract design parameters
-    fan_design_flow_rate = fan_params.get("fan_design_flow_rate", None)
-    fan_design_power = fan_params.get("fan_design_power", None)
-
-    # Error if design parameters are missing
-    if fan_design_flow_rate is None or fan_design_power is None:
-        raise ValueError(
-            "fan_design_flow_rate and fan_design_power must be provided in fan_params"
-        )
-
-    # Flow rate validation
-    if dV_fan < 0:
-        raise ValueError("fan flow rate must be greater than 0")
-
-    # Extract VSD Curve coefficients
-    c1 = vsd_coeffs.get("c1", 0.0013)
-    c2 = vsd_coeffs.get("c2", 0.1470)
-    c3 = vsd_coeffs.get("c3", 0.9506)
-    c4 = vsd_coeffs.get("c4", -0.0998)
-    c5 = vsd_coeffs.get("c5", 0.0)
-
-    # Calculate flow fraction
-    flow_fraction = dV_fan / fan_design_flow_rate
-
-    # Calculate Part-load ratio: PLR = c1 + c2*x + c3*x² + c4*x³ + c5*x⁴
-    x = flow_fraction
-    PLR = c1 + c2 * x + c3 * x**2 + c4 * x**3 + c5 * x**4
-
-    # Ensure PLR is not negative
-    PLR = max(0.0, PLR)
-
-    # Calculate fan power
-    fan_power = fan_design_power * PLR
-
-    return fan_power
+# calc_fan_power_from_dV_fan and check_hp_schedule_active have been moved
+# to hx_fan.py.  Re-exported above via ``from .hx_fan import …``
 
 
-def check_hp_schedule_active(hour, hp_on_schedule):
-    """
-    주어진 시간이 히트펌프 운전 허용 구간에 포함되는지 확인합니다.
-
-    Parameters
-    ----------
-    hour : float
-        현재 시간 [시] (0.0 ~ 24.0)
-    hp_on_schedule : list of tuple
-        히트펌프 운전 허용 구간 리스트. 각 튜플은 (시작_시, 종료_시) 형식.
-        예: [(0.0, 5.0), (8.0, 24.0)] → 0~5시, 8~24시 구간에만 운전 허용
-
-    Returns
-    -------
-    bool
-        hour이 hp_on_schedule의 어떤 구간에 포함되면 True, 아니면 False.
-        구간은 [start, end) 형식 (start 포함, end 미포함).
-
-    Examples
-    --------
-    >>> check_hp_schedule_active(3.0, [(0.0, 5.0), (8.0, 24.0)])
-    True
-    >>> check_hp_schedule_active(6.0, [(0.0, 5.0), (8.0, 24.0)])
-    False
-    >>> check_hp_schedule_active(10.0, [(0.0, 5.0), (8.0, 24.0)])
-    True
-    """
-    return any(start_hour <= hour < end_hour for start_hour, end_hour in hp_on_schedule)
-
-
-def get_uv_params_from_turbidity(turbidity_ntu):
-    """
-    Turbidity 값에 따라 UV 파라미터를 반환하는 함수
-
-    테이블 데이터 기반 (Table 1. Effect of Turbidity on UVT, UV Absorbance, UV Intensity, and Exposure Time)
-    공식: ae = 2.303 × A254 (ae는 자연대수 흡수 계수, A254는 UV Absorbance)
-
-    Parameters:
-    -----------
-    turbidity_ntu : float
-        탁도 값 [NTU]
-
-    Returns:
-    --------
-    dict
-        {
-            'uv_absorbance': float,  # UV Absorbance (A254)
-            'uv_transmittance_percent': float,  # % UVT
-            'reference_intensity_mw_cm2': float,  # UV Intensity (mW/cm²)
-            'reference_exposure_time_sec': float  # Exposure time for 5 mJ/cm² dose (s)
-        }
-    """
-    # 테이블 데이터: [Turbidity (NTU), % UVT, UV Absorbance (A254), UV Intensity (mW/cm²), Exposure time (s)]
-    turbidity_table = [
-        [0.25, 86, 0.07, 0.40, 12.4],
-        [5.0, 78, 0.11, 0.39, 12.8],
-        [10.0, 71, 0.15, 0.36, 13.9],
-        [20.1, 59, 0.23, 0.33, 15.0],
-    ]
-
-    # 테이블에서 가장 가까운 값 찾기 또는 보간
-    turbidity_values = [row[0] for row in turbidity_table]
-
-    # 입력값이 테이블 범위를 벗어나는 경우 처리
-    if turbidity_ntu <= turbidity_values[0]:
-        # 최소값 이하: 첫 번째 행 사용
-        row = turbidity_table[0]
-        return {
-            "uv_absorbance": row[2],
-            "uv_transmittance_percent": row[1],
-            "reference_intensity_mw_cm2": row[3],
-            "reference_exposure_time_sec": row[4],
-        }
-    elif turbidity_ntu >= turbidity_values[-1]:
-        # 최대값 이상: 마지막 행 사용
-        row = turbidity_table[-1]
-        return {
-            "uv_absorbance": row[2],
-            "uv_transmittance_percent": row[1],
-            "reference_intensity_mw_cm2": row[3],
-            "reference_exposure_time_sec": row[4],
-        }
-    else:
-        # 선형 보간
-        for i in range(len(turbidity_values) - 1):
-            if turbidity_values[i] <= turbidity_ntu < turbidity_values[i + 1]:
-                # 두 점 사이에서 보간
-                t1, t2 = turbidity_values[i], turbidity_values[i + 1]
-                row1, row2 = turbidity_table[i], turbidity_table[i + 1]
-
-                # 보간 비율
-                ratio = (turbidity_ntu - t1) / (t2 - t1)
-
-                return {
-                    "uv_absorbance": row1[2] + ratio * (row2[2] - row1[2]),
-                    "uv_transmittance_percent": row1[1]
-                    + ratio * (row2[1] - row1[1]),
-                    "reference_intensity_mw_cm2": row1[3]
-                    + ratio * (row2[3] - row1[3]),
-                    "reference_exposure_time_sec": row1[4]
-                    + ratio * (row2[4] - row1[4]),
-                }
-
-        # 정확히 일치하는 경우
-        for i, t_val in enumerate(turbidity_values):
-            if abs(turbidity_ntu - t_val) < 1e-6:
-                row = turbidity_table[i]
-                return {
-                    "uv_absorbance": row[2],
-                    "uv_transmittance_percent": row[1],
-                    "reference_intensity_mw_cm2": row[3],
-                    "reference_exposure_time_sec": row[4],
-                }
-
-    # 기본값 반환 (발생하지 않아야 함)
-    row = turbidity_table[0]
-    return {
-        "uv_absorbance": row[2],
-        "uv_transmittance_percent": row[1],
-        "reference_intensity_mw_cm2": row[3],
-        "reference_exposure_time_sec": row[4],
-    }
-
-
-def calc_uv_exposure_time(
-    radius_cm,
-    uvc_output_W,
-    lamp_arc_length_cm,
-    target_dose_mj_cm2=186,
-    turbidity_ntu=0.25,
-):
-    """
-    ADA453967.pdf 문서의 Radial Model을 기반으로 UV 램프의 필요 가동 시간을 계산하는 함수
-    https://apps.dtic.mil/sti/tr/pdf/ADA453967.pdf
-
-    UV lamp catalog
-    https://www.assets.signify.com/is/content/Signify/Assets/philips-lighting/global/catalogue-uv-c-disinfection-nov2025.pdf
-
-    I(r) = (P_L / (2 * pi * r)) * exp(-ae * r)
-    Time = Target Dose / I(r)
-    ae = 2.303 × A254 (ae는 자연대수 흡수 계수, A254는 UV Absorbance)
-
-    Parameters:
-    -----------
-    radius_cm : float
-        저탕조의 반지름 (cm) - 램프에서 가장 먼 벽까지의 거리
-    uvc_output_W : float
-        램프의 순수 UV-C 출력 [W]
-    lamp_arc_length_cm : float
-        램프의 발광부 길이 [cm]
-    target_dose_mj_cm2 : float, optional
-        목표 살균 선량 [mJ/cm²]. 기본값 186은 EPA의 4-log 바이러스 살균 기준.
-    turbidity_ntu : float, optional
-        탁도 값 [NTU]. 제공되면 테이블 데이터를 기반으로 UV Absorbance를 조회하고
-        absorption_coeff를 자동 계산합니다. 기본값 0.25 NTU 수준의 맑은 물 기준.
-    absorption_coeff : float, optional
-        물의 자연대수 흡수 계수 ae [1/cm]. turbidity_ntu가 제공되지 않을 때만 사용됩니다.
-        기본값 0.16은 탁도 0.25 NTU 수준의 맑은 물 기준.
-
-    Returns:
-    --------
-    required_time_min : float
-        필요 1회 노출 시간 [분]
-    """
-
-    # absorption_coeff 결정: turbidity가 제공되면 자동 계산
-    # Table 1의 데이터는 수질에 따른 빛 손실 원리를 보여주는 참고 자료이며,
-    # 최종 목표는 target_dose_mj_cm2 (기본값 186 mJ/cm²)입니다.
-    # 공식: ae = 2.303 × A254 (수질에 따른 빛 손실 원리 반영)
-    uv_params = get_uv_params_from_turbidity(turbidity_ntu)
-    uv_absorbance = uv_params["uv_absorbance"]
-    absorption_coeff = 2.303 * uv_absorbance
-
-    # 1. 선형 출력 밀도 P_L (Power emitted per unit arc length) 계산 [단위: mW/cm]
-    # 입력된 Watts를 mW로 변환 후 길이로 나눔
-    p_l_mw_cm = (uvc_output_W * 1000) / lamp_arc_length_cm
-
-    # 2. 탱크 벽면(거리 r)에서의 UV 강도 I(r) 계산 [단위: mW/cm²]
-    # 공식: I(r) = (P_L / 2πr) * e^(-ae * r) [cite: 1479]
-    intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(
-        -absorption_coeff * radius_cm
-    )
-
-    required_time_sec = target_dose_mj_cm2 / intensity_mw_cm2
-    required_time_min = required_time_sec / 60
-
-    return required_time_min
+# get_uv_params_from_turbidity and calc_uv_exposure_time have been moved
+# to uv_treatment.py.  Re-exported above via ``from .uv_treatment import …``
 
 
 def update_tank_temperature(T_tank_w_K, Q_gain, UA_tank, T0_K, C_tank, dt):

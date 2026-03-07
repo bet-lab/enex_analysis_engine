@@ -1,0 +1,112 @@
+"""Heat exchanger and fan utility functions.
+
+Functions for velocity-dependent UA calculation, HX performance
+solving, fan power curves, and HP schedule checking.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+def calc_UA_from_dV_fan(
+    dV_fan: float,
+    dV_fan_design: float,
+    A_cross: float,
+    UA: float,
+) -> float:
+    """Calculate velocity-dependent UA via Dittus-Boelter scaling.
+
+    Parameters
+    ----------
+    dV_fan : float
+        Current fan flow rate [m³/s].
+    dV_fan_design : float
+        Design fan flow rate [m³/s].
+    A_cross : float
+        Heat exchanger cross-sectional area [m²].
+    UA : float
+        Design UA value [W/K].
+
+    Returns
+    -------
+    float
+        Scaled UA value [W/K].
+    """
+    v = dV_fan / A_cross if A_cross > 0 else 0
+    v_design = dV_fan_design / A_cross if A_cross > 0 else 0
+    return UA * (v / v_design) ** 0.8
+
+
+def calc_fan_power_from_dV_fan(
+    dV_fan: float,
+    fan_params: dict,
+    vsd_coeffs: dict,
+    is_active: bool = True,
+) -> float:
+    """Calculate fan power using ASHRAE 90.1 VSD Curve.
+
+    Parameters
+    ----------
+    dV_fan : float
+        Current flow rate [m³/s].
+    fan_params : dict
+        Must contain ``fan_design_flow_rate`` and ``fan_design_power``.
+    vsd_coeffs : dict
+        VSD Curve coefficients (``c1`` through ``c5``).
+    is_active : bool
+        If False, returns ``np.nan``.
+
+    Returns
+    -------
+    float
+        Fan power [W].
+    """
+    if not is_active:
+        return np.nan
+
+    fan_design_flow_rate = fan_params.get("fan_design_flow_rate")
+    fan_design_power = fan_params.get("fan_design_power")
+
+    if fan_design_flow_rate is None or fan_design_power is None:
+        raise ValueError(
+            "fan_design_flow_rate and fan_design_power must be provided in fan_params"
+        )
+
+    if dV_fan < 0:
+        raise ValueError("fan flow rate must be greater than 0")
+
+    c1 = vsd_coeffs.get("c1", 0.0013)
+    c2 = vsd_coeffs.get("c2", 0.1470)
+    c3 = vsd_coeffs.get("c3", 0.9506)
+    c4 = vsd_coeffs.get("c4", -0.0998)
+    c5 = vsd_coeffs.get("c5", 0.0)
+
+    x = dV_fan / fan_design_flow_rate
+    PLR = c1 + c2 * x + c3 * x**2 + c4 * x**3 + c5 * x**4
+    PLR = max(0.0, PLR)
+
+    return fan_design_power * PLR
+
+
+def check_hp_schedule_active(
+    hour: float,
+    hp_on_schedule: list[tuple[float, float]],
+) -> bool:
+    """Check whether current hour falls within HP operating schedule.
+
+    Parameters
+    ----------
+    hour : float
+        Current time of day [h] (0.0–24.0).
+    hp_on_schedule : list of tuple
+        List of ``(start_hour, end_hour)`` operating windows.
+
+    Returns
+    -------
+    bool
+    """
+    return any(
+        start_hour <= hour < end_hour
+        for start_hour, end_hour in hp_on_schedule
+    )

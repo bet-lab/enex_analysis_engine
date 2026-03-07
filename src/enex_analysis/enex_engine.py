@@ -32,14 +32,17 @@ HeatPumpBoiler = AirSourceHeatPumpBoiler
 
 
 # class - Domestic Hot Water System
-@dataclass
-@dataclass
-@dataclass
-@dataclass
-@dataclass
 # class - AirSourceHeatPump
 @dataclass
 class AirSourceHeatPump_cooling:
+    """Air source heat pump model for cooling mode.
+
+    Simulates a single-step refrigerant cycle with indoor/outdoor
+    heat exchangers and fans.  Call ``system_update()`` after
+    setting operating conditions to compute COP, capacities, and
+    component powers.
+    """
+
     def __post_init__(self):
         # fan
         self.fan_int = Fan().fan1
@@ -233,6 +236,13 @@ class AirSourceHeatPump_cooling:
 
 @dataclass
 class AirSourceHeatPump_heating:
+    """Air source heat pump model for heating mode.
+
+    Mirror of ``AirSourceHeatPump_cooling`` configured for space
+    heating.  The condenser rejects heat to the indoor side while
+    the evaporator absorbs from outdoor air.
+    """
+
     def __post_init__(self):
 
         # fan
@@ -429,6 +439,13 @@ class AirSourceHeatPump_heating:
 # class - GroundSourceHeatPump
 @dataclass
 class GroundSourceHeatPump_cooling:
+    """Ground source heat pump model for cooling mode.
+
+    Uses borehole heat exchangers with finite-line-source g-functions
+    for soil thermal response.  Call ``system_update()`` each time
+    step to advance the ground temperature history.
+    """
+
     def __post_init__(self):
         # Time
         self.time = 10  # [h]
@@ -705,6 +722,13 @@ class GroundSourceHeatPump_cooling:
 
 @dataclass
 class GroundSourceHeatPump_heating:
+    """Ground source heat pump model for heating mode.
+
+    Mirror of ``GroundSourceHeatPump_cooling`` configured for space
+    heating.  The evaporator absorbs heat from the ground loop
+    while the condenser supplies heat indoors.
+    """
+
     def __post_init__(self):
         # Time
         self.time = 10  # [h]

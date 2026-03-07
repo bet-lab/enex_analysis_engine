@@ -45,50 +45,50 @@ class GroundSourceHeatPumpBoiler:
     def __init__(
         self,
         # 1. Refrigerant / cycle / compressor -------------------------
-        refrigerant="R410A",
-        V_disp_cmp=0.0005,  # [m3] Compressor displacement
-        eta_cmp_isen=0.7,  # [-]  Isentropic efficiency
+        refrigerant: str = "R410A",
+        V_disp_cmp: float = 0.0005,  # [m3] Compressor displacement
+        eta_cmp_isen: float = 0.7,  # [-]  Isentropic efficiency
         # 2. Heat exchanger -------------------------------------------
-        UA_cond_design=500,  # [W/K] Condenser design UA
-        UA_evap_design=500,  # [W/K] Evaporator design UA
+        UA_cond_design: float = 500,  # [W/K] Condenser design UA
+        UA_evap_design: float = 500,  # [W/K] Evaporator design UA
         # 3. Tank / control / load ------------------------------------
-        T0=0.0,  # [°C] Dead-state (ambient) temp
-        Ts=16.0,  # [°C] Undisturbed ground temp
-        T_tank_w_upper_bound=65.0,  # [°C] Tank upper setpoint
-        T_tank_w_lower_bound=55.0,  # [°C] Tank lower setpoint
-        T_mix_w_out=40.0,  # [°C] Service water delivery temp
-        T_tank_w_in=15.0,  # [°C] Mains water supply temp
-        hp_capacity=8000.0,  # [W]   HP rated capacity
-        dV_mix_w_out_max=0.0001,  # [m3/s] Max service flow rate
+        T0: float = 0.0,  # [°C] Dead-state (ambient) temp
+        Ts: float = 16.0,  # [°C] Undisturbed ground temp
+        T_tank_w_upper_bound: float = 65.0,  # [°C] Tank upper setpoint
+        T_tank_w_lower_bound: float = 55.0,  # [°C] Tank lower setpoint
+        T_mix_w_out: float = 40.0,  # [°C] Service water delivery temp
+        T_tank_w_in: float = 15.0,  # [°C] Mains water supply temp
+        hp_capacity: float = 8000.0,  # [W]   HP rated capacity
+        dV_mix_w_out_max: float = 0.0001,  # [m3/s] Max service flow rate
         # Tank / insulation
-        r0=0.2,  # [m]     Tank inner radius
-        H=0.8,  # [m]     Tank height
-        x_shell=0.01,  # [m]     Shell thickness
-        x_ins=0.05,  # [m]     Insulation thickness
-        k_shell=25,  # [W/m·K] Shell conductivity
-        k_ins=0.03,  # [W/m·K] Insulation conductivity
-        h_o=15,  # [W/m²·K] External convective coefficient
+        r0: float = 0.2,  # [m]     Tank inner radius
+        H: float = 0.8,  # [m]     Tank height
+        x_shell: float = 0.01,  # [m]     Shell thickness
+        x_ins: float = 0.05,  # [m]     Insulation thickness
+        k_shell: float = 25,  # [W/m·K] Shell conductivity
+        k_ins: float = 0.03,  # [W/m·K] Insulation conductivity
+        h_o: float = 15,  # [W/m²·K] External convective coefficient
         # 4. Borehole heat exchanger ----------------------------------
-        D_b=0,  # [m]     Borehole depth (reserved)
-        H_b=200,  # [m]     Borehole effective length
-        r_b=0.08,  # [m]     Borehole radius
-        R_b=0.108,  # [m·K/W] Effective borehole thermal resistance
+        D_b: float = 0,  # [m]     Borehole depth (reserved)
+        H_b: float = 200,  # [m]     Borehole effective length
+        r_b: float = 0.08,  # [m]     Borehole radius
+        R_b: float = 0.108,  # [m·K/W] Effective borehole thermal resistance
         # Ground-loop fluid
-        dV_b_f_lpm=24,  # [L/min] Borehole fluid flow rate
+        dV_b_f_lpm: float = 24,  # [L/min] Borehole fluid flow rate
         # Soil properties
-        k_s=2.0,  # [W/m·K] Soil thermal conductivity
-        c_s=800,  # [J/kg·K] Soil specific heat
-        rho_s=2000,  # [kg/m3] Soil density
+        k_s: float = 2.0,  # [W/m·K] Soil thermal conductivity
+        c_s: float = 800,  # [J/kg·K] Soil specific heat
+        rho_s: float = 2000,  # [kg/m3] Soil density
         # Circulation pump
-        E_pmp=200,  # [W] Pump electrical power
+        E_pmp: float = 200,  # [W] Pump electrical power
         # 5. UV lamp --------------------------------------------------
-        lamp_power_watts=0,  # [W]   Lamp power
-        uv_lamp_exposure_duration_min=0,  # [min] UV exposure per cycle
-        num_switching_per_3hour=1,  # [-]   Switching count / 3 h
+        lamp_power_watts: float = 0,  # [W]   Lamp power
+        uv_lamp_exposure_duration_min: float = 0,  # [min] UV exposure per cycle
+        num_switching_per_3hour: int = 1,  # [-]   Switching count / 3 h
         # 6. Superheat / subcool --------------------------------------
-        dT_superheat=3.0,  # [K] Evaporator outlet superheat
-        dT_subcool=3.0,  # [K] Condenser outlet subcool
-    ):
+        dT_superheat: float = 3.0,  # [K] Evaporator outlet superheat
+        dT_subcool: float = 3.0,  # [K] Condenser outlet subcool
+    ) -> None:
 
         # --- 1. Tank geometry and thermal properties ---
         self.tank_physical = {
