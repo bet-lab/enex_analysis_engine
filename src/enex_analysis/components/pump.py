@@ -98,7 +98,17 @@ class Pump:
         """Plot flow-rate vs efficiency curves for all pumps.
 
         Raw datapoints are shown as dots; cubic curve fits as lines.
+
+        Raises
+        ------
+        ImportError
+            If ``dartwork_mpl`` is not installed.
         """
+        if dm is None:
+            raise ImportError(
+                "dartwork_mpl is required for show_graph(). "
+                "Install it with: pip install dartwork-mpl"
+            )
         fig, ax = plt.subplots(figsize=(dm.cm2in(10), dm.cm2in(5)))
 
         # 그래프 색상 설정

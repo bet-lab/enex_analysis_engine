@@ -149,13 +149,28 @@ class Fan:
                 quartic_function, fan["flow rate"], fan["power"]
             )
             power = quartic_function(dV_fan, *self.power_coeffs)
+        else:
+            raise ValueError(
+                "Fan must have either ('efficiency' + 'pressure') "
+                "or 'power' data to compute power."
+            )
         return power
 
     def show_graph(self):
         """Plot flow-rate vs pressure and efficiency curves for all fans.
 
         Raw datapoints are shown as dots; cubic curve fits as lines.
+
+        Raises
+        ------
+        ImportError
+            If ``dartwork_mpl`` is not installed.
         """
+        if dm is None:
+            raise ImportError(
+                "dartwork_mpl is required for show_graph(). "
+                "Install it with: pip install dartwork-mpl"
+            )
         fig, axes = plt.subplots(1, 2, figsize=(dm.cm2in(15), dm.cm2in(5)))
 
         # 그래프 색상 설정
