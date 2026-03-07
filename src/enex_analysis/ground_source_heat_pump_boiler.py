@@ -10,7 +10,6 @@ Borehole thermal response is tracked with the Finite Line Source (FLS)
 g-function, enabling long-term ground temperature drift.
 """
 
-# %%
 import contextlib
 import math
 from dataclasses import dataclass

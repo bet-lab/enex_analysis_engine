@@ -453,4 +453,3 @@ class StratifiedTankTDMA:
         print("\n".join(lines))
 
 
-# %%

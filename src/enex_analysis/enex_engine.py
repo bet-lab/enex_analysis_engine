@@ -28,18 +28,15 @@ from .enex_functions import (
 # Alias for backward compatibility since HeatPumpBoiler was the original name
 HeatPumpBoiler = AirSourceHeatPumpBoiler
 
-# %%
 # class - Fan & Pump
 
 
-# %%
 # class - Domestic Hot Water System
 @dataclass
 @dataclass
 @dataclass
 @dataclass
 @dataclass
-# %%
 # class - AirSourceHeatPump
 @dataclass
 class AirSourceHeatPump_cooling:
@@ -429,7 +426,6 @@ class AirSourceHeatPump_heating:
         }
 
 
-# %%
 # class - GroundSourceHeatPump
 @dataclass
 class GroundSourceHeatPump_cooling:
@@ -989,5 +985,4 @@ class GroundSourceHeatPump_heating:
         }
 
 
-# %%
 # class - Electric heater

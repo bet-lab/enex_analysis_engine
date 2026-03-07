@@ -5,7 +5,6 @@ The system chain is: Combustion Chamber → Mixing Valve → Service Water.
 Full energy, entropy, and exergy balances are computed at each operating point.
 """
 
-# %%
 import math
 
 import numpy as np

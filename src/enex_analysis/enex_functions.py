@@ -1156,4 +1156,3 @@ def calc_stc_performance(
     }
 
 
-# %%
