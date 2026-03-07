@@ -1,0 +1,696 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Input/Output Documentation" href="io-guide.html"><link rel="prev" title="User Guides" href="index.html">
+        <link rel="canonical" href="https://bet-lab.github.io/enex_analysis_engine/guides/user-guide.html">
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+        <title>User Guide - Energy-Exergy Analysis Engine</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=580074bf" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=200b7bb1" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  --color-brand-primary: #4051b5;
+  --color-brand-content: #4051b5;
+  --color-sidebar-background: #f8f9fa;
+  --color-sidebar-background-border: #e9ecef;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">Energy-Exergy Analysis Engine</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <span class="sidebar-brand-text">Energy-Exergy Analysis Engine</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../getting-started/index.html">Getting Started</a><input aria-label="Toggle navigation of Getting Started" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/configuration.html">Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">User Guides</a><input aria-label="Toggle navigation of User Guides" checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">User Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="io-guide.html">Input/Output Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advanced-topics.html">Advanced Topics</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../examples/index.html">Examples</a><input aria-label="Toggle navigation of Examples" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/analysis-basics.html">Analysis Basics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/electric-boiler.html">Electric Boiler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/gas-boiler.html">Gas Boiler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/solar-assisted-gas-boiler.html">Solar-Assisted Gas Boiler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/heat-pump-boiler.html">Heat Pump Boiler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ground-source-heat-pump-boiler.html">Ground Source Heat Pump Boiler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/air-source-heat-pump.html">Air Source Heat Pump</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ground-source-heat-pump.html">Ground Source Heat Pump</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/components.html">Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/advanced-examples.html">Advanced Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/tips.html">Tips and Best Practices</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/core.html">Core Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/engines.html">Energy System Engines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/utilities.html">Utility Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../theory/index.html">Theory &amp; Background</a><input aria-label="Toggle navigation of Theory &amp; Background" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../theory/thermodynamics.html">Thermodynamics Fundamentals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../theory/exergy-analysis.html">Exergy Analysis Theory</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bet-lab/enex_analysis_engine">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/bet-lab/enex_analysis_engine/blob/main/docs/source/guides/user-guide.rst?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/bet-lab/enex_analysis_engine/edit/main/docs/source/guides/user-guide.rst" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="user-guide">
+<h1>User Guide<a class="headerlink" href="#user-guide" title="Link to this heading">¶</a></h1>
+<p>This guide provides comprehensive instructions for using the Energy-Exergy Analysis Engine package.</p>
+<section id="getting-started">
+<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h2>
+<section id="importing-the-module">
+<h3>Importing the Module<a class="headerlink" href="#importing-the-module" title="Link to this heading">¶</a></h3>
+<p>To use the energy system analysis module, import it as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">enex_analysis_engine</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">enex</span>
+</pre></div>
+</div>
+</section>
+<section id="basic-usage-pattern">
+<h3>Basic Usage Pattern<a class="headerlink" href="#basic-usage-pattern" title="Link to this heading">¶</a></h3>
+<p>All system models follow a consistent usage pattern:</p>
+<ol class="arabic simple">
+<li><p><strong>Initialize</strong> the system class</p></li>
+<li><p><strong>Set parameters</strong> (temperatures, flow rates, etc.)</p></li>
+<li><p><strong>Call</strong> <code class="docutils literal notranslate"><span class="pre">system_update()</span></code> to perform calculations</p></li>
+<li><p><strong>Access results</strong> from the object attributes</p></li>
+<li><p><strong>Print balances</strong> using <code class="docutils literal notranslate"><span class="pre">print_balance()</span></code> function</p></li>
+</ol>
+</section>
+</section>
+<section id="example-creating-an-electric-boiler-system">
+<h2>Example: Creating an Electric Boiler System<a class="headerlink" href="#example-creating-an-electric-boiler-system" title="Link to this heading">¶</a></h2>
+<p>Here’s a complete example of how to create and use an electric boiler system:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">enex_analysis_engine</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">enex</span>
+
+<span class="c1"># Create an electric boiler instance</span>
+<span class="n">EB</span> <span class="o">=</span> <span class="n">enex</span><span class="o">.</span><span class="n">ElectricBoiler</span><span class="p">()</span>
+
+<span class="c1"># Set the reference temperature (in Celsius)</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">T0</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">T_w_tank</span> <span class="o">=</span> <span class="mi">60</span>   <span class="c1"># Tank water temperature [°C]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">T_w_sup</span> <span class="o">=</span> <span class="mi">10</span>    <span class="c1"># Supply water temperature [°C]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">T_w_serv</span> <span class="o">=</span> <span class="mi">45</span>   <span class="c1"># Service water temperature [°C]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">dV_w_serv</span> <span class="o">=</span> <span class="mf">1.2</span> <span class="c1"># Service water flow rate [L/min]</span>
+
+<span class="c1"># Modify tank properties if needed</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">r0</span> <span class="o">=</span> <span class="mf">0.2</span>        <span class="c1"># Tank inner radius [m]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">H</span> <span class="o">=</span> <span class="mf">0.8</span>         <span class="c1"># Tank height [m]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">x_ins</span> <span class="o">=</span> <span class="mf">0.10</span>    <span class="c1"># Insulation thickness [m]</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">k_ins</span> <span class="o">=</span> <span class="mf">0.03</span>    <span class="c1"># Insulation thermal conductivity [W/mK]</span>
+
+<span class="c1"># Update the system calculations</span>
+<span class="n">EB</span><span class="o">.</span><span class="n">system_update</span><span class="p">()</span>
+
+<span class="c1"># Access results</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Electric power input: </span><span class="si">{</span><span class="n">EB</span><span class="o">.</span><span class="n">E_heater</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> W&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Tank heat loss: </span><span class="si">{</span><span class="n">EB</span><span class="o">.</span><span class="n">Q_l_tank</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> W&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exergy efficiency: </span><span class="si">{</span><span class="n">EB</span><span class="o">.</span><span class="n">X_eff</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Print the exergy balance</span>
+<span class="n">enex</span><span class="o">.</span><span class="n">print_balance</span><span class="p">(</span><span class="n">EB</span><span class="o">.</span><span class="n">exergy_balance</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="available-systems">
+<h2>Available Systems<a class="headerlink" href="#available-systems" title="Link to this heading">¶</a></h2>
+<p>The package provides the following energy system models:</p>
+<section id="domestic-hot-water-systems">
+<h3>Domestic Hot Water Systems<a class="headerlink" href="#domestic-hot-water-systems" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>ElectricBoiler</strong>: Electric boiler system with energy, entropy, and exergy analysis</p></li>
+<li><p><strong>GasBoiler</strong>: Gas boiler system with combustion chamber analysis</p></li>
+<li><p><strong>HeatPumpBoiler</strong>: Air-source heat pump boiler system</p></li>
+<li><p><strong>SolarAssistedGasBoiler</strong>: Solar-assisted gas boiler system</p></li>
+<li><p><strong>GroundSourceHeatPumpBoiler</strong>: Ground source heat pump boiler system</p></li>
+</ul>
+</section>
+<section id="heat-pump-systems">
+<h3>Heat Pump Systems<a class="headerlink" href="#heat-pump-systems" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>AirSourceHeatPump_cooling</strong>: Air source heat pump (cooling mode)</p></li>
+<li><p><strong>AirSourceHeatPump_heating</strong>: Air source heat pump (heating mode)</p></li>
+<li><p><strong>GroundSourceHeatPump_cooling</strong>: Ground source heat pump (cooling mode)</p></li>
+<li><p><strong>GroundSourceHeatPump_heating</strong>: Ground source heat pump (heating mode)</p></li>
+</ul>
+</section>
+<section id="dynamic-systems">
+<h3>Dynamic Systems<a class="headerlink" href="#dynamic-systems" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>ElectricHeater</strong>: Electric heater system with transient analysis</p></li>
+</ul>
+</section>
+<section id="auxiliary-components">
+<h3>Auxiliary Components<a class="headerlink" href="#auxiliary-components" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>Fan</strong>: Fan system with performance curves</p></li>
+<li><p><strong>Pump</strong>: Pump system with efficiency curves</p></li>
+</ul>
+<p>Each system provides:</p>
+<ul class="simple">
+<li><p>Energy balance calculations</p></li>
+<li><p>Entropy balance calculations</p></li>
+<li><p>Exergy balance calculations</p></li>
+<li><p>System update methods for recalculating balances</p></li>
+</ul>
+</section>
+</section>
+<section id="parameter-setting-guide">
+<h2>Parameter Setting Guide<a class="headerlink" href="#parameter-setting-guide" title="Link to this heading">¶</a></h2>
+<section id="temperature-parameters">
+<h3>Temperature Parameters<a class="headerlink" href="#temperature-parameters" title="Link to this heading">¶</a></h3>
+<p>All temperature inputs are in <strong>Celsius [°C]</strong>. The system automatically converts them to Kelvin internally.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span><span class="o">.</span><span class="n">T0</span> <span class="o">=</span> <span class="mi">0</span>          <span class="c1"># Reference temperature [°C]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">T_w_tank</span> <span class="o">=</span> <span class="mi">60</span>   <span class="c1"># Tank water temperature [°C]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">T_w_sup</span> <span class="o">=</span> <span class="mi">10</span>    <span class="c1"># Supply water temperature [°C]</span>
+</pre></div>
+</div>
+</section>
+<section id="flow-rate-parameters">
+<h3>Flow Rate Parameters<a class="headerlink" href="#flow-rate-parameters" title="Link to this heading">¶</a></h3>
+<p>Flow rates are typically specified in <strong>L/min</strong> for water systems and <strong>m³/s</strong> for air systems.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span><span class="o">.</span><span class="n">dV_w_serv</span> <span class="o">=</span> <span class="mf">1.2</span>  <span class="c1"># Service water flow rate [L/min]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">dV_a_ext</span> <span class="o">=</span> <span class="mf">2.5</span>   <span class="c1"># External air flow rate [m³/s]</span>
+</pre></div>
+</div>
+</section>
+<section id="geometric-parameters">
+<h3>Geometric Parameters<a class="headerlink" href="#geometric-parameters" title="Link to this heading">¶</a></h3>
+<p>Geometric parameters use SI units:</p>
+<ul class="simple">
+<li><p>Length: meters [m]</p></li>
+<li><p>Area: square meters [m²]</p></li>
+<li><p>Volume: cubic meters [m³]</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span><span class="o">.</span><span class="n">r0</span> <span class="o">=</span> <span class="mf">0.2</span>    <span class="c1"># Tank inner radius [m]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">H</span> <span class="o">=</span> <span class="mf">0.8</span>     <span class="c1"># Tank height [m]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">A_stc</span> <span class="o">=</span> <span class="mi">2</span>   <span class="c1"># Solar collector area [m²]</span>
+</pre></div>
+</div>
+</section>
+<section id="thermal-properties">
+<h3>Thermal Properties<a class="headerlink" href="#thermal-properties" title="Link to this heading">¶</a></h3>
+<p>Thermal properties use standard SI units:</p>
+<ul class="simple">
+<li><p>Thermal conductivity: W/(m·K)</p></li>
+<li><p>Specific heat capacity: J/(kg·K)</p></li>
+<li><p>Density: kg/m³</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span><span class="o">.</span><span class="n">k_ins</span> <span class="o">=</span> <span class="mf">0.03</span>    <span class="c1"># Insulation thermal conductivity [W/mK]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">c_w</span> <span class="o">=</span> <span class="mi">4186</span>     <span class="c1"># Water specific heat [J/kgK]</span>
+<span class="n">system</span><span class="o">.</span><span class="n">rho_w</span> <span class="o">=</span> <span class="mi">1000</span>   <span class="c1"># Water density [kg/m³]</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="understanding-results">
+<h2>Understanding Results<a class="headerlink" href="#understanding-results" title="Link to this heading">¶</a></h2>
+<section id="energy-balance">
+<h3>Energy Balance<a class="headerlink" href="#energy-balance" title="Link to this heading">¶</a></h3>
+<p>The energy balance shows energy flows into and out of each subsystem:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">print_balance</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">energy_balance</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Energy is conserved, so:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[\sum \dot{E}_{in} = \sum \dot{E}_{out} + \dot{E}_{loss}\]</div>
+</div>
+</section>
+<section id="entropy-balance">
+<h3>Entropy Balance<a class="headerlink" href="#entropy-balance" title="Link to this heading">¶</a></h3>
+<p>The entropy balance includes entropy generation due to irreversibilities:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">print_balance</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">entropy_balance</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Entropy balance equation:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[\sum \dot{S}_{in} + \dot{S}_{gen} = \sum \dot{S}_{out}\]</div>
+</div>
+</section>
+<section id="exergy-balance">
+<h3>Exergy Balance<a class="headerlink" href="#exergy-balance" title="Link to this heading">¶</a></h3>
+<p>The exergy balance shows exergy destruction (irreversibilities):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">print_balance</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">exergy_balance</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Exergy balance equation:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[\sum \dot{X}_{in} = \sum \dot{X}_{out} + \dot{X}_{destroyed}\]</div>
+</div>
+<p>Exergy destruction is related to entropy generation:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[\dot{X}_{destroyed} = T_0 \cdot \dot{S}_{gen}\]</div>
+</div>
+</section>
+<section id="key-performance-indicators">
+<h3>Key Performance Indicators<a class="headerlink" href="#key-performance-indicators" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>Exergy Efficiency</strong> (<code class="docutils literal notranslate"><span class="pre">X_eff</span></code>): Ratio of useful exergy output to exergy input</p></li>
+<li><p><strong>COP</strong> (for heat pumps): Coefficient of Performance</p></li>
+<li><p><strong>Energy Efficiency</strong> (<code class="docutils literal notranslate"><span class="pre">E_eff</span></code>): Ratio of useful energy output to energy input</p></li>
+</ul>
+</section>
+</section>
+<section id="utility-functions">
+<h2>Utility Functions<a class="headerlink" href="#utility-functions" title="Link to this heading">¶</a></h2>
+<p>The package includes utility functions for unit conversions:</p>
+<section id="temperature-conversions">
+<h3>Temperature Conversions<a class="headerlink" href="#temperature-conversions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">C2K(C)</span></code>: Convert Celsius to Kelvin</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">K2C(K)</span></code>: Convert Kelvin to Celsius</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">enex_analysis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">C2K</span><span class="p">,</span> <span class="n">K2C</span>
+
+<span class="n">T_K</span> <span class="o">=</span> <span class="n">C2K</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>  <span class="c1"># 298.15</span>
+<span class="n">T_C</span> <span class="o">=</span> <span class="n">K2C</span><span class="p">(</span><span class="mf">298.15</span><span class="p">)</span>  <span class="c1"># 25.0</span>
+</pre></div>
+</div>
+</section>
+<section id="time-conversions">
+<h3>Time Conversions<a class="headerlink" href="#time-conversions" title="Link to this heading">¶</a></h3>
+<p>Constants for time conversions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">h2s</span> <span class="pre">=</span> <span class="pre">3600</span></code>: Hours to seconds</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">s2h</span> <span class="pre">=</span> <span class="pre">1/3600</span></code>: Seconds to hours</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">d2h</span> <span class="pre">=</span> <span class="pre">24</span></code>: Days to hours</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">m2s</span> <span class="pre">=</span> <span class="pre">60</span></code>: Minutes to seconds</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">enex_analysis_engine.calc_util</span><span class="w"> </span><span class="kn">import</span> <span class="n">h2s</span><span class="p">,</span> <span class="n">d2h</span>
+
+<span class="n">hours</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">seconds</span> <span class="o">=</span> <span class="n">hours</span> <span class="o">*</span> <span class="n">h2s</span>  <span class="c1"># 7200</span>
+<span class="n">days</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">hours_from_days</span> <span class="o">=</span> <span class="n">days</span> <span class="o">*</span> <span class="n">d2h</span>  <span class="c1"># 24</span>
+</pre></div>
+</div>
+</section>
+<section id="length-conversions">
+<h3>Length Conversions<a class="headerlink" href="#length-conversions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">m2cm</span> <span class="pre">=</span> <span class="pre">100</span></code>: Meters to centimeters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cm2m</span> <span class="pre">=</span> <span class="pre">1/100</span></code>: Centimeters to meters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">m2mm</span> <span class="pre">=</span> <span class="pre">1e3</span></code>: Meters to millimeters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mm2m</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>: Millimeters to meters</p></li>
+</ul>
+</section>
+<section id="energy-power-conversions">
+<h3>Energy/Power Conversions<a class="headerlink" href="#energy-power-conversions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">J2kWh</span> <span class="pre">=</span> <span class="pre">1/3.6e6</span></code>: Joules to kilowatt-hours</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kWh2J</span> <span class="pre">=</span> <span class="pre">3.6e6</span></code>: Kilowatt-hours to Joules</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">W2kW</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>: Watts to kilowatts</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kW2W</span> <span class="pre">=</span> <span class="pre">1e3</span></code>: Kilowatts to Watts</p></li>
+</ul>
+</section>
+<section id="volume-conversions">
+<h3>Volume Conversions<a class="headerlink" href="#volume-conversions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">m32L</span> <span class="pre">=</span> <span class="pre">1e3</span></code>: Cubic meters to liters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">L2m3</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>: Liters to cubic meters</p></li>
+</ul>
+</section>
+<section id="pressure-conversions">
+<h3>Pressure Conversions<a class="headerlink" href="#pressure-conversions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Pa2kPa</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>: Pascals to kilopascals</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kPa2Pa</span> <span class="pre">=</span> <span class="pre">1e3</span></code>: Kilopascals to Pascals</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pa2bar</span> <span class="pre">=</span> <span class="pre">1e-5</span></code>: Pascals to bars</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bar2Pa</span> <span class="pre">=</span> <span class="pre">1e5</span></code>: Bars to Pascals</p></li>
+</ul>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">¶</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Always call ``system_update()``</strong> after modifying parameters and before accessing results.</p></li>
+<li><p><strong>Check input ranges</strong>: Some parameters have physical limits (e.g., temperatures must be positive, flow rates must be positive).</p></li>
+<li><p><strong>Unit consistency</strong>: Be aware of input units (typically °C for temperatures, L/min for flow rates) and output units (typically K for temperatures, W for power).</p></li>
+<li><p><strong>Iterative models</strong>: Ground-source heat pump models use iterative solvers. If convergence issues occur, check input parameters.</p></li>
+<li><p><strong>Balance verification</strong>: Energy balances should satisfy conservation (in ≈ out), while entropy and exergy balances include generation/consumption terms.</p></li>
+<li><p><strong>Performance</strong>: For parameter studies, consider caching results or using vectorized operations where possible.</p></li>
+<li><p><strong>Visualization</strong>: Use <code class="docutils literal notranslate"><span class="pre">dartwork-mpl</span></code> for publication-quality plots.</p></li>
+</ol>
+<p>See the <a class="reference internal" href="../api/index.html"><span class="doc">API Reference</span></a> documentation for detailed information about each class and function, and <a class="reference internal" href="../examples/index.html"><span class="doc">Examples</span></a> for more comprehensive usage examples.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="io-guide.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Input/Output Documentation</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">User Guides</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025, betlab
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/bet-lab/enex_analysis_engine" aria-label="GitHub">
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            </a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">User Guide</a><ul>
+<li><a class="reference internal" href="#getting-started">Getting Started</a><ul>
+<li><a class="reference internal" href="#importing-the-module">Importing the Module</a></li>
+<li><a class="reference internal" href="#basic-usage-pattern">Basic Usage Pattern</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#example-creating-an-electric-boiler-system">Example: Creating an Electric Boiler System</a></li>
+<li><a class="reference internal" href="#available-systems">Available Systems</a><ul>
+<li><a class="reference internal" href="#domestic-hot-water-systems">Domestic Hot Water Systems</a></li>
+<li><a class="reference internal" href="#heat-pump-systems">Heat Pump Systems</a></li>
+<li><a class="reference internal" href="#dynamic-systems">Dynamic Systems</a></li>
+<li><a class="reference internal" href="#auxiliary-components">Auxiliary Components</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#parameter-setting-guide">Parameter Setting Guide</a><ul>
+<li><a class="reference internal" href="#temperature-parameters">Temperature Parameters</a></li>
+<li><a class="reference internal" href="#flow-rate-parameters">Flow Rate Parameters</a></li>
+<li><a class="reference internal" href="#geometric-parameters">Geometric Parameters</a></li>
+<li><a class="reference internal" href="#thermal-properties">Thermal Properties</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#understanding-results">Understanding Results</a><ul>
+<li><a class="reference internal" href="#energy-balance">Energy Balance</a></li>
+<li><a class="reference internal" href="#entropy-balance">Entropy Balance</a></li>
+<li><a class="reference internal" href="#exergy-balance">Exergy Balance</a></li>
+<li><a class="reference internal" href="#key-performance-indicators">Key Performance Indicators</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#utility-functions">Utility Functions</a><ul>
+<li><a class="reference internal" href="#temperature-conversions">Temperature Conversions</a></li>
+<li><a class="reference internal" href="#time-conversions">Time Conversions</a></li>
+<li><a class="reference internal" href="#length-conversions">Length Conversions</a></li>
+<li><a class="reference internal" href="#energy-power-conversions">Energy/Power Conversions</a></li>
+<li><a class="reference internal" href="#volume-conversions">Volume Conversions</a></li>
+<li><a class="reference internal" href="#pressure-conversions">Pressure Conversions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#best-practices">Best Practices</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>
