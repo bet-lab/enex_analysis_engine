@@ -14,14 +14,22 @@ Categories:
 import numpy as np
 
 __all__ = [
-    'T0_K', 'P0_PA',
-    'c_a', 'rho_a', 'k_a',
-    'c_w', 'rho_w', 'mu_w', 'k_w', 'beta',
-    'g',
-    'sigma',
-    'k_D', 'k_d',
-    'ex_eff_NG',
-    'SP',
+    "T0_K",
+    "P0_PA",
+    "c_a",
+    "rho_a",
+    "k_a",
+    "c_w",
+    "rho_w",
+    "mu_w",
+    "k_w",
+    "beta",
+    "g",
+    "sigma",
+    "k_D",
+    "k_d",
+    "ex_eff_NG",
+    "SP",
 ]
 
 
@@ -29,36 +37,36 @@ __all__ = [
 # 1. Air Properties
 # ═══════════════════════════════════════════════════════════════════════════════
 
-c_a = 1005          # Specific heat capacity of air [J/kgK]
-rho_a = 1.225       # Density of air [kg/m³]
-k_a = 0.0257        # Thermal conductivity of air [W/mK]
+c_a = 1005  # Specific heat capacity of air [J/kgK]
+rho_a = 1.225  # Density of air [kg/m³]
+k_a = 0.0257  # Thermal conductivity of air [W/mK]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. Water Properties
 # ═══════════════════════════════════════════════════════════════════════════════
 
-c_w = 4186          # Specific heat capacity of water [J/kgK]
-rho_w = 1000        # Density of water [kg/m³]
-mu_w = 0.001        # Dynamic viscosity of water [Pa·s]
-k_w = 0.606         # Thermal conductivity of water [W/mK]
-beta = 2.07e-4      # Volumetric expansion coefficient of water [1/K] (at ~20 °C)
+c_w = 4186  # Specific heat capacity of water [J/kgK]
+rho_w = 1000  # Density of water [kg/m³]
+mu_w = 0.001  # Dynamic viscosity of water [Pa·s]
+k_w = 0.606  # Thermal conductivity of water [W/mK]
+beta = 2.07e-4  # Volumetric expansion coefficient of water [1/K] (at ~20 °C)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. Physical Constants
 # ═══════════════════════════════════════════════════════════════════════════════
 
-g = 9.81            # Gravitational acceleration [m/s²]
+g = 9.81  # Gravitational acceleration [m/s²]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. Thermodynamic Constants
 # ═══════════════════════════════════════════════════════════════════════════════
 
-sigma = 5.67e-8     # Stefan-Boltzmann constant [W/m²K⁴]
-T0_K = 293.15       # Default dead state temperature [K] (20°C)
-P0_PA = 101325.0    # Default dead state pressure [Pa] (1 atm)
+sigma = 5.67e-8  # Stefan-Boltzmann constant [W/m²K⁴]
+T0_K = 293.15  # Default dead state temperature [K] (20°C)
+P0_PA = 101325.0  # Default dead state pressure [Pa] (1 atm)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -66,8 +74,8 @@ P0_PA = 101325.0    # Default dead state pressure [Pa] (1 atm)
 #    Reference: Petela, R. (2003) – Exergy of undiluted thermal radiation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-k_D = 0.000462      # Direct solar entropy coefficient [-]
-k_d = 0.0014        # Diffuse solar entropy coefficient [-]
+k_D = 0.000462  # Direct solar entropy coefficient [-]
+k_d = 0.0014  # Diffuse solar entropy coefficient [-]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -76,7 +84,7 @@ k_d = 0.0014        # Diffuse solar entropy coefficient [-]
 #               Built Environment, Springer.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-ex_eff_NG = 0.93    # Chemical-exergy-to-HHV ratio of LNG [-]
+ex_eff_NG = 0.93  # Chemical-exergy-to-HHV ratio of LNG [-]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

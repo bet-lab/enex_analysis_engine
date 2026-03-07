@@ -1,20 +1,19 @@
 """
 Domestic Hot Water (DHW) load modeling.
 """
+
 import numpy as np
 import pandas as pd
 
 
 def make_dhw_schedule_from_Annex_42_profile(
-    flow_rate_array: np.ndarray,
-    df_time_step: int,
-    simulation_time_step: int
+    flow_rate_array: np.ndarray, df_time_step: int, simulation_time_step: int
 ) -> list[tuple[str, str, float]]:
     """Generate DHW schedule list from flow profile data.
-    
-    This function implements the logic to convert a flow profile (L/min) 
+
+    This function implements the logic to convert a flow profile (L/min)
     into a schedule list with specified time step.
-    
+
     Parameters
     ----------
     flow_rate_array : np.ndarray
@@ -23,7 +22,7 @@ def make_dhw_schedule_from_Annex_42_profile(
         Time step of the input ``flow_rate_array`` [min].
     simulation_time_step : int
         Target time step for the simulation schedule [s].
-        
+
     Returns
     -------
     list[tuple[str, str, float]]
@@ -31,7 +30,9 @@ def make_dhw_schedule_from_Annex_42_profile(
     """
     total_minutes = len(flow_rate_array) * df_time_step
     if total_minutes != 1440:
-        raise ValueError(f"Input profile must cover exactly 24 hours (got {total_minutes} min)")
+        raise ValueError(
+            f"Input profile must cover exactly 24 hours (got {total_minutes} min)"
+        )
 
     peak_flow = np.max(flow_rate_array)
     schedule = []
@@ -47,10 +48,7 @@ def make_dhw_schedule_from_Annex_42_profile(
         start_idx = int(start_min / df_time_step)
         end_idx = int(end_min / df_time_step)
 
-        if start_idx == end_idx:
-            avg_flow = flow_rate_array[start_idx]
-        else:
-            avg_flow = np.mean(flow_rate_array[start_idx:end_idx])
+        avg_flow = flow_rate_array[start_idx] if start_idx == end_idx else np.mean(flow_rate_array[start_idx:end_idx])
 
         frac = float(avg_flow / peak_flow) if peak_flow > 0 else 0.0
 
@@ -69,11 +67,12 @@ def make_dhw_schedule_from_Annex_42_profile(
 
     return schedule
 
+
 def calc_total_water_use_from_schedule(
     schedule: list[tuple[str, str, float]],
     peak_load_m3s: float,
     info: bool = True,
-    info_unit: str = 'L'
+    info_unit: str = "L",
 ) -> float:
     """Calculate total daily water use from a schedule.
 
@@ -93,9 +92,12 @@ def calc_total_water_use_from_schedule(
     float
         Total daily water usage [m3].
     """
+
     def _time_to_min(t_str: str) -> float:
-        parts = t_str.split(':')
-        return float(parts[0]) * 60 + (float(parts[1]) if len(parts) > 1 else 0)
+        parts = t_str.split(":")
+        return float(parts[0]) * 60 + (
+            float(parts[1]) if len(parts) > 1 else 0
+        )
 
     total_m3 = 0.0
     for start, end, frac in schedule:
@@ -105,16 +107,15 @@ def calc_total_water_use_from_schedule(
         total_m3 += peak_load_m3s * frac * dt_s
 
     if info:
-        if info_unit == 'L':
+        if info_unit == "L":
             print(f"Total water use: {total_m3 * 1000:.1f} L/day")
         else:
             print(f"Total water use: {total_m3:.3f} m3/day")
 
     return total_m3
 
-def calc_cold_water_temp(
-    df: pd.DataFrame, target_date_str: str
-) -> float:
+
+def calc_cold_water_temp(df: pd.DataFrame, target_date_str: str) -> float:
     """Calculate mains water temperature using EnergyPlus algorithm.
 
     Uses monthly average outdoor air temperature to estimate the water mains
@@ -132,8 +133,8 @@ def calc_cold_water_temp(
     float
         Calculated cold water temperature [degC].
     """
-    T_out_avg = df['T_avg'].mean()
-    T_maxdiff = (df['T_avg'].max() - df['T_avg'].min()) / 2
+    T_out_avg = df["T_avg"].mean()
+    T_maxdiff = (df["T_avg"].max() - df["T_avg"].min()) / 2
 
     target_date = pd.to_datetime(target_date_str)
     day_of_year = target_date.dayofyear
@@ -142,9 +143,12 @@ def calc_cold_water_temp(
     ratio = 0.4 + 0.01 * (T_out_avg - 4.4)
     lag = 35 - 1.0 * (T_out_avg - 4.4)
 
-    T_mains = T_out_avg + ratio * T_maxdiff * np.sin(2 * np.pi * (day_of_year / 365 - lag / 365 - 0.25))
+    T_mains = T_out_avg + ratio * T_maxdiff * np.sin(
+        2 * np.pi * (day_of_year / 365 - lag / 365 - 0.25)
+    )
 
     return float(T_mains)
+
 
 def build_dhw_usage_ratio(
     entries: list[tuple[str, str, float]], t_array: np.ndarray
@@ -163,8 +167,9 @@ def build_dhw_usage_ratio(
     np.ndarray
         Array of fractions corresponding to ``t_array``.
     """
+
     def _to_sec(t_str: str) -> int:
-        parts = t_str.split(':')
+        parts = t_str.split(":")
         h = int(parts[0])
         m = int(parts[1]) if len(parts) > 1 else 0
         s = int(parts[2]) if len(parts) > 2 else 0

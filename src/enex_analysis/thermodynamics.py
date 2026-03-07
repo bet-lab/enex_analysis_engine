@@ -1,11 +1,13 @@
 """
 Thermodynamic property and exergy calculations.
 """
-from typing import Literal
+
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 import CoolProp.CoolProp as CP
-
-from .constants import P0_PA, T0_K
 
 
 def generate_entropy_exergy_term(
@@ -15,7 +17,7 @@ def generate_entropy_exergy_term(
     Q: float,
     T0: float,
     P0: float,
-    phase: Literal['gas', 'liquid', 'twophase'] = 'gas'
+    phase: Literal["gas", "liquid", "twophase"] = "gas",
 ) -> tuple[float, float, float]:
     """Calculate entropy, enthalpy, and exergy.
 
@@ -41,106 +43,175 @@ def generate_entropy_exergy_term(
     tuple[float, float, float]
         Entropy [J/kg-K], Enthalpy [J/kg], Exergy [J/kg].
     """
-    if phase == 'twophase':
-        s = CP.PropsSI('S', 'T', T, 'Q', Q, fluid)
-        h = CP.PropsSI('H', 'T', T, 'Q', Q, fluid)
+    if phase == "twophase":
+        s = CP.PropsSI("S", "T", T, "Q", Q, fluid)
+        h = CP.PropsSI("H", "T", T, "Q", Q, fluid)
     else:
-        s = CP.PropsSI('S', 'T', T, 'P', P, fluid)
-        h = CP.PropsSI('H', 'T', T, 'P', P, fluid)
+        s = CP.PropsSI("S", "T", T, "P", P, fluid)
+        h = CP.PropsSI("H", "T", T, "P", P, fluid)
 
-    s0 = CP.PropsSI('S', 'T', T0, 'P', P0, fluid)
-    h0 = CP.PropsSI('H', 'T', T0, 'P', P0, fluid)
+    s0 = CP.PropsSI("S", "T", T0, "P", P0, fluid)
+    h0 = CP.PropsSI("H", "T", T0, "P", P0, fluid)
     exergy = (h - h0) - T0 * (s - s0)
 
     return s, h, exergy
 
-def calc_energy_flow(mass_flow: float, h1: float, h2: float) -> float:
+
+def calc_energy_flow(G: float, T: float, T0: float) -> float:
     """Calculate energy flow rate.
 
     Parameters
     ----------
-    mass_flow : float
-        Mass flow rate [kg/s].
-    h1 : float
-        Enthalpy state 1 [J/kg].
-    h2 : float
-        Enthalpy state 2 [J/kg].
+    G : float
+        Heat capacity flow rate (mass_flow * Cp) [W/K].
+    T : float
+        Current temperature [K].
+    T0 : float
+        Reference/dead state temperature [K].
 
     Returns
     -------
     float
         Energy flow rate [W].
     """
-    return mass_flow * abs(h1 - h2)
+    return G * (T - T0)
 
-def calc_exergy_flow(mass_flow: float, ex1: float, ex2: float) -> float:
+
+def calc_exergy_flow(G: float, T: float, T0: float) -> float:
     """Calculate exergy flow rate.
 
     Parameters
     ----------
-    mass_flow : float
-        Mass flow rate [kg/s].
-    ex1 : float
-        Exergy state 1 [J/kg].
-    ex2 : float
-        Exergy state 2 [J/kg].
+    G : float
+        Heat capacity flow rate (mass_flow * Cp) [W/K].
+    T : float
+        Current temperature [K].
+    T0 : float
+        Reference/dead state temperature [K].
 
     Returns
     -------
     float
         Exergy flow rate [W].
     """
-    return mass_flow * abs(ex1 - ex2)
+    import numpy as np
+
+    if T <= 0 or T0 <= 0:
+        return 0.0
+    return float(G * ((T - T0) - T0 * np.log(T / T0)))
+
 
 def calc_refrigerant_exergy(
-    fluid: str,
-    T: float,
-    P: float,
-    Q: float,
-    T0: float = T0_K,
-    P0: float = P0_PA,
-    phase: Literal['gas', 'liquid', 'twophase'] = 'gas'
-) -> float:
-    """Calculate specific exergy of refrigerant.
+    df: "pd.DataFrame",
+    ref: str,
+    T0_K: "pd.Series",
+    P0: float = 101325,
+) -> "pd.DataFrame":
+    """Calculate refrigerant state-point exergy using pre-computed properties.
+
+    Uses the entropy (``s_ref_*``) and enthalpy (``h_ref_*``) columns
+    already present in ``df`` (produced by ``calc_ref_state``) to compute
+    specific exergy and exergy flow rate for each refrigerant state point.
+
+    Dead-state properties (h0, s0) are evaluated at (T0, P0) for the
+    given refrigerant using CoolProp (vectorized via unique T0 values).
 
     Parameters
     ----------
-    fluid : str
-        Refrigerant name.
-    T : float
-        Temperature [K].
-    P : float
-        Pressure [Pa].
-    Q : float
-        Quality.
-    T0 : float, optional
-        Dead state temperature [K]. Default is T0_K.
-    P0 : float, optional
-        Dead state pressure [Pa]. Default is P0_PA.
-    phase : Literal['gas', 'liquid', 'twophase'], optional
-        Fluid phase. Default is 'gas'.
+    df : pd.DataFrame
+        DataFrame containing pre-computed enthalpy ``h_ref_* [J/kg]``,
+        entropy ``s_ref_* [J/(kg·K)]``, and mass-flow
+        ``m_dot_ref [kg/s]`` columns.
+    ref : str
+        CoolProp refrigerant identifier (e.g. ``'R410A'``).
+    T0_K : pd.Series
+        Dead-state (environment) temperature per row [K].
+    P0 : float
+        Dead-state pressure [Pa] (default ``101325``).
 
     Returns
     -------
-    float
-        Specific exergy [J/kg].
-    """
-    _, _, ex = generate_entropy_exergy_term(fluid, T, P, Q, T0, P0, phase)
-    return ex
+    pd.DataFrame
+        ``df`` with columns added per state point:
+        ``x_ref_{name} [J/kg]``, ``X_ref_{name} [W]``.
 
-def convert_electricity_to_exergy(P_elec: float) -> float:
-    """Convert electrical power to exergy rate.
-    
-    Electricity is a pure form of work, so its exergy equals its energy.
+    Notes
+    -----
+    - Exergy equation: x = (h − h0) − T0·(s − s0)  [J/kg]
+    - Exergy flow: X = ṁ · x  [W]
+    - Rows with NaN enthalpy/entropy propagate NaN naturally.
+    """
+    import numpy as np
+    import pandas as pd
+
+    # State points: (name, enthalpy_col, entropy_col)
+    _STATES = [
+        ("cmp_in", "h_ref_cmp_in [J/kg]", "s_ref_cmp_in [J/(kg·K)]"),
+        ("cmp_out", "h_ref_cmp_out [J/kg]", "s_ref_cmp_out [J/(kg·K)]"),
+        ("exp_in", "h_ref_exp_in [J/kg]", "s_ref_exp_in [J/(kg·K)]"),
+        ("exp_out", "h_ref_exp_out [J/kg]", "s_ref_exp_out [J/(kg·K)]"),
+    ]
+
+    # Dead-state properties — vectorized via unique T0 values
+    t0_unique = T0_K.dropna().unique()
+    h0_map: dict[float, float] = {}
+    s0_map: dict[float, float] = {}
+    for t0 in t0_unique:
+        try:
+            h0_map[t0] = CP.PropsSI("H", "T", float(t0), "P", P0, ref)
+            s0_map[t0] = CP.PropsSI("S", "T", float(t0), "P", P0, ref)
+        except Exception:
+            h0_map[t0] = np.nan
+            s0_map[t0] = np.nan
+
+    h0: pd.Series = T0_K.map(h0_map)
+    s0: pd.Series = T0_K.map(s0_map)
+
+    m_dot: pd.Series = (
+        df["m_dot_ref [kg/s]"]
+        if "m_dot_ref [kg/s]" in df.columns
+        else pd.Series(np.nan, index=df.index)
+    )
+
+    for name, h_col, s_col in _STATES:
+        if h_col not in df.columns or s_col not in df.columns:
+            continue
+        h = df[h_col]
+        s = df[s_col]
+        # Specific exergy [J/kg]: x = (h - h0) - T0 * (s - s0)
+        x_val = (h - h0) - T0_K * (s - s0)
+        # Exergy flow [W]: X = m_dot * x
+        X_val = m_dot * x_val
+        df[f"x_ref_{name} [J/kg]"] = x_val
+        df[f"X_ref_{name} [W]"] = X_val
+
+    return df
+
+
+def convert_electricity_to_exergy(
+    df: "pd.DataFrame",
+) -> "pd.DataFrame":
+    """Copy all electricity columns (``E_*``) to exergy columns (``X_*``).
+
+    Electrical energy is 100 %% pure exergy, so ``X = E`` for all
+    electricity-consumption columns.
+
+    The function searches for columns matching the pattern
+    ``E_xxx [W]`` and creates corresponding ``X_xxx [W]`` columns.
 
     Parameters
     ----------
-    P_elec : float
-        Electrical power [W].
+    df : pd.DataFrame
+        DataFrame with ``E_xxx [W]`` columns.
 
     Returns
     -------
-    float
-        Exergy rate [W].
+    pd.DataFrame
+        ``df`` with ``X_xxx [W]`` columns added.
     """
-    return P_elec
+    for col in df.columns:
+        if str(col).startswith("E_") and str(col).endswith(" [W]"):
+            # E_cmp [W] → X_cmp [W]
+            x_col: str = "X_" + str(col)[2:]
+            df[x_col] = df[col]
+    return df

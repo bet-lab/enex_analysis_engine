@@ -1,12 +1,15 @@
 """
 Weather data processing and irradiance calculations.
 """
+
 import numpy as np
 import pandas as pd
 import pvlib
 
 
-def load_kma_solar_csv(csv_path: str, encoding: str = 'euc-kr') -> pd.DataFrame:
+def load_kma_solar_csv(
+    csv_path: str, encoding: str = "euc-kr"
+) -> pd.DataFrame:
     """Load KMA (기상청) 1-minute cumulative solar irradiance CSV.
 
     Parameters
@@ -24,19 +27,22 @@ def load_kma_solar_csv(csv_path: str, encoding: str = 'euc-kr') -> pd.DataFrame:
     df = pd.read_csv(csv_path, encoding=encoding)
 
     # 1. 일시 파싱
-    time_col = df.columns[df.columns.str.contains('일시|시간')][0]
-    df['datetime'] = pd.to_datetime(df[time_col])
-    df.set_index('datetime', inplace=True)
+    time_col = df.columns[df.columns.str.contains("일시|시간")][0]
+    df["datetime"] = pd.to_datetime(df[time_col])
+    df.set_index("datetime", inplace=True)
 
     # 2. 일사량 파싱 (MJ/m2 -> W/m2)
     # 1분 단위 누적 일사량이라 가정
-    solar_col = df.columns[df.columns.str.contains('일사')][0]
-    df['ghi'] = df[solar_col].diff().fillna(0) * 1e6 / 60
-    df.loc[df['ghi'] < 0, 'ghi'] = 0
+    solar_col = df.columns[df.columns.str.contains("일사")][0]
+    df["ghi"] = df[solar_col].diff().fillna(0) * 1e6 / 60
+    df.loc[df["ghi"] < 0, "ghi"] = 0
 
-    return df[['ghi']]
+    return df[["ghi"]]
 
-def load_kma_T0_sol_hourly_csv(csv_path: str, encoding: str = 'euc-kr') -> pd.DataFrame:
+
+def load_kma_T0_sol_hourly_csv(
+    csv_path: str, encoding: str = "euc-kr"
+) -> pd.DataFrame:
     """Load KMA hourly temperature and solar irradiance CSV.
 
     Parameters
@@ -58,24 +64,25 @@ def load_kma_T0_sol_hourly_csv(csv_path: str, encoding: str = 'euc-kr') -> pd.Da
         for p in patterns:
             match = df.columns[df.columns.str.lower().str.contains(p.lower())]
             if len(match) > 0:
-                return match[0]
+                return str(match[0])
         raise ValueError(f"Column matching {patterns} not found.")
 
-    time_col = _find_col(['일시', '시간', 'time', 'date'])
-    temp_col = _find_col(['기온', '온도', 'temp', 't0', '°C', '℃'])
-    ghi_col = _find_col(['일사', 'ghi', 'irradiance', 'mj', 'solar'])
+    time_col = _find_col(["일시", "시간", "time", "date"])
+    temp_col = _find_col(["기온", "온도", "temp", "t0", "°C", "℃"])
+    ghi_col = _find_col(["일사", "ghi", "irradiance", "mj", "solar"])
 
-    df['datetime'] = pd.to_datetime(df[time_col])
-    df.set_index('datetime', inplace=True)
+    df["datetime"] = pd.to_datetime(df[time_col])
+    df.set_index("datetime", inplace=True)
 
     # 온도를 Kelvin으로 변환
-    df['T0_K'] = df[temp_col] + 273.15
+    df["T0_K"] = df[temp_col] + 273.15
 
     # 일사량을 W/m2로 변환 (1시간 누적 MJ/m2 -> W/m2)
-    df['ghi'] = df[ghi_col] * 1e6 / 3600
-    df.loc[df['ghi'] < 0, 'ghi'] = 0
+    df["ghi"] = df[ghi_col] * 1e6 / 3600
+    df.loc[df["ghi"] < 0, "ghi"] = 0
 
-    return df[['T0_K', 'ghi']]
+    return df[["T0_K", "ghi"]]
+
 
 def decompose_ghi_to_poa(
     ghi: np.ndarray,
@@ -84,9 +91,9 @@ def decompose_ghi_to_poa(
     tilt: float,
     azimuth: float,
     altitude: float = 0,
-    tz: str = 'Asia/Seoul',
-    decomposition: str = 'erbs',
-    transposition: str = 'perez'
+    tz: str = "Asia/Seoul",
+    decomposition: str = "erbs",
+    transposition: str = "perez",
 ) -> pd.DataFrame:
     """Decompose GHI to POA (Plane of Array) total irradiance.
 
@@ -126,17 +133,21 @@ def decompose_ghi_to_poa(
     solar_position = location.get_solarposition(times)
 
     # 2. DNI, DHI 분해
-    if decomposition.lower() == 'erbs':
-        dni_dhi = pvlib.irradiance.erbs(ghi, solar_position['zenith'], times.dayofyear)
+    if decomposition.lower() == "erbs":
+        dni_dhi = pvlib.irradiance.erbs(
+            ghi, solar_position["zenith"], times.dayofyear
+        )
     else:
         # 간단히 erbs 폴백
-        dni_dhi = pvlib.irradiance.erbs(ghi, solar_position['zenith'], times.dayofyear)
+        dni_dhi = pvlib.irradiance.erbs(
+            ghi, solar_position["zenith"], times.dayofyear
+        )
 
-    dni = dni_dhi['dni']
-    dhi = dni_dhi['dhi']
+    dni = dni_dhi["dni"]
+    dhi = dni_dhi["dhi"]
 
     # 3. POA 변환
-    if transposition.lower() == 'perez':
+    if transposition.lower() == "perez":
         # perez 모델은 extraterrestrial irradiance와 airmass가 필요
         dni_extra = pvlib.irradiance.get_extra_radiation(times)
         airmass = location.get_airmass(times=times)
@@ -146,21 +157,21 @@ def decompose_ghi_to_poa(
             dhi=dhi,
             dni=dni,
             dni_extra=dni_extra,
-            solar_zenith=solar_position['zenith'],
-            solar_azimuth=solar_position['azimuth'],
-            airmass=airmass['airmass_absolute']
+            solar_zenith=solar_position["zenith"],
+            solar_azimuth=solar_position["azimuth"],
+            airmass=airmass["airmass_absolute"],
         )
     else:
         # isotropic 폴백
         poa = pvlib.irradiance.get_total_irradiance(
             surface_tilt=tilt,
             surface_azimuth=azimuth,
-            solar_zenith=solar_position['zenith'],
-            solar_azimuth=solar_position['azimuth'],
+            solar_zenith=solar_position["zenith"],
+            solar_azimuth=solar_position["azimuth"],
             dni=dni,
             ghi=ghi,
             dhi=dhi,
-            model='isotropic'
+            model="isotropic",
         )
 
     return poa

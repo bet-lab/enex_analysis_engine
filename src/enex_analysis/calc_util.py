@@ -23,22 +23,25 @@ Usage:
 
 import math
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. Temperature Conversion Functions
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def K2C(K):
     """Convert Kelvin to Celsius."""
     return K - 273.15
 
+
 def C2K(C):
     """Convert Celsius to Kelvin."""
     return C + 273.15
 
+
 def F2C(F):
     """Convert Fahrenheit to Celsius."""
     return (F - 32) * 5 / 9
+
 
 def C2F(C):
     """Convert Celsius to Fahrenheit."""

@@ -8,28 +8,22 @@ and future models can share the same infrastructure.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
-import numpy as np
-
-from . import calc_util as cu
 from .constants import c_w, rho_w
 from .enex_functions import (
-    calc_mixing_valve,
     check_hp_schedule_active,
 )
 
 if TYPE_CHECKING:
     import pandas as pd
 
-    from .subsystems import SolarThermalCollector
-
 
 # ------------------------------------------------------------------
 # Per-timestep immutable context
 # ------------------------------------------------------------------
+
 
 @dataclass
 class StepContext:
@@ -84,6 +78,7 @@ class StepContext:
 # Control decisions produced by Phase-A helpers
 # ------------------------------------------------------------------
 
+
 @dataclass
 class ControlState:
     """Heat-source control decisions for one timestep.
@@ -117,6 +112,7 @@ class ControlState:
 # Subsystem exergy result (AND type, immutable)
 # ------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SubsystemExergy:
     """Subsystem-specific exergy calculation results.
@@ -141,14 +137,15 @@ class SubsystemExergy:
     """
 
     columns: dict  # dict[str, pd.Series]
-    X_tot_add: object = 0.0      # pd.Series | float
+    X_tot_add: object = 0.0  # pd.Series | float
     X_in_tank_add: object = 0.0  # pd.Series | float
-    X_out_tank_add: object = 0.0 # pd.Series | float
+    X_out_tank_add: object = 0.0  # pd.Series | float
 
 
 # ------------------------------------------------------------------
 # Subsystem Protocol
 # ------------------------------------------------------------------
+
 
 class Subsystem(Protocol):
     """Pluggable subsystem interface.
@@ -227,33 +224,18 @@ class Subsystem(Protocol):
         df: pd.DataFrame,
         T0_K: pd.Series,
     ) -> SubsystemExergy | None:
-        """Compute subsystem-level exergy items.
+        """Compute subsystem-level exergy items."""
+        ...
 
-        Called during exergy post-processing on the full
-        simulation result DataFrame.  Each subsystem
-        computes its own exergy columns and declares
-        how much exergy it adds/removes from the tank
-        boundary and the system total.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Simulation result DataFrame (energy columns
-            already present).
-        T0_K : pd.Series
-            Dead-state temperature per timestep [K].
-
-        Returns
-        -------
-        SubsystemExergy | None
-            Exergy results; ``None`` if not applicable.
-        """
+    def calc_performance(self, **kwargs) -> dict:
+        """Calculate performance at a specific condition."""
         ...
 
 
 # ------------------------------------------------------------------
 # Pure helper functions
 # ------------------------------------------------------------------
+
 
 def determine_heat_source_on_off(
     T_tank_w_C: float,
@@ -293,7 +275,8 @@ def determine_heat_source_on_off(
         is_on = is_on_prev
 
     return is_on and check_hp_schedule_active(
-        hour_of_day, on_schedule,
+        hour_of_day,
+        on_schedule,
     )
 
 
@@ -350,9 +333,8 @@ def determine_tank_refill_flow(
         ``None`` means always-full sentinel (no PSF).
     """
     lv: float = tank_level
-    if (
-        not tank_always_full
-        or (tank_always_full and prevent_simultaneous_flow)
+    if not tank_always_full or (
+        tank_always_full and prevent_simultaneous_flow
     ):
         lv = max(
             0.0,
@@ -373,11 +355,7 @@ def determine_tank_refill_flow(
     else:
         lo: float = tank_level_lower_bound
         hi: float = tank_level_upper_bound
-        if (
-            use_stc
-            and mode == 'mains_preheat'
-            and preheat_on
-        ):
+        if use_stc and mode == "mains_preheat" and preheat_on:
             lo, hi = 1.0, 1.0
         if not is_refilling and lv < lo - 1e-6:
             is_refilling = True
@@ -385,9 +363,7 @@ def determine_tank_refill_flow(
             req = (hi - lv) * V_tank_full
             if dV_tank_w_in_refill * dt <= req:
                 dV_tank_w_in = dV_tank_w_in_refill
-            chk: float = (
-                lv + dV_tank_w_in * dt / V_tank_full
-            )
+            chk: float = lv + dV_tank_w_in * dt / V_tank_full
             if chk >= hi - 1e-6:
                 is_refilling = False
 
@@ -466,8 +442,7 @@ def tank_mass_energy_residual(
     r_mass: float = (
         level_next
         - ctx.tank_level
-        - (dV_tank_w_in - dV_tank_w_out)
-        * dt / V_tank_full
+        - (dV_tank_w_in - dV_tank_w_out) * dt / V_tank_full
     )
 
     C_curr: float = C_tank * max(0.001, ctx.tank_level)
@@ -479,15 +454,14 @@ def tank_mass_energy_residual(
     T_in_eff: float = T_tank_w_in_K
     for s in sub_states.values():
         override: float | None = s.get(
-            'T_tank_w_in_override_K',
+            "T_tank_w_in_override_K",
         )
         if override is not None:
             T_in_eff = override
             break
 
-    Q_flow_net: float = c_w * rho_w * (
-        dV_tank_w_in * T_in_eff
-        - dV_tank_w_out * T_next
+    Q_flow_net: float = (
+        c_w * rho_w * (dV_tank_w_in * T_in_eff - dV_tank_w_out * T_next)
     )
 
     # Subsystem energy contributions
@@ -496,14 +470,14 @@ def tank_mass_energy_residual(
     E_sub_total: float = 0.0
     for name, sub in subsystems.items():
         ss: dict = sub_states.get(name, {})
-        Q_sub_total += ss.get('Q_contribution', 0.0)
-        E_sub_total += ss.get('E_subsystem', 0.0)
+        Q_sub_total += ss.get("Q_contribution", 0.0)
+        E_sub_total += ss.get("E_subsystem", 0.0)
 
         # Tank-circuit STC: recalculate at T_next
         if (
-            hasattr(sub, 'mode')
-            and sub.mode == 'tank_circuit'
-            and ss.get('stc_active', False)
+            hasattr(sub, "mode")
+            and sub.mode == "tank_circuit"
+            and ss.get("stc_active", False)
         ):
             stc_r: dict = sub.calc_performance(
                 I_DN_stc=ctx.I_DN,
@@ -512,21 +486,15 @@ def tank_mass_energy_residual(
                 T0_K=ctx.T0_K,
                 is_active=True,
             )
-            Q_sub_total = (
-                stc_r.get('Q_stc_w_out', 0.0)
-                - stc_r.get('Q_stc_w_in', 0.0)
+            Q_sub_total = stc_r.get("Q_stc_w_out", 0.0) - stc_r.get(
+                "Q_stc_w_in", 0.0
             )
 
     Q_total: float = (
-        ctrl.Q_heat_source
-        + E_sub_total
-        + Q_sub_total
-        + Q_flow_net
+        ctrl.Q_heat_source + E_sub_total + Q_sub_total + Q_flow_net
     )
     r_energy: float = (
-        C_next * T_next
-        - C_curr * ctx.T_tank_w_K
-        - dt * (Q_total - Q_loss)
+        C_next * T_next - C_curr * ctx.T_tank_w_K - dt * (Q_total - Q_loss)
     )
 
     return [r_energy, r_mass]
