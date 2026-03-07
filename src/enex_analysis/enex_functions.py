@@ -44,20 +44,41 @@ This module contains helper functions organized into the following categories:
 """
 
 import math
-from typing import Any
 
 import numpy as np
-from scipy import integrate
 from scipy.optimize import root_scalar
-from scipy.special import erf
 
 from . import calc_util as cu
-from .constants import SP, c_a, c_w, rho_a, rho_w
+from .constants import c_a, c_w, rho_a, rho_w
+from .cop import (
+    calc_ASHP_cooling_COP as calc_ASHP_cooling_COP,
+)
+from .cop import (
+    calc_ASHP_heating_COP as calc_ASHP_heating_COP,
+)
+from .cop import (
+    calc_GSHP_COP as calc_GSHP_COP,
+)
 from .dhw import (
     build_dhw_usage_ratio,
     calc_cold_water_temp,
     calc_total_water_use_from_schedule,
     make_dhw_schedule_from_Annex_42_profile,
+)
+from .g_function import (
+    G_FLS as G_FLS,
+)
+from .g_function import (
+    air_dynamic_viscosity as air_dynamic_viscosity,
+)
+from .g_function import (
+    air_prandtl_number as air_prandtl_number,
+)
+from .g_function import (
+    chi as chi,
+)
+from .g_function import (
+    f as f,
 )
 from .heat_transfer import (
     calc_h_vertical_plate,
@@ -71,6 +92,12 @@ from .refrigerant import (
     calc_ref_state,
     create_lmtd_constraints,
     find_ref_loop_optimal_operation,
+)
+from .tdma import (
+    TDMA as TDMA,
+)
+from .tdma import (
+    _add_loop_advection_terms as _add_loop_advection_terms,
 )
 from .thermodynamics import (
     calc_energy_flow,
@@ -254,288 +281,9 @@ def print_balance(balance, decimal=2):
                 print(f"{symbol}: {round(value, decimal)} {unit}")
 
 
-def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
-    """
-    Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in cooling mode.
-
-    Reference: https://publications.ibpsa.org/proceedings/bs/2023/papers/bs2023_1118.pdf
-
-    Parameters
-    ----------
-    T_a_int_out : float
-        Indoor air temperature [K]
-    T_a_ext_in : float
-        Outdoor air temperature [K]
-    Q_r_int : float
-        Indoor heat load [W]
-    Q_r_max : float
-        Maximum cooling capacity [W]
-    COP_ref : float
-        Reference COP at standard conditions
-
-    Returns
-    -------
-    float
-        COP value
-
-    Note
-    ----
-    COP is calculated based on:
-    - PLR: Part Load Ratio
-    - EIR: Energy input to cooling output ratio
-    """
-    PLR = Q_r_int / Q_r_max
-    if PLR < 0.2:
-        PLR = 0.2
-    if PLR > 1.0:
-        PLR = 1.0
-    EIR_by_T = 0.38 + 0.02 * cu.K2C(T_a_int_out) + 0.01 * cu.K2C(T_a_ext_in)
-    EIR_by_PLR = 0.22 + 0.50 * PLR + 0.26 * PLR**2
-    COP = PLR * COP_ref / (EIR_by_T * EIR_by_PLR)
-    return COP
-
-
-def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
-    """
-    Calculate the Coefficient of Performance (COP) for an Air Source Heat Pump (ASHP) in heating mode.
-
-    Reference: https://www.mdpi.com/2071-1050/15/3/1880
-
-    Parameters
-    ----------
-    T0 : float
-        Environmental temperature [K]
-    Q_r_int : float
-        Indoor heat load [W]
-    Q_r_max : float
-        Maximum heating capacity [W]
-
-    Returns
-    -------
-    float
-        COP value
-
-    Note
-    ----
-    COP is calculated based on PLR (Part Load Ratio).
-    """
-    PLR = Q_r_int / Q_r_max
-    if PLR < 0.2:
-        PLR = 0.2
-    if PLR > 1.0:
-        PLR = 1.0
-    COP = (
-        -7.46 * (PLR - 0.0047 * cu.K2C(T0) - 0.477) ** 2
-        + 0.0941 * cu.K2C(T0)
-        + 4.34
-    )
-    return COP
-
-
-def calc_GSHP_COP(Tg, T_cond, T_evap, theta_hat):
-    """
-    Calculate the Carnot-based COP of a GSHP system using the modified formula.
-
-    Reference: https://www.sciencedirect.com/science/article/pii/S0360544219304347?via%3Dihub
-
-    Formula: COP = 1 / (1 - T0/T_cond + ΔT * θ̂ / T_cond)
-
-    Parameters
-    ----------
-    Tg : float
-        Undisturbed ground temperature [K]
-    T_cond : float
-        Condenser refrigerant temperature [K]
-    T_evap : float
-        Evaporator refrigerant temperature [K]
-    theta_hat : float
-        θ̂(x0, k_sb), dimensionless average fluid temperature
-        Reference: Paper Fig 8, Table 1
-
-    Returns
-    -------
-    float
-        Modified Carnot-based COP. Returns NaN if denominator <= 0.
-
-    Raises
-    ------
-    ValueError
-        If T_cond <= T_evap (invalid for COP calculation)
-    """
-    # Temperature difference (ΔT = T0 - T1)
-    if T_cond <= T_evap:
-        raise ValueError(
-            "T_cond must be greater than T_evap for a valid COP calculation."
-        )
-
-    delta_T = Tg - T_evap
-
-    # Compute COP using the modified Carnot expression
-    denominator = 1 - (Tg / T_cond) + (delta_T / (T_cond * theta_hat))
-
-    if denominator <= 0:
-        return float("nan")  # Avoid division by zero or negative COP
-
-    COP = 1 / denominator
-    return COP
-
-
-def f(x):
-    """
-    Helper function for G-function calculation.
-
-    Parameters:
-    -----------
-    x : float
-        Input value
-
-    Returns:
-    --------
-    float
-        f(x) = x*erf(x) - (1-exp(-x²))/√π
-    """
-    return x * erf(x) - (1 - np.exp(-(x**2))) / SP
-
-
-def chi(s, rb, H, z0=0):
-    """
-    Helper function for G-function calculation.
-
-    Parameters:
-    -----------
-    s : float
-        Integration variable
-    rb : float
-        Borehole radius [m]
-    H : float
-        Borehole height [m]
-    z0 : float, optional
-        Reference depth [m] (default: 0)
-
-    Returns:
-    --------
-    float
-        chi function value
-    """
-    h = H * s
-    d = z0 * s
-
-    temp = np.exp(-((rb * s) ** 2)) / (h * s)
-    Is = 2 * f(h) + 2 * f(h + 2 * d) - f(2 * h + 2 * d) - f(2 * d)
-
-    return temp * Is
-
-
-
-
-_g_func_cache: dict[str, Any] = {}
-
-
-def G_FLS(t, ks, as_, rb, H):
-    """
-    Calculate the g-function for finite line source (FLS) model.
-
-    This function calculates the g-function used in ground source heat pump
-    analysis. Results are cached for performance.
-
-    Parameters:
-    -----------
-    t : float
-        Time [s]
-    ks : float
-        Ground thermal conductivity [W/mK]
-    as_ : float
-        Ground thermal diffusivity [m²/s]
-    rb : float
-        Borehole radius [m]
-    H : float
-        Borehole height [m]
-
-    Returns:
-    --------
-    float or array
-        g-function value [mK/W]. Returns scalar for single time value,
-        array for multiple time values.
-    """
-    key = (round(t, 0), round(ks, 2), round(as_, 6), round(rb, 2), round(H, 0))
-    if key in _g_func_cache:
-        return _g_func_cache[key]
-
-    factor = 1 / (4 * np.pi * ks)
-
-    lbs = 1 / np.sqrt(4 * as_ * t)
-
-    # Handle scalar case: shape == (,)
-    single = len(lbs.shape) == 0
-    # Reshape to 1D array
-    lbs = lbs.reshape(-1)
-
-    # Pre-calculate integral from 0 to inf
-    total = integrate.quad(chi, 0, np.inf, args=(rb, H))[0]
-    # ODE initial value
-    first = integrate.quad(chi, 0, lbs[0], args=(rb, H))[0]
-
-    # Scipy ODE solver function form: dydx = f(y, x)
-    def func(y, s):
-        return chi(s, rb, H, z0=0)
-
-    values = total - integrate.odeint(func, first, lbs)[:, 0]
-
-    # For single time value, return first value as float
-    if single:
-        values = values[0]
-
-    result = factor * values
-    _g_func_cache[key] = result
-    return result
-
-
-def air_dynamic_viscosity(T_K):
-    """
-    Calculate air dynamic viscosity using Sutherland's formula.
-
-    Parameters:
-    -----------
-    T_K : float
-        Temperature [K]
-
-    Returns:
-    --------
-    float
-        Dynamic viscosity [Pa·s]
-
-    Reference: Sutherland's formula for air
-    mu = mu0 * (T/T0)^1.5 * (T0 + S) / (T + S)
-    where mu0 = 1.716e-5 Pa·s at T0 = 273.15 K, S = 110.4 K
-    """
-    T0 = 273.15  # Reference temperature [K]
-    mu0 = 1.716e-5  # Reference viscosity [Pa·s] at T0
-    S = 110.4  # Sutherland constant [K] for air
-
-    mu = mu0 * ((T_K / T0) ** 1.5) * ((T0 + S) / (T_K + S))
-    return mu
-
-
-def air_prandtl_number(T_K):
-    """
-    Calculate air Prandtl number.
-
-    Parameters:
-    -----------
-    T_K : float
-        Temperature [K]
-
-    Returns:
-    --------
-    float
-        Prandtl number [-]
-
-    Note: Pr ≈ 0.71 for air at typical temperatures (20-50°C)
-    Temperature dependence is weak, so using constant value.
-    """
-    # Pr = mu * cp / k
-    # For air: Pr ≈ 0.71 (weak temperature dependence)
-    return 0.71
+# COP, G-function, Air property, and TDMA functions are now in dedicated
+# modules.  Re-exported here for backward compatibility.
+# See: cop.py, g_function.py, tdma.py
 
 
 # ============================================================================
@@ -707,100 +455,8 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
 # ============================================================================
 
 
-def TDMA(a, b, c, d):
-    """
-    Solve tri-diagonal matrix system using TDMA (Tri-Diagonal Matrix Algorithm).
-
-    Reference: https://doi.org/10.1016/j.ijheatmasstransfer.2017.09.057 [Appendix B - Eq.(B7)]
-
-    Parameters
-    ----------
-    a : np.ndarray
-        Lower diagonal elements (length N-1)
-    b : np.ndarray
-        Main diagonal elements (length N)
-    c : np.ndarray
-        Upper diagonal elements (length N-1)
-    d : np.ndarray
-        Right-hand side vector (length N)
-
-    Returns
-    -------
-    np.ndarray
-        Solution vector (next time step temperatures)
-
-    Notes
-    -----
-    If boundary conditions are not None, additional thermal resistances
-    are added to the leftmost and rightmost columns, and surface temperatures
-    are recalculated considering boundary layer thermal resistance.
-    """
-    n = len(b)
-
-    A_mat = np.zeros((n, n))
-    np.fill_diagonal(A_mat[1:], a[1:])
-    np.fill_diagonal(A_mat, b)
-    np.fill_diagonal(A_mat[:, 1:], c[:-1])
-    A_inv = np.linalg.inv(A_mat)
-
-    T_new = np.dot(A_inv, d).flatten()  # Flatten the result to 1D array
-    return T_new
-
-
-def _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in):
-    """
-    Add forced convection terms for a specified range (in_idx -> out_idx) to TDMA coefficients.
-
-    Indices are 0-based (node 1 -> idx 0).
-    Direction: in_idx > out_idx means 'upward' (bottom→top), otherwise 'downward' (top→bottom).
-
-    Parameters
-    ----------
-    a, b, c, d : np.ndarray
-        TDMA coefficient arrays (modified in-place)
-    in_idx : int
-        Inlet node index (0-based)
-    out_idx : int
-        Outlet node index (0-based)
-    G_loop : float
-        Heat capacity flow rate [W/K]
-    T_loop_in : float
-        Inlet stream temperature [K]
-
-    Notes
-    -----
-    This function modifies the TDMA coefficients to account for directed advection
-    across a node range in either direction.
-    """
-    # Invalid case: ignore
-    if G_loop <= 0 or in_idx == out_idx:
-        print(
-            "Warning: negative loop flow rate or identical in/out loop nodes."
-        )
-        return
-
-    # Inlet node (common)
-    b[in_idx] += G_loop
-    d[in_idx] += G_loop * T_loop_in  # Inlet stream temperature
-
-    # Upward: in(N side) -> ... -> out(1 side)
-    if in_idx > out_idx:
-        # Internal nodes in path (out_idx+1 .. in_idx-1)
-        for k in range(in_idx - 1, out_idx, -1):
-            b[k] += G_loop
-            c[k] -= G_loop
-        # Outlet node (out_idx)
-        b[out_idx] += G_loop
-        c[out_idx] -= G_loop
-
-    # Downward: in(1 side) -> ... -> out(N side)
-    else:
-        for k in range(in_idx + 1, out_idx):
-            a[k] -= G_loop
-            b[k] += G_loop
-        # Outlet node (out_idx)
-        a[out_idx] -= G_loop
-        b[out_idx] += G_loop
+# TDMA and advection-term functions have been moved to tdma.py.
+# Re-exported above via ``from .tdma import …`` for backward compatibility.
 
 
 def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
