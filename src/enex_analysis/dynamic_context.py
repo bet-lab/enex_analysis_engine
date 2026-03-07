@@ -12,9 +12,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
 from .constants import c_w, rho_w
-from .enex_functions import (
-    check_hp_schedule_active,
-)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -235,6 +232,29 @@ class Subsystem(Protocol):
 # ------------------------------------------------------------------
 # Pure helper functions
 # ------------------------------------------------------------------
+
+
+def check_hp_schedule_active(
+    hour: float,
+    hp_on_schedule: list[tuple[float, float]],
+) -> bool:
+    """Check whether current hour falls within HP operating schedule.
+
+    Parameters
+    ----------
+    hour : float
+        Current time of day [h] (0.0–24.0).
+    hp_on_schedule : list of tuple
+        List of ``(start_hour, end_hour)`` operating windows.
+
+    Returns
+    -------
+    bool
+    """
+    return any(
+        start_hour <= hour < end_hour
+        for start_hour, end_hour in hp_on_schedule
+    )
 
 
 def determine_heat_source_on_off(

@@ -94,9 +94,6 @@ from .hx_fan import (
 from .hx_fan import (
     calc_UA_from_dV_fan as calc_UA_from_dV_fan,
 )
-from .hx_fan import (
-    check_hp_schedule_active as check_hp_schedule_active,
-)
 from .refrigerant import (
     calc_ref_state,
     create_lmtd_constraints,
@@ -187,7 +184,6 @@ __all__ = [
     "calc_HX_perf_for_target_heat",
     "calc_fan_power_from_dV_fan",
     # Schedule / Control
-    "check_hp_schedule_active",
     "build_dhw_usage_ratio",
     # UV
     "get_uv_params_from_turbidity",

@@ -88,25 +88,3 @@ def calc_fan_power_from_dV_fan(
 
     return fan_design_power * PLR
 
-
-def check_hp_schedule_active(
-    hour: float,
-    hp_on_schedule: list[tuple[float, float]],
-) -> bool:
-    """Check whether current hour falls within HP operating schedule.
-
-    Parameters
-    ----------
-    hour : float
-        Current time of day [h] (0.0–24.0).
-    hp_on_schedule : list of tuple
-        List of ``(start_hour, end_hour)`` operating windows.
-
-    Returns
-    -------
-    bool
-    """
-    return any(
-        start_hour <= hour < end_hour
-        for start_hour, end_hour in hp_on_schedule
-    )
