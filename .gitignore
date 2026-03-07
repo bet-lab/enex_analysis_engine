@@ -114,3 +114,4 @@ conference/
 # agent
 .agent/
 
+.agent*
