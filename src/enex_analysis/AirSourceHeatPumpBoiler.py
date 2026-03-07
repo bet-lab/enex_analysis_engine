@@ -242,7 +242,6 @@ class AirSourceHeatPumpBoiler:
             T_cond_K=T_cond_sat_K,
             refrigerant=self.ref,
             eta_cmp_isen=self.eta_cmp_isen,
-            T0_K=T0_K,
             mode='heating',
             dT_superheat=self.dT_superheat,
             dT_subcool=self.dT_subcool,
@@ -250,25 +249,21 @@ class AirSourceHeatPumpBoiler:
         )
 
         m_dot_ref: float = (
-            Q_cond_target / (cs['h_ref_cmp_out'] - cs['h_ref_exp_in'])
+            Q_cond_target / (cs['h_ref_cmp_out [J/kg]'] - cs['h_ref_exp_in [J/kg]'])
             if is_active else 0.0
         )
         Q_ref_cond: float = (
-            m_dot_ref * (cs['h_ref_cmp_out'] - cs['h_ref_exp_in'])
+            m_dot_ref * (cs['h_ref_cmp_out [J/kg]'] - cs['h_ref_exp_in [J/kg]'])
             if is_active else 0.0
         )
         Q_ref_evap: float = (
-            m_dot_ref * (cs['h_ref_cmp_in'] - cs['h_ref_exp_out'])
+            m_dot_ref * (cs['h_ref_cmp_in [J/kg]'] - cs['h_ref_exp_out [J/kg]'])
             if is_active else 0.0
         )
         E_cmp: float = (
-            m_dot_ref * (cs['h_ref_cmp_out'] - cs['h_ref_cmp_in'])
-            if is_active else 0.0
-        )
-        cmp_rps: float = (
-            m_dot_ref / (self.V_disp_cmp * cs['rho_ref_cmp_in'])
-            if is_active else 0.0
-        )
+            m_dot_ref * (cs['h_ref_cmp_out [J/kg]'] - cs['h_ref_cmp_in [J/kg]'])
+            if is_active else 0.0)
+        cmp_rps: float = (m_dot_ref / (self.V_disp_cmp * cs['rho_ref_cmp_in [kg/m3]']) if is_active else 0.0)
 
         HX_perf_ou: dict = calc_HX_perf_for_target_heat(
             Q_ref_target=(
@@ -351,27 +346,16 @@ class AirSourceHeatPumpBoiler:
             T=T_mix_w_out_val_K, T0=T0_K,
         )
 
-        result: dict = {
+        result: dict = cs.copy()
+        
+        result.update({
             'hp_is_on': (Q_cond_target > 0),
             'converged': True,
 
             # Temperatures [°C]
-            'T_ref_evap_sat [°C]': cu.K2C(
-                cs['T_ref_evap_sat_K'],
-            ),
-            'T_ref_cond_sat_v [°C]': cu.K2C(
-                cs['T_ref_cond_sat_v_K'],
-            ),
-            'T_ref_cond_sat_l [°C]': cu.K2C(
-                cs['T_ref_cond_sat_l_K'],
-            ),
             'T_ou_a_in [°C]': T0,
             'T_ou_a_mid [°C]': T_ou_a_mid,
             'T_ou_a_out [°C]': T_ou_a_out,
-            'T_ref_cmp_in [°C]': cu.K2C(cs['T_ref_cmp_in_K']),
-            'T_ref_cmp_out [°C]': cu.K2C(cs['T_ref_cmp_out_K']),
-            'T_ref_exp_in [°C]': cu.K2C(cs['T_ref_exp_in_K']),
-            'T_ref_exp_out [°C]': cu.K2C(cs['T_ref_exp_out_K']),
             'T_tank_w [°C]': T_tank_w,
             'T_sup_w [°C]': self.T_sup_w,
             'T_tank_w_in [°C]': self.T_tank_w_in,
@@ -381,68 +365,13 @@ class AirSourceHeatPumpBoiler:
             # Volume flow rates [m3/s]
             'dV_ou_a [m3/s]': dV_ou_a,
             'v_ou_a [m/s]': v_ou_a,
-            'dV_mix_w_out [m3/s]': (
-                dV_mix_w_out_val
-                if dV_mix_w_out_val > 0 else np.nan
-            ),
-            'dV_tank_w_out [m3/s]': (
-                dV_tank_w_out
-                if dV_tank_w_out > 0 else np.nan
-            ),
-            'dV_tank_w_in [m3/s]': (
-                dV_tank_w_in
-                if dV_tank_w_in > 0 else np.nan
-            ),
-            'dV_mix_sup_w_in [m3/s]': (
-                dV_mix_sup_w_in
-                if dV_mix_sup_w_in > 0 else np.nan
-            ),
+            'dV_mix_w_out [m3/s]': (dV_mix_w_out_val if dV_mix_w_out_val > 0 else np.nan),
+            'dV_tank_w_out [m3/s]': (dV_tank_w_out if dV_tank_w_out > 0 else np.nan),
+            'dV_tank_w_in [m3/s]': (dV_tank_w_in if dV_tank_w_in > 0 else np.nan),
+            'dV_mix_sup_w_in [m3/s]': (dV_mix_sup_w_in if dV_mix_sup_w_in > 0 else np.nan),
 
-            # Pressures [Pa]
-            'P_ref_cmp_in [Pa]': cs['P_ref_cmp_in'],
-            'P_ref_cmp_out [Pa]': cs['P_ref_cmp_out'],
-            'P_ref_exp_in [Pa]': cs['P_ref_exp_in'],
-            'P_ref_exp_out [Pa]': cs['P_ref_exp_out'],
-            'P_ref_evap_sat [Pa]': (
-                cs['P_ref_cmp_in'] if is_active else np.nan
-            ),
-            'P_ref_cond_sat_v [Pa]': (
-                cs['P_ref_cmp_out'] if is_active else np.nan
-            ),
-            'P_ref_cond_sat_l [Pa]': (
-                cs['P_ref_exp_in'] if is_active else np.nan
-            ),
-            'dP_ou_fan_static [Pa]': (
-                self.dP_ou_fan_design
-                - 0.5 * rho_a * v_ou_a ** 2
-            ),
-            'dP_ou_fan_dynamic [Pa]': (
-                0.5 * rho_a * v_ou_a ** 2
-            ),
-
-            # Mass flow rate [kg/s]
-            'm_dot_ref [kg/s]': m_dot_ref,
-
-            # Compressor speed [rpm]
-            'cmp_rpm [rpm]': cmp_rps * 60,
-
-            # Specific enthalpy [J/kg]
-            'h_ref_cmp_in [J/kg]': cs['h_ref_cmp_in'],
-            'h_ref_cmp_out [J/kg]': cs['h_ref_cmp_out'],
-            'h_ref_exp_in [J/kg]': cs['h_ref_exp_in'],
-            'h_ref_exp_out [J/kg]': cs['h_ref_exp_out'],
-            'h_ref_evap_sat [J/kg]': (
-                cs.get('h_ref_cmp_in', np.nan)
-                if is_active else np.nan
-            ),
-            'h_ref_cond_sat_v [J/kg]': (
-                cs.get('h_ref_cond_sat_v', np.nan)
-                if is_active else np.nan
-            ),
-            'h_ref_cond_sat_l [J/kg]': (
-                cs.get('h_ref_exp_in', np.nan)
-                if is_active else np.nan
-            ),
+            'm_dot_ref [kg/s]': m_dot_ref, # Mass flow rate [kg/s]
+            'cmp_rpm [rpm]': cmp_rps * 60, # Compressor speed [rpm]
 
             # Energy rates [W]
             'E_ou_fan [W]': E_ou_fan,
@@ -455,7 +384,7 @@ class AirSourceHeatPumpBoiler:
             'Q_mix_sup_w_in [W]': Q_mix_sup_w_in,
             'Q_mix_w_out [W]': Q_mix_w_out,
             'E_tot [W]': E_cmp + E_ou_fan,
-        }
+        })
 
         return result
 
@@ -529,7 +458,7 @@ class AirSourceHeatPumpBoiler:
         T0 : float
             Dead-state temperature [°C].
         dV_mix_w_out : float | None
-            Service water flow rate [m³/s].
+            Service water flow rate [m3/s].
         Q_cond_target : float | None
             Target condenser heat rate [W].
         return_dict : bool
@@ -880,8 +809,8 @@ class AirSourceHeatPumpBoiler:
             Time step size [s].
         T_tank_w_init_C : float
             Initial tank temperature [°C].
-        dhw_usage_schedule : array-like or list
-            DHW usage schedule.
+        dhw_usage_schedule : np.ndarray
+            DHW volumetric flow rate per step [m³/s].
         T0_schedule : array-like
             Outdoor temperature per step [°C].
         I_DN_schedule : array-like | None
@@ -948,8 +877,15 @@ class AirSourceHeatPumpBoiler:
         self.time: np.ndarray = time
         self.dt: int = dt_s
 
-        # DHW schedule handling
-        self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, time)
+        # DHW schedule handling: direct m³/s flow array
+        self.dhw_flow_m3s: np.ndarray = np.asarray(
+            dhw_usage_schedule, dtype=float,
+        )
+        if len(self.dhw_flow_m3s) != tN:
+            raise ValueError(
+                f"dhw_usage_schedule length "
+                f"({len(self.dhw_flow_m3s)}) != tN ({tN})",
+            )
 
         T_tank_w_K: float = cu.C2K(T_tank_w_init_C)
         tank_level: float = tank_level_init
@@ -997,7 +933,7 @@ class AirSourceHeatPumpBoiler:
                 preheat_on=preheat_on,
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
-                dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
+                dV_mix_w_out=self.dhw_flow_m3s[n],
                 I_DN=(I_DN_schedule[n] if use_stc else 0.0),
                 I_dH=(I_dH_schedule[n] if use_stc else 0.0),
                 T_sup_w_K=T_sup_w_K_n,
@@ -1122,14 +1058,8 @@ class AirSourceHeatPumpBoiler:
         T0_K = cu.C2K(df['T0 [°C]'])
         T_tank_K = cu.C2K(df['T_tank_w [°C]'])
 
-        # ── 1. Refrigerant entropy / exergy ────────────────
-        state_map = {
-            1: ('cmp_in', 'P_ref_cmp_in [Pa]', 'h_ref_cmp_in [J/kg]'),
-            2: ('cmp_out', 'P_ref_cmp_out [Pa]', 'h_ref_cmp_out [J/kg]'),
-            3: ('exp_in', 'P_ref_exp_in [Pa]', 'h_ref_exp_in [J/kg]'),
-            4: ('exp_out', 'P_ref_exp_out [Pa]', 'h_ref_exp_out [J/kg]'),
-        }
-        df = calc_refrigerant_exergy(df, self.ref, state_map, T0_K)
+        # ── 1. Refrigerant exergy (uses pre-computed h/s from calc_ref_state)
+        df = calc_refrigerant_exergy(df, self.ref, T0_K)
 
         # ── 2. Electricity = exergy ────────────────────────
         df = convert_electricity_to_exergy(df)
@@ -1201,7 +1131,7 @@ class AirSourceHeatPumpBoiler:
             X_in_tank = X_in_tank + df['X_uv [W]'].fillna(0)
         X_in_tank = X_in_tank + X_sub_in_tank_add
 
-        X_out_tank = df['X_tank_loss [W]'] + df['Xst_tank [W]']
+        X_out_tank = df['Xst_tank [W]'] # df['X_tank_loss [W]']를 제외하는 이유는 X_tank_loss 또한 exergy consumption에 포함시기 위함임
         if 'X_tank_w_out [W]' in df.columns:
             X_out_tank = X_out_tank + df['X_tank_w_out [W]'].fillna(0)
         X_out_tank = X_out_tank + X_sub_out_tank_add

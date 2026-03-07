@@ -40,6 +40,8 @@ be called directly for custom analysis workflows.
 | `generate_entropy_exergy_term(energy, Tsys, T0, fluid)` | Compute S and X terms from energy |
 | `calc_energy_flow(G, T, T0)` | Energy flow rate for advection |
 | `calc_exergy_flow(G, T, T0)` | Exergy flow rate for material streams (vectorized) |
+| `calc_refrigerant_exergy(df, ref, T0_K, P0)` | Refrigerant state-point exergy using CoolProp |
+| `convert_electricity_to_exergy(df)` | Copy all `E_*` columns to `X_*` (electricity = 100% exergy) |
 
 ### 5. Flow and Mixing
 
@@ -108,7 +110,7 @@ be called directly for custom analysis workflows.
 
 | Function | Description |
 |---|---|
-| `build_schedule_ratios(entries, t_array)` | Build time-series ratio array from schedule entries |
+| `build_dhw_usage_ratio(entries, t_array)` | Build time-series ratio array from schedule entries |
 | `check_hp_schedule_active(hour, hp_on_schedule)` | Check if current hour is in active HP schedule |
 | `calc_total_water_use_from_schedule(schedule, peak, ...)` | Compute total daily water consumption |
 | `make_dhw_schedule_from_Annex_42_profile(...)` | Convert IEA Annex 42 flow profile to schedule |
@@ -135,13 +137,7 @@ be called directly for custom analysis workflows.
 | `load_kma_T0_sol_hourly_csv(csv_path, encoding)` | Load KMA hourly T0 + solar CSV (auto-detects columns) |
 | `decompose_ghi_to_poa(ghi, lat, lon, tilt, azimuth, ...)` | GHI → DNI+DHI → POA irradiance via `pvlib` |
 
-### 17. Exergy Post-Processing
-
-| Function | Description |
-|---|---|
-| `postprocess_exergy(df, ref, C_tank, dt, T_tank_w_in)` | Compute and append exergy columns to result DataFrame |
-
-### 18. Visualization
+### 17. Visualization
 
 | Function | Description |
 |---|---|
@@ -171,7 +167,7 @@ print(f"Exergy flow: {X_flow:.1f} W")
 ### Building a DHW Schedule
 
 ```python
-from enex_analysis.enex_functions import build_schedule_ratios
+from enex_analysis.enex_functions import build_dhw_usage_ratio
 import numpy as np
 
 entries = [
@@ -180,7 +176,7 @@ entries = [
     ("19:00", "21:00", 1.0),   # Evening peak
 ]
 t_array = np.arange(0, 86400, 60)   # 60 s timestep
-ratios = build_schedule_ratios(entries, t_array)
+ratios = build_dhw_usage_ratio(entries, t_array)
 ```
 
 ### Refrigerant Cycle State Points
@@ -231,4 +227,15 @@ mix = calc_mixing_valve(
     T_mix_w_out_K=C2K(40.0),
 )
 print(f"α = {mix['alp']:.3f}, T_mix = {mix['T_mix_w_out']:.1f} °C")
+```
+
+### Refrigerant Exergy Post-Processing
+
+```python
+from enex_analysis.enex_functions import calc_refrigerant_exergy
+from enex_analysis.calc_util import C2K
+
+# After running a dynamic ASHP simulation:
+df = calc_refrigerant_exergy(df, ref='R134a', T0_K=C2K(df['T0 [°C]']))
+# Appends x_ref_cmp_in, X_ref_cmp_in, etc.
 ```

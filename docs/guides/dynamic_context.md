@@ -5,9 +5,9 @@
 ## Overview
 
 Provides reusable dataclasses and pure functions that form the backbone of
-time-stepping heat-pump simulations.  Extracted from `AirSourceHeatPumpBoiler`
-so that `GroundSourceHeatPumpBoiler` and future models can share the same
-infrastructure without code duplication.
+time-stepping boiler simulations. Extracted from `AirSourceHeatPumpBoiler`
+so that all tank-based dynamic models (`ElectricBoiler`, `GasBoilerTank`,
+`SolarAssistedGasBoiler`, and future models) share the same infrastructure.
 
 ## Architecture
 
@@ -15,10 +15,14 @@ infrastructure without code duplication.
 graph LR
   DC["dynamic_context.py"]
   ASHPB["AirSourceHeatPumpBoiler"]
-  GSHPB["GroundSourceHeatPumpBoiler"]
+  EB["ElectricBoiler"]
+  GBT["GasBoilerTank"]
+  SAGB["SolarAssistedGasBoiler"]
 
   ASHPB -->|imports| DC
-  GSHPB -.->|future| DC
+  EB -->|imports| DC
+  GBT -->|imports| DC
+  SAGB -->|imports| DC
 ```
 
 ## Dataclasses
@@ -39,46 +43,60 @@ Per-timestep immutable context passed through all Phase-A/B/C functions.
 | `T_tank_w_K` | `float` | Current tank water temperature [K] |
 | `tank_level` | `float` | Fractional tank fill level (0–1) |
 | `dV_mix_w_out` | `float` | Service water draw-off flow rate [m³/s] |
-| `E_uv` | `float` | Instantaneous UV lamp power [W] |
-| `I_DN` | `float` | Direct-normal irradiance [W/m²] |
-| `I_dH` | `float` | Diffuse-horizontal irradiance [W/m²] |
+| `I_DN` | `float` | Direct-normal irradiance [W/m²] (default 0.0) |
+| `I_dH` | `float` | Diffuse-horizontal irradiance [W/m²] (default 0.0) |
+| `T_sup_w_K` | `float` | Mains water supply temperature [K] (default 288.15) |
 
 ### `ControlState`
 
-Control decisions and HP cycle results produced during Phase A.
+Model-agnostic control decisions produced during Phase A.
 
 | Attribute | Type | Description |
 |---|---|---|
-| `hp_is_on` | `bool` | Whether the heat pump is running |
-| `hp_result` | `dict` | Full cycle result from `_calc_state` |
-| `Q_ref_cond` | `float` | Condenser heat rate [W] |
+| `is_on` | `bool` | Whether the heat source is running |
+| `Q_heat_source` | `float` | Net heat delivered to the tank [W] |
 | `dV_tank_w_in_ctrl` | `float \| None` | Refill flow [m³/s]; `None` = always-full |
+| `result` | `dict` | Full result from `_calc_state` (model-specific) |
 
 *Note: Subsystem states (e.g., STC) are managed separately via `sub_states` dictionaries, following the `Subsystem` protocol.*
+
+### `SubsystemExergy`
+
+Frozen dataclass returned by each subsystem's `calc_exergy()` to let the host boiler merge exergy columns and adjust system-level totals.
+
+| Attribute | Type | Description |
+|---|---|---|
+| `columns` | `dict[str, pd.Series]` | Exergy columns to append |
+| `X_tot_add` | `pd.Series \| float` | Additive contribution to system total exergy input |
+| `X_in_tank_add` | `pd.Series \| float` | Additive exergy entering the tank boundary |
+| `X_out_tank_add` | `pd.Series \| float` | Additive exergy leaving the tank boundary |
 
 ### `Subsystem` Protocol
 
 Pluggable subsystem interface. Each subsystem computes its contribution for a single timestep and assembles result columns for the output DataFrame. New subsystems implement this protocol and register with the boiler model.
 
-- `step(ctx, ctrl, dt, T_tank_w_in_K) -> dict`: Compute subsystem state for this timestep. Returns dict with at least `Q_contribution`, `E_subsystem`, and `T_tank_w_in_override_K`.
-- `assemble_results(ctx, ctrl, step_state, T_solved_K) -> dict`: Build result columns for DataFrame output. |
+| Method | Signature | Description |
+|---|---|---|
+| `step(...)` | `(ctx, ctrl, dt, T_tank_w_in_K) → dict` | Compute subsystem state; returns `Q_contribution`, `E_subsystem`, `T_tank_w_in_override_K` |
+| `assemble_results(...)` | `(ctx, ctrl, step_state, T_solved_K) → dict` | Build result columns for DataFrame output |
+| `calc_exergy(...)` | `(df, T0_K) → SubsystemExergy \| None` | Compute subsystem-level exergy columns for post-processing |
 
 ## Pure Functions
 
-### `determine_hp_on_off()`
+### `determine_heat_source_on_off()`
 
-Hysteresis-based heat-pump on/off decision.
+Hysteresis-based heat-source on/off decision. Used by all tank-based models.
 
 ```python
-from enex_analysis.dynamic_context import determine_hp_on_off
+from enex_analysis.dynamic_context import determine_heat_source_on_off
 
-hp_on = determine_hp_on_off(
+is_on = determine_heat_source_on_off(
     T_tank_w_C=55.0,
     T_lower=50.0,
     T_upper=60.0,
-    hp_is_on_prev=True,
+    is_on_prev=True,
     hour_of_day=14.0,
-    hp_on_schedule=[(0.0, 24.0)],
+    on_schedule=[(0.0, 24.0)],
 )
 ```
 
@@ -91,8 +109,9 @@ When `dV_tank_w_in` is `None`, the tank is in always-full mode (inflow = outflow
 
 Coupled energy/mass balance residuals for Newton-Raphson solver (`fsolve`).
 The 3-way mixing valve ratio α(T) makes the system nonlinear in T^{n+1}.
+Supports subsystem energy contributions and tank-inlet temperature overrides.
 
 ## References
 
-- Used by: `AirSourceHeatPumpBoiler.analyze_dynamic()`
+- Used by: `AirSourceHeatPumpBoiler`, `ElectricBoiler`, `GasBoilerTank`, `SolarAssistedGasBoiler`
 - Depends on: `enex_functions` (mixing valve, UV lamp, HP schedule utilities), `subsystems` (Subsystem protocol)

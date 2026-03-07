@@ -4,48 +4,44 @@
 
 ## Overview
 
-Provides self-contained subsystem classes that can be plugged into any heat-pump
-boiler model.  Each subsystem bundles its configuration parameters with the
+Provides self-contained subsystem classes that can be plugged into any
+boiler model. Each subsystem bundles its configuration parameters with the
 methods that operate on them, enabling **plug-in / plug-out composition** via
-optional constructor injection.
+optional constructor injection. All subsystems implement the `Subsystem` protocol
+defined in `dynamic_context`.
 
 ```python
-# Example: attach STC to an ASHPB
-from enex_analysis.subsystems import SolarThermalCollector
+# Example: attach STC and UV to an ASHPB
+from enex_analysis.subsystems import SolarThermalCollector, UVLamp
 from enex_analysis import AirSourceHeatPumpBoiler
 
 stc = SolarThermalCollector(A_stc=4.0, mode='tank_circuit')
-hp = AirSourceHeatPumpBoiler(..., stc=stc)
+uv = UVLamp(lamp_watts=40.0, exposure_sec=300, num_switching=1)
+hp = AirSourceHeatPumpBoiler(..., stc=stc, uv=uv)
 ```
 
 ## Architecture
 
 ```mermaid
 graph TB
-  HP["Heat Pump Boiler<br/>(ASHPB / GSHPB / ...)"]
+  HP["Heat Pump / Boiler Model<br/>(ASHPB / EB / GBT / SAGB)"]
   STC["SolarThermalCollector"]
-  PV["PVPanel (future)"]
+  PV["PhotovoltaicSystem"]
+  UV["UVLamp"]
 
-  HP -->|self.stc| STC
-  HP -.->|self.pv| PV
+  HP -->|self._subsystems['stc']| STC
+  HP -->|self._subsystems['pv']| PV
+  HP -->|self._subsystems['uv']| UV
 ```
 
 ### Extension Pattern
 
 To add a new subsystem:
 
-1. Create a `@dataclass` class in `subsystems.py` with config attributes
-2. Add `calculate_dynamic()` and `assemble_results()` methods
+1. Create a `@dataclass` class in `subsystems.py` implementing the `Subsystem` protocol
+2. Add `step()`, `assemble_results()`, and `calc_exergy()` methods
 3. Add an optional parameter to the boiler's `__init__`
 4. Wire the subsystem into the simulation loop
-
-When the file grows beyond 3 subsystems, upgrade to a package:
-```
-subsystems/
-├── __init__.py
-├── stc.py
-└── pv.py
-```
 
 ---
 
@@ -86,9 +82,12 @@ Flat-plate or evacuated-tube solar thermal collector with two placement modes.
 |---|---|
 | `is_enabled` | Property: `True` when `A_stc > 0` |
 | `is_preheat_on(hour)` | Check if hour falls in preheat window |
-| `step(...)` | *Protocol method:* Compute STC state for one simulation timestep |
+| `calc_overall_heat_transfer_coeff()` | Compute overall U-value from parallel resistances |
+| `calc_performance(...)` | Core STC thermal analysis (one operating point) |
+| `step(...)` | *Protocol method:* Compute STC state for one timestep |
 | `assemble_results(...)` | *Protocol method:* Build STC result entries for DataFrame |
-| `calculate_dynamic(...)` | Core dynamic calculation (backward compatible) |
+| `calc_exergy(...)` | *Protocol method:* Compute STC exergy columns and tank-boundary addends |
+| `calculate_dynamic(...)` | Backward-compatible core dynamic calculation |
 
 ### Usage
 
@@ -104,18 +103,88 @@ stc = SolarThermalCollector(
 
 # Standalone usage (one timestep):
 result = stc.calculate_dynamic(
-    I_DN=500.0,             # Direct-normal irradiance [W/m²]
-    I_dH=100.0,             # Diffuse-horizontal [W/m²]
-    T_tank_w_K=333.15,      # Tank temp [K]
-    T0_K=278.15,            # Dead-state [K]
+    I_DN=500.0,
+    I_dH=100.0,
+    T_tank_w_K=333.15,
+    T0_K=278.15,
     preheat_on=True,
-    dV_tank_w_in=0.001,     # Current refill flow [m³/s]
-    T_tank_w_in_K=288.15,   # Mains water temp [K]
+    dV_tank_w_in=0.001,
+    T_tank_w_in_K=288.15,
 )
 
 # Plugged into a boiler:
 hp = AirSourceHeatPumpBoiler(..., stc=stc)
 df = hp.analyze_dynamic(...)
+```
+
+---
+
+## `PhotovoltaicSystem`
+
+PV + Controller + ESS (Battery) + DC/AC Inverter subsystem with dynamic
+state-of-charge (SOC) tracking and full entropy/exergy accounting.
+
+### Parameters
+
+| Parameter | Default | Unit | Description |
+|---|---|---|---|
+| `A_pv` | 5.0 | m² | Panel surface area |
+| `alp_pv` | 0.9 | – | Surface absorptivity |
+| `pv_tilt` | 35.0 | ° | Tilt from horizontal |
+| `pv_azimuth` | 180.0 | ° | Azimuth (180 = south) |
+| `h_o` | 15.0 | W/(m²·K) | Outdoor heat transfer coefficient |
+| `eta_pv` | 0.20 | – | PV panel efficiency |
+| `eta_ctrl` | 0.95 | – | Controller efficiency |
+| `eta_ess_chg` | 0.90 | – | ESS charge efficiency |
+| `eta_ess_dis` | 0.90 | – | ESS discharge efficiency |
+| `eta_inv` | 0.95 | – | DC/AC inverter efficiency |
+| `C_ess_max` | 3.6e6 | J | ESS capacity (default 1 kWh) |
+| `SOC_init` | 0.0 | – | Initial state of charge |
+| `T_ctrl_K` | 308.15 | K | Controller operating temperature |
+| `T_ess_K` | 313.15 | K | ESS operating temperature |
+| `T_inv_K` | 313.15 | K | Inverter operating temperature |
+
+### Stage Model
+
+| Stage | Component | Output Variables | Exergy Destruction |
+|---|---|---|---|
+| 1 | PV Cell | `E_pv_out`, `X_pv_out` | `X_c_pv` |
+| 2 | Controller | `E_ctrl_out`, `X_ctrl_out` | `X_c_ctrl` |
+| 3 | ESS (Battery) | `E_ess_out`, `X_ess_out`, `SOC_ess` | `X_c_ess` |
+| 4 | DC/AC Inverter | `E_inv_out`, `X_inv_out` | `X_c_inv` |
+
+### Usage
+
+```python
+from enex_analysis.subsystems import PhotovoltaicSystem
+
+pv = PhotovoltaicSystem(A_pv=10.0, eta_pv=0.22, C_ess_max=3.6e6)
+hp = AirSourceHeatPumpBoiler(..., pv=pv)  # future integration
+```
+
+---
+
+## `UVLamp`
+
+UV disinfection lamp that switches on periodically. All electrical input is
+converted to heat inside the tank (`Q_contribution = E_uv`).
+
+### Parameters
+
+| Parameter | Default | Unit | Description |
+|---|---|---|---|
+| `lamp_watts` | 0.0 | W | Rated lamp power |
+| `exposure_sec` | 0.0 | s | Duration of each on-cycle |
+| `num_switching` | 1 | – | Number of on-cycles per period |
+| `period_sec` | 10800 | s | Switching period (default 3 h) |
+
+### Usage
+
+```python
+from enex_analysis.subsystems import UVLamp
+
+uv = UVLamp(lamp_watts=40.0, exposure_sec=300, num_switching=1)
+hp = AirSourceHeatPumpBoiler(..., uv=uv)
 ```
 
 ---
@@ -145,4 +214,4 @@ STC_OFF_STEP = {
 ## References
 
 - Low-level STC physics: `enex_functions.calc_stc_performance()`
-- Used by: `AirSourceHeatPumpBoiler`, future `GroundSourceHeatPumpBoiler`
+- Used by: `AirSourceHeatPumpBoiler`, `ElectricBoiler`, `GasBoilerTank`, `SolarAssistedGasBoiler`

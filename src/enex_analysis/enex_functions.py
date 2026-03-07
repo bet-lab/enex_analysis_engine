@@ -701,30 +701,26 @@ def calc_exergy_flow(G, T, T0):
 def calc_refrigerant_exergy(
     df: pd.DataFrame,
     ref: str,
-    state_map: dict[int, tuple[str, str, str]],
     T0_K: pd.Series,
     P0: float = 101325,
 ) -> pd.DataFrame:
-    """Calculate refrigerant state-point entropy and exergy.
+    """Calculate refrigerant state-point exergy using pre-computed properties.
 
-    For each state in ``state_map``, compute specific entropy (*s*),
-    specific exergy (*x* = (h − h0) − T0·(s − s0)), and exergy flow
-    (*X* = ṁ · x) using CoolProp.  Dead-state properties (h0, s0)
-    are evaluated at (T0, P0) for the given refrigerant.
+    Uses the entropy (``s_ref_*``) and enthalpy (``h_ref_*``) columns
+    already present in ``df`` (produced by ``calc_ref_state``) to compute
+    specific exergy and exergy flow rate for each refrigerant state point.
+
+    Dead-state properties (h0, s0) are evaluated at (T0, P0) for the
+    given refrigerant using CoolProp (vectorized via unique T0 values).
 
     Parameters
     ----------
     df : pd.DataFrame
-        DataFrame containing pressure ``[Pa]``, enthalpy ``[J/kg]``,
-        and mass-flow ``m_dot_ref [kg/s]`` columns.
+        DataFrame containing pre-computed enthalpy ``h_ref_* [J/kg]``,
+        entropy ``s_ref_* [J/(kg·K)]``, and mass-flow
+        ``m_dot_ref [kg/s]`` columns.
     ref : str
         CoolProp refrigerant identifier (e.g. ``'R410A'``).
-    state_map : dict[int, tuple[str, str, str]]
-        ``{state_num: (name, pressure_col, enthalpy_col)}``.
-        Example::
-
-            {1: ('cmp_in', 'P_ref_cmp_in [Pa]', 'h_ref_cmp_in [J/kg]')}
-
     T0_K : pd.Series
         Dead-state (environment) temperature per row [K].
     P0 : float
@@ -734,62 +730,50 @@ def calc_refrigerant_exergy(
     -------
     pd.DataFrame
         ``df`` with columns added per state point:
-        ``s_ref_{name} [J/(kg·K)]``, ``x_ref_{name} [J/kg]``,
-        ``X_ref_{name} [W]``.
+        ``x_ref_{name} [J/kg]``, ``X_ref_{name} [W]``.
 
     Notes
     -----
     - Exergy equation: x = (h − h0) − T0·(s − s0)  [J/kg]
     - Exergy flow: X = ṁ · x  [W]
-    - Rows with NaN pressure/enthalpy are silently skipped.
+    - Rows with NaN enthalpy/entropy propagate NaN naturally.
     """
-    for idx in df.index:
-        t0_k: float = T0_K.iloc[idx]
+    # State points: (name, enthalpy_col, entropy_col)
+    _STATES = [
+        ('cmp_in',  'h_ref_cmp_in [J/kg]',  's_ref_cmp_in [J/(kg·K)]'),
+        ('cmp_out', 'h_ref_cmp_out [J/kg]', 's_ref_cmp_out [J/(kg·K)]'),
+        ('exp_in',  'h_ref_exp_in [J/kg]',  's_ref_exp_in [J/(kg·K)]'),
+        ('exp_out', 'h_ref_exp_out [J/kg]', 's_ref_exp_out [J/(kg·K)]'),
+    ]
+
+    # Dead-state properties — vectorized via unique T0 values
+    t0_unique = T0_K.dropna().unique()
+    h0_map: dict[float, float] = {}
+    s0_map: dict[float, float] = {}
+    for t0 in t0_unique:
         try:
-            h0: float = CP.PropsSI('H', 'T', t0_k, 'P', P0, ref)
-            s0: float = CP.PropsSI('S', 'T', t0_k, 'P', P0, ref)
+            h0_map[t0] = CP.PropsSI('H', 'T', float(t0), 'P', P0, ref)
+            s0_map[t0] = CP.PropsSI('S', 'T', float(t0), 'P', P0, ref)
         except Exception:
-            h0, s0 = np.nan, np.nan
+            h0_map[t0] = np.nan
+            s0_map[t0] = np.nan
 
-        m_dot: float = (
-            df.loc[idx, 'm_dot_ref [kg/s]']
-            if 'm_dot_ref [kg/s]' in df.columns
-            else np.nan
-        )
+    h0: pd.Series = T0_K.map(h0_map)
+    s0: pd.Series = T0_K.map(s0_map)
 
-        for _num, (name, P_col, h_col) in state_map.items():
-            if P_col in df.columns and h_col in df.columns:
-                P: float = df.loc[idx, P_col]
-                h: float = df.loc[idx, h_col]
-                try:
-                    if not np.isnan(P) and not np.isnan(h):
-                        s_val: float = CP.PropsSI(
-                            'S', 'P', P, 'H', h, ref,
-                        )
-                        # Specific exergy [J/kg]
-                        x_val: float = (
-                            (h - h0) - t0_k * (s_val - s0)
-                        )
-                        # Exergy flow [W]
-                        X_val: float = (
-                            m_dot * x_val
-                            if not np.isnan(m_dot)
-                            else np.nan
-                        )
-                        df.loc[
-                            idx,
-                            f's_ref_{name} [J/(kg·K)]',
-                        ] = s_val
-                        df.loc[
-                            idx,
-                            f'x_ref_{name} [J/kg]',
-                        ] = x_val
-                        df.loc[
-                            idx,
-                            f'X_ref_{name} [W]',
-                        ] = X_val
-                except Exception:
-                    pass
+    m_dot: pd.Series = df['m_dot_ref [kg/s]'] if 'm_dot_ref [kg/s]' in df.columns else pd.Series(np.nan, index=df.index)
+
+    for name, h_col, s_col in _STATES:
+        if h_col not in df.columns or s_col not in df.columns:
+            continue
+        h = df[h_col]
+        s = df[s_col]
+        # Specific exergy [J/kg]: x = (h - h0) - T0 * (s - s0)
+        x_val = (h - h0) - T0_K * (s - s0)
+        # Exergy flow [W]: X = m_dot * x
+        X_val = m_dot * x_val
+        df[f'x_ref_{name} [J/kg]'] = x_val
+        df[f'X_ref_{name} [W]'] = X_val
 
     return df
 
@@ -864,7 +848,6 @@ def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
         'T_mix_w_out': T_mix_w_out_val,
         'T_mix_w_out_K': T_mix_w_out_val_K,
     }
-
 
 def calc_uv_lamp_power(current_time_s, period_sec, num_switching, exposure_sec, lamp_watts):
     """Calculate UV lamp power at a given time instant.
@@ -955,7 +938,7 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
     Returns
     -------
     dV_mix : float
-        Volumetric flow rate exchanged between nodes [m³/s]
+        Volumetric flow rate exchanged between nodes [m3/s]
     
     Notes
     -----
@@ -1292,9 +1275,9 @@ def calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA):
     Parameters:
     -----------
     dV_fan : float
-        Fan flow rate [m³/s]
+        Fan flow rate [m3/s]
     dV_fan_design : float
-        Design fan flow rate [m³/s]
+        Design fan flow rate [m3/s]
     A_cross : float
         Heat exchanger cross-sectional area [m²]
     UA : float
@@ -1348,7 +1331,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T_ref_evap_sat_K, T_
         Design overall heat transfer coefficient at design flow rate [W/K].
 
     dV_fan_design : float
-        Design fan flow rate [m³/s]. Used for velocity normalization.
+        Design fan flow rate [m3/s]. Used for velocity normalization.
     is_active : bool, optional
         활성화 여부 (기본값: True)
         is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
@@ -1357,7 +1340,7 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T_ref_evap_sat_K, T_
     -------
     dict
         Dictionary containing:
-            - dV_fan : Required air-side flow rate [m³/s]
+            - dV_fan : Required air-side flow rate [m3/s]
             - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
             - T_ou_a_out_K : Outlet air temperature [K]
             - LMTD : Log-mean temperature difference at operating point [K]
@@ -1413,8 +1396,8 @@ def calc_HX_perf_for_target_heat(Q_ref_target, T_ou_a_in_C, T_ref_evap_sat_K, T_
         
         return Q_ou_air - Q_ref_target
 
-    dV_min = dV_fan_design * 0.1 # [m³/s]
-    dV_max = dV_fan_design # [m³/s]
+    dV_min = dV_fan_design * 0.1 # [m3/s]
+    dV_max = dV_fan_design # [m3/s]
 
     # --- Bracket validity check (avoid bisect ValueError) ---
     f_min = _error_function(dV_min)
@@ -1500,7 +1483,7 @@ def calc_fan_power_from_dV_fan(dV_fan, fan_params, vsd_coeffs, is_active=True):
     Parameters:
     -----------
     dV_fan : float
-        Current flow rate [m³/s]
+        Current flow rate [m3/s]
     fan_params : dict
         Fan parameters (fan_design_flow_rate, fan_design_power)
     vsd_coeffs : dict
@@ -1896,7 +1879,7 @@ def calc_total_water_use_from_schedule(schedule, peak_load_m3s, info = True, inf
         - start_str, end_str: "H:M" or "H:M:S" format string (e.g., "6:00", "23:30:15", "24:00").
         - ratio: Usage ratio (float) for that interval. Clipped to 0.0 ~ 1.0 range.
     peak_load_m3s : float
-        Peak load flow rate [m³/s].
+        Peak load flow rate [m3/s].
     
     Returns
     -------
@@ -2024,8 +2007,6 @@ def calc_ref_state(
     T_cond_K,  # 응축 온도 [K] (포화 온도로 해석)
     refrigerant,  # 냉매 이름
     eta_cmp_isen,  # 압축기 단열 효율
-    T0_K=None,  # 기준 온도 [K] (엑서지 계산용, 선택적)
-    P0=101325,  # 기준 압력 [Pa] (엑서지 계산용, 선택적)
     mode='heating',  # 작동 모드 ('heating' 또는 'cooling')
     dT_superheat=0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
     dT_subcool=0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
@@ -2033,7 +2014,7 @@ def calc_ref_state(
 ):
     """
     냉매 사이클의 State 1-4 열역학 물성치를 계산하는 공통 함수.
-    (수정됨: 과열도(Superheating) 및 과냉각도(Subcooling) 고려 모델)
+    (수정됨: 엑서지 계산 제거 및 단위 접미사 키 포맷팅)
     
     이 함수는 히트펌프 사이클의 4개 주요 상태점을 계산합니다:
     
@@ -2050,71 +2031,18 @@ def calc_ref_state(
     - State 2: 압축기 입구 (증발기 출구, 저압 포화 증기)
     - State 3: 팽창밸브 출구 (증발기 입구, 저압 액체+기체 혼합물)
     - State 4: 응축기 출구 (팽창밸브 입구, 고압 포화 액체)
-    
-    알고리즘:
-    1. 증발기와 응축기 포화 압력 계산
-    2. State 1*: 저압 포화 증기 상태 계산 (T1_star_K = T_evap_K)
-    3. State 1: 과열 증기 상태 계산 (T1_K = T1_star_K + dT_superheat)
-    4. State 2: 단열 압축 후 실제 압축(비단열) 계산
-       - 등엔트로피 압축 후 엔탈피 계산 (이상적)
-       - 압축기 효율을 고려한 실제 엔탈피 계산
-    5. State 3*: 고압 포화 액체 상태 계산 (T3_star_K = T_cond_K)
-    6. State 3: 과냉 액체 상태 계산 (T3_K = T3_star_K - dT_subcool)
-    7. State 4: 등엔탈피 팽창 (h4 = h3) 후 상태 계산
-    
-    호출 관계:
-    - 호출자: AirSourceHeatPumpBoiler._calc_state, GroundSourceHeatPumpBoiler._calc_on_state
-    - 호출 함수: CoolProp.PropsSI (냉매 물성 계산)
-    
-    Args:
-        - T_evap_K (float): 증발 포화 온도 [K]
-        - T_cond_K (float): 응축 포화 온도 [K]
-        - refrigerant (str): 냉매 이름 (CoolProp 형식, 예: 'R410A')
-        - eta_cmp_isen (float): 압축기 단열 효율 [0-1]
-            - 실제 압축 전력 = 이론 압축 전력 / eta_cmp_isen
-        - T0_K (float, optional): 기준 온도 [K] (엑서지 계산용)
-            - 제공되면 State 1-4의 엑서지 계산 수행
-        - P0 (float, optional): 기준 압력 [Pa] (엑서지 계산용, 기본값: 101325)
-        - mode (str, optional): 작동 모드 ('heating' 또는 'cooling', 기본값: 'heating')
-            - 'heating': 난방 모드 (기본 계산, State 1=압축기 유입)
-            - 'cooling': 냉방 모드 (4-way 밸브 역순환, State 2=압축기 유입으로 재매핑)
-        - dT_superheat (float, optional): 증발기 출구 과열도 [K] (기본값: 0.0)
-            - dT_superheat=0이면 포화 증기 (기존 동작 유지)
-        - dT_subcool (float, optional): 응축기 출구 과냉각도 [K] (기본값: 0.0)
-            - dT_subcool=0이면 포화 액체 (기존 동작 유지)
-        - is_active (bool, optional): 활성화 여부 (기본값: True)
-            - is_active=False일 때 모든 값이 nan인 딕셔너리 반환
-    
-    Returns:
-        dict: State 1-4의 물성치를 포함한 딕셔너리
-        - P1, P2, P3, P4: 압력 [Pa] (모드에 따라 물리적 위치에 맞게 재매핑됨)
-        - T1_K, T2_K, T3_K, T4_K: 온도 [K] (실제 상태점, 모드에 따라 재매핑됨)
-        - T1_star_K, T3_star_K: 포화 온도 [K] (포화 상태점)
-        - h1, h2, h3, h4: 엔탈피 [J/kg] (모드에 따라 물리적 위치에 맞게 재매핑됨)
-        - s1, s2, s3, s4: 엔트로피 [J/kgK] (모드에 따라 물리적 위치에 맞게 재매핑됨)
-        - rho: 압축기 유입 밀도 [kg/m³] (냉매 유량 계산에 사용)
-        - x1, x2, x3, x4: 엑서지 [J/kg] (T0_K, P0가 제공된 경우, 모드에 따라 재매핑됨)
-        - mode: 계산에 사용된 모드 ('heating' 또는 'cooling')
-        
-        물리적 위치 매핑:
-        - 난방 모드: h1=압축기 유입, h2=압축기 유출, h3=응축기 출구, h4=팽창밸브 출구
-        - 냉방 모드: h1=압축기 유출, h2=압축기 유입, h3=팽창밸브 출구, h4=응축기 출구 (4-way 밸브 역순환)
-    
-    Notes:
-        - 엑서지 계산식: x = (h - h0) - T0 * (s - s0)
-          여기서 (h0, s0)는 기준 상태(T0_K, P0)의 엔탈피와 엔트로피
-        - State 2는 단열 효율을 고려한 실제 압축 과정을 반영
-        - State 4는 등엔탈피 과정 (h4 = h3)으로 팽창밸브를 모델링
-        - dT_superheat=0, dT_subcool=0이면 기존 동작과 동일 (하위 호환성 유지)
     """
     
     # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
     if not is_active:
         return {
-            'P_ref_cmp_in': np.nan,
-            'P_ref_cmp_out': np.nan,
-            'P_ref_exp_in': np.nan,
-            'P_ref_exp_out': np.nan,
+            'P_ref_cmp_in [Pa]': np.nan,
+            'P_ref_cmp_out [Pa]': np.nan,
+            'P_ref_exp_in [Pa]': np.nan,
+            'P_ref_exp_out [Pa]': np.nan,
+            'P_ref_evap_sat [Pa]': np.nan,
+            'P_ref_cond_sat_l [Pa]': np.nan,
+            'P_ref_cond_sat_v [Pa]': np.nan,
             'T_ref_cmp_in_K': np.nan,
             'T_ref_cmp_out_K': np.nan,
             'T_ref_exp_in_K': np.nan,
@@ -2122,151 +2050,170 @@ def calc_ref_state(
             'T_ref_evap_sat_K': np.nan,
             'T_ref_cond_sat_v_K': np.nan,
             'T_ref_cond_sat_l_K': np.nan,
-            'P_ref_cond_sat_v': np.nan,
-            'h_ref_cmp_in': np.nan,
-            'h_ref_cmp_out': np.nan,
-            'h_ref_cond_sat_v': np.nan,
-            'h_ref_exp_in': np.nan,
-            'h_ref_exp_out': np.nan,
-            's_ref_cmp_in': np.nan,
-            's_ref_cmp_out': np.nan,
-            's_ref_cond_sat_v': np.nan,
-            's_ref_exp_in': np.nan,
-            's_ref_exp_out': np.nan,
-            'rho_ref_cmp_in': np.nan,
-            'x_ref_cmp_in': np.nan,
-            'x_ref_cmp_out': np.nan,
-            'x_ref_cond_sat_v': np.nan,
-            'x_ref_exp_in': np.nan,
-            'x_ref_exp_out': np.nan,
+            'T_ref_cmp_in [°C]': np.nan,
+            'T_ref_cmp_out [°C]': np.nan,
+            'T_ref_exp_in [°C]': np.nan,
+            'T_ref_exp_out [°C]': np.nan,
+            'T_ref_evap_sat [°C]': np.nan,
+            'T_ref_cond_sat_v [°C]': np.nan,
+            'T_ref_cond_sat_l [°C]': np.nan,
+            'h_ref_cmp_in [J/kg]': np.nan,
+            'h_ref_cmp_out [J/kg]': np.nan,
+            'h_ref_cond_sat_v [J/kg]': np.nan,
+            'h_ref_exp_in [J/kg]': np.nan,
+            'h_ref_exp_out [J/kg]': np.nan,
+            'h_ref_evap_sat [J/kg]': np.nan,
+            'h_ref_cond_sat_l [J/kg]': np.nan,
+            's_ref_cmp_in [J/(kg·K)]': np.nan,
+            's_ref_cmp_out [J/(kg·K)]': np.nan,
+            's_ref_cond_sat_v [J/(kg·K)]': np.nan,
+            's_ref_exp_in [J/(kg·K)]': np.nan,
+            's_ref_exp_out [J/(kg·K)]': np.nan,
+            's_ref_evap_sat [J/(kg·K)]': np.nan,
+            's_ref_cond_sat_l [J/(kg·K)]': np.nan,
+            'rho_ref_cmp_in [kg/m3]': np.nan,
             'mode': mode,
         }
     
     # 1단계: 포화 온도 및 압력 계산
-    T_ref_evap_sat_K = T_evap_K  # 증발기 포화 증기 온도 (State 1*)
-    T_ref_cond_sat_l_K = T_cond_K  # 응축기 포화 액체 온도 (State 3*)
+    T_ref_evap_sat_K = T_evap_K
+    T_ref_cond_sat_l_K = T_cond_K
     
-    P_evap = CP.PropsSI('P', 'T', T_ref_evap_sat_K, 'Q', 1, refrigerant)  # 증발기 포화 압력
-    P_cond = CP.PropsSI('P', 'T', T_ref_cond_sat_l_K, 'Q', 0, refrigerant)  # 응축기 포화 압력
+    P_evap = CP.PropsSI('P', 'T', T_ref_evap_sat_K, 'Q', 1, refrigerant)
+    P_cond = CP.PropsSI('P', 'T', T_ref_cond_sat_l_K, 'Q', 0, refrigerant)
     
-    # 2단계: State 1* (포화 증기) 및 State 1 (실제 과열 증기) 계산
-    # State 1*: 포화 증기 상태 (참조용)
-    h1_star = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
-    s1_star = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
+    # 포화 상태 추가 계산
+    h_ref_evap_sat = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
+    s_ref_evap_sat = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
+    h_ref_cond_sat_l = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
+    s_ref_cond_sat_l = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
     
-    # State 1: 실제 압축기 입구 (과열 증기)
-    T_ref_cmp_in_K = T_ref_evap_sat_K + dT_superheat  # 과열도 적용
+    # 2단계: State 1 (실제 과열 증기) 계산
+    T_ref_cmp_in_K = T_ref_evap_sat_K + dT_superheat
     
-    # dT_superheat = 0일 때는 포화 증기 상태로 처리 (CoolProp 에러 방지)
-    if abs(dT_superheat) < 1e-6:  # 0에 가까우면 포화 상태
+    if abs(dT_superheat) < 1e-6:
         h_ref_cmp_in = CP.PropsSI('H', 'P', P_evap, 'Q', 1, refrigerant)
         s_ref_cmp_in = CP.PropsSI('S', 'P', P_evap, 'Q', 1, refrigerant)
-        rho_ref_cmp_in = CP.PropsSI('D', 'P', P_evap, 'Q', 1, refrigerant)  # 압축기 유입 밀도
-    else:  # 과열 상태
+        rho_ref_cmp_in = CP.PropsSI('D', 'P', P_evap, 'Q', 1, refrigerant)
+    else:
         h_ref_cmp_in = CP.PropsSI('H', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)
         s_ref_cmp_in = CP.PropsSI('S', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)
-        rho_ref_cmp_in = CP.PropsSI('D', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)  # 압축기 유입 밀도
+        rho_ref_cmp_in = CP.PropsSI('D', 'T', T_ref_cmp_in_K, 'P', P_evap, refrigerant)
     
-    # 3단계: State 2 계산 - 압축기 출구 (고압 과열 증기)
-    h2_isen = CP.PropsSI('H', 'P', P_cond, 'S', s_ref_cmp_in, refrigerant)  # 등엔트로피 압축 후 엔탈피
+    # 3단계: State 2 (압축기 출구 - 고압 과열 증기) 계산
+    h2_isen = CP.PropsSI('H', 'P', P_cond, 'S', s_ref_cmp_in, refrigerant)
     
     h_ref_cmp_out = h_ref_cmp_in + (h2_isen - h_ref_cmp_in) / eta_cmp_isen
-    T_ref_cmp_out_K = CP.PropsSI('T', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)  # 과열 온도
-    P_ref_cmp_out = P_cond  # 압력은 응축기 압력과 동일
-    s_ref_cmp_out = CP.PropsSI('S', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)  # 실제 엔트로피 (s1보다 큼)
+    T_ref_cmp_out_K = CP.PropsSI('T', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)
+    P_ref_cmp_out = P_cond
+    s_ref_cmp_out = CP.PropsSI('S', 'P', P_cond, 'H', h_ref_cmp_out, refrigerant)
     
-    # 3.5단계: State 2* 계산 - 응축기 입구에서 포화 증기에 처음 도달하는 지점
-    # T2_star: P_cond 압력에서 포화 증기(Q=1) 상태
-    T_ref_cond_sat_v_K = T_ref_cond_sat_l_K  # 응축기 포화 온도와 동일
-    P_ref_cond_sat_v = P_cond  # 응축기 포화 압력
-    h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔탈피
-    s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_cond, 'Q', 1, refrigerant)  # 포화 증기 엔트로피
+    # 3.5단계: State 2* (응축기 포화 증기 도달 지점) 계산
+    T_ref_cond_sat_v_K = T_ref_cond_sat_l_K
+    P_ref_cond_sat_v = P_cond
+    h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_cond, 'Q', 1, refrigerant)
+    s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_cond, 'Q', 1, refrigerant)
     
-    # 4단계: State 3* (포화 액체) 및 State 3 (실제 과냉 액체) 계산
-    # State 3*: 포화 액체 상태 (참조용)
-    h3_star = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
-    s3_star = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
+    # 4단계: State 3 (실제 과냉 액체) 계산
+    T_ref_exp_in_K = T_ref_cond_sat_l_K - dT_subcool
     
-    # State 3: 실제 응축기 출구 (과냉 액체)
-    T_ref_exp_in_K = T_ref_cond_sat_l_K - dT_subcool  # 과냉각도 적용
-    
-    # dT_subcool = 0일 때는 포화 액체 상태로 처리 (CoolProp 에러 방지)
-    if abs(dT_subcool) < 1e-6:  # 0에 가까우면 포화 상태
+    if abs(dT_subcool) < 1e-6:
         h_ref_exp_in = CP.PropsSI('H', 'P', P_cond, 'Q', 0, refrigerant)
         s_ref_exp_in = CP.PropsSI('S', 'P', P_cond, 'Q', 0, refrigerant)
-    else:  # 과냉 상태
+    else:
         h_ref_exp_in = CP.PropsSI('H', 'T', T_ref_exp_in_K, 'P', P_cond, refrigerant)
         s_ref_exp_in = CP.PropsSI('S', 'T', T_ref_exp_in_K, 'P', P_cond, refrigerant)
     
-    # 5단계: State 4 계산 - 팽창밸브 출구 (저압 액체+기체 혼합물)
-    h_ref_exp_out = h_ref_exp_in  # 등엔탈피 팽창
-    P_ref_exp_out = P_evap  # 압력은 증발기 압력과 동일
-    T_ref_exp_out_K = CP.PropsSI('T', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)  # 저압에서 엔탈피 h4에 해당하는 온도
-    s_ref_exp_out = CP.PropsSI('S', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)  # 팽창 후 엔트로피
-    
-    # 엑서지 계산용 기준 상태
-    h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, refrigerant)
-    s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, refrigerant)
+    # 5단계: State 4 (팽창밸브 출구) 계산
+    h_ref_exp_out = h_ref_exp_in
+    P_ref_exp_out = P_evap
+    T_ref_exp_out_K = CP.PropsSI('T', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)
+    s_ref_exp_out = CP.PropsSI('S', 'P', P_evap, 'H', h_ref_exp_out, refrigerant)
     
     if mode == 'cooling':
         result = {
-            # 냉방 모드 기준 물성치 (물리적 위치에 따라 재매핑)
-            'P_ref_cmp_in': P_ref_cmp_out,
-            'P_ref_cmp_out': P_evap,
-            'P_ref_exp_in': P_ref_exp_out,
-            'P_ref_exp_out': P_cond,
+            'P_ref_cmp_in [Pa]': P_ref_cmp_out,
+            'P_ref_cmp_out [Pa]': P_evap,
+            'P_ref_exp_in [Pa]': P_ref_exp_out,
+            'P_ref_exp_out [Pa]': P_cond,
+            'P_ref_evap_sat [Pa]': P_cond,  
+            'P_ref_cond_sat_l [Pa]': P_evap,
+            'P_ref_cond_sat_v [Pa]': np.nan,  # Used mainly for heating mapped points appropriately if needed
             'T_ref_cmp_in_K': T_ref_cmp_out_K,
             'T_ref_cmp_out_K': T_ref_cmp_in_K,
             'T_ref_exp_in_K': T_ref_exp_out_K,
             'T_ref_exp_out_K': T_ref_exp_in_K,
-            'T_ref_evap_sat_K': T_ref_cmp_out_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
-            'T_ref_cond_sat_l_K': T_ref_exp_in_K,  # 냉방 모드에서는 재매핑 필요 없음 (참조용)
-            'h_ref_cmp_in': h_ref_cmp_out,
-            'h_ref_cmp_out': h_ref_cmp_in,
-            'h_ref_exp_in': h_ref_exp_out,
-            'h_ref_exp_out': h_ref_exp_in,
-            's_ref_cmp_in': s_ref_cmp_out,
-            's_ref_cmp_out': s_ref_cmp_in,
-            's_ref_exp_in': s_ref_exp_out,
-            's_ref_exp_out': s_ref_exp_in,
-            'rho_ref_cmp_in': rho_ref_cmp_in,
+            'T_ref_evap_sat_K': T_ref_cmp_out_K,
+            'T_ref_cond_sat_l_K': T_ref_exp_in_K,
+            'T_ref_cond_sat_v_K': np.nan,
+            'T_ref_cmp_in [°C]': T_ref_cmp_out_K - 273.15,
+            'T_ref_cmp_out [°C]': T_ref_cmp_in_K - 273.15,
+            'T_ref_exp_in [°C]': T_ref_exp_out_K - 273.15,
+            'T_ref_exp_out [°C]': T_ref_exp_in_K - 273.15,
+            'T_ref_evap_sat [°C]': T_ref_cmp_out_K - 273.15,
+            'T_ref_cond_sat_l [°C]': T_ref_exp_in_K - 273.15,
+            'T_ref_cond_sat_v [°C]': np.nan,
+            'h_ref_cmp_in [J/kg]': h_ref_cmp_out,
+            'h_ref_cmp_out [J/kg]': h_ref_cmp_in,
+            'h_ref_cond_sat_v [J/kg]': np.nan,
+            'h_ref_exp_in [J/kg]': h_ref_exp_out,
+            'h_ref_exp_out [J/kg]': h_ref_exp_in,
+            'h_ref_evap_sat [J/kg]': h_ref_cond_sat_l,
+            'h_ref_cond_sat_l [J/kg]': h_ref_evap_sat,
+            's_ref_cmp_in [J/(kg·K)]': s_ref_cmp_out,
+            's_ref_cmp_out [J/(kg·K)]': s_ref_cmp_in,
+            's_ref_cond_sat_v [J/(kg·K)]': np.nan,
+            's_ref_exp_in [J/(kg·K)]': s_ref_exp_out,
+            's_ref_exp_out [J/(kg·K)]': s_ref_exp_in,
+            's_ref_evap_sat [J/(kg·K)]': s_ref_cond_sat_l,
+            's_ref_cond_sat_l [J/(kg·K)]': s_ref_evap_sat,
+            'rho_ref_cmp_in [kg/m3]': rho_ref_cmp_in,
             'mode': 'cooling',
         }
     else:
-        # 난방 모드: 기본 계산값 그대로 사용
+        # 난방 모드
         result = {
-            'P_ref_cmp_in': P_evap,
-            'P_ref_cmp_out': P_cond,
-            'P_ref_exp_in': P_cond,
-            'P_ref_exp_out': P_evap,
+            'P_ref_cmp_in [Pa]': P_evap,
+            'P_ref_cmp_out [Pa]': P_cond,
+            'P_ref_exp_in [Pa]': P_cond,
+            'P_ref_exp_out [Pa]': P_evap,
+            'P_ref_evap_sat [Pa]': P_evap,
+            'P_ref_cond_sat_l [Pa]': P_cond,
+            'P_ref_cond_sat_v [Pa]': P_ref_cond_sat_v,
             'T_ref_cmp_in_K': T_ref_cmp_in_K,
             'T_ref_cmp_out_K': T_ref_cmp_out_K,
             'T_ref_exp_in_K': T_ref_exp_in_K,
             'T_ref_exp_out_K': T_ref_exp_out_K,
-            'T_ref_evap_sat_K': T_ref_evap_sat_K,  # 포화 증기 온도
-            'T_ref_cond_sat_v_K': T_ref_cond_sat_v_K,  # 응축기 포화 증기 온도
-            'T_ref_cond_sat_l_K': T_ref_cond_sat_l_K,  # 포화 액체 온도
-            'P_ref_cond_sat_v': P_ref_cond_sat_v,  # 응축기 포화 압력
-            'h_ref_cmp_in': h_ref_cmp_in,
-            'h_ref_cmp_out': h_ref_cmp_out,
-            'h_ref_cond_sat_v': h_ref_cond_sat_v,  # 포화 증기 엔탈피
-            'h_ref_exp_in': h_ref_exp_in,
-            'h_ref_exp_out': h_ref_exp_out,
-            's_ref_cmp_in': s_ref_cmp_in,
-            's_ref_cmp_out': s_ref_cmp_out,
-            's_ref_cond_sat_v': s_ref_cond_sat_v,  # 포화 증기 엔트로피
-            's_ref_exp_in': s_ref_exp_in,
-            's_ref_exp_out': s_ref_exp_out,
-            'rho_ref_cmp_in': rho_ref_cmp_in,  # 압축기 유입 밀도 (State 1)
-            'x_ref_cmp_in': (h_ref_cmp_in-h0) - T0_K*(s_ref_cmp_in - s0),
-            'x_ref_cmp_out': (h_ref_cmp_out-h0) - T0_K*(s_ref_cmp_out - s0),
-            'x_ref_cond_sat_v': (h_ref_cond_sat_v-h0) - T0_K*(s_ref_cond_sat_v - s0),  # 포화 증기 엑서지
-            'x_ref_exp_in': (h_ref_exp_in-h0) - T0_K*(s_ref_exp_in - s0),
-            'x_ref_exp_out': (h_ref_exp_out-h0) - T0_K*(s_ref_exp_out - s0),
+            'T_ref_evap_sat_K': T_ref_evap_sat_K,
+            'T_ref_cond_sat_v_K': T_ref_cond_sat_v_K,
+            'T_ref_cond_sat_l_K': T_ref_cond_sat_l_K,
+            'T_ref_cmp_in [°C]': T_ref_cmp_in_K - 273.15,
+            'T_ref_cmp_out [°C]': T_ref_cmp_out_K - 273.15,
+            'T_ref_exp_in [°C]': T_ref_exp_in_K - 273.15,
+            'T_ref_exp_out [°C]': T_ref_exp_out_K - 273.15,
+            'T_ref_evap_sat [°C]': T_ref_evap_sat_K - 273.15,
+            'T_ref_cond_sat_l [°C]': T_ref_cond_sat_l_K - 273.15,
+            'T_ref_cond_sat_v [°C]': T_ref_cond_sat_v_K - 273.15,
+            'h_ref_cmp_in [J/kg]': h_ref_cmp_in,
+            'h_ref_cmp_out [J/kg]': h_ref_cmp_out,
+            'h_ref_cond_sat_v [J/kg]': h_ref_cond_sat_v,
+            'h_ref_exp_in [J/kg]': h_ref_exp_in,
+            'h_ref_exp_out [J/kg]': h_ref_exp_out,
+            'h_ref_evap_sat [J/kg]': h_ref_evap_sat,
+            'h_ref_cond_sat_l [J/kg]': h_ref_cond_sat_l,
+            's_ref_cmp_in [J/(kg·K)]': s_ref_cmp_in,
+            's_ref_cmp_out [J/(kg·K)]': s_ref_cmp_out,
+            's_ref_cond_sat_v [J/(kg·K)]': s_ref_cond_sat_v,
+            's_ref_exp_in [J/(kg·K)]': s_ref_exp_in,
+            's_ref_exp_out [J/(kg·K)]': s_ref_exp_out,
+            's_ref_evap_sat [J/(kg·K)]': s_ref_evap_sat,
+            's_ref_cond_sat_l [J/(kg·K)]': s_ref_cond_sat_l,
+            'rho_ref_cmp_in [kg/m3]': rho_ref_cmp_in,
             'mode': 'heating',
         }
     
     return result
+
 
 
 def create_lmtd_constraints():
@@ -2904,7 +2851,7 @@ def calc_stc_performance(
     k_ins_stc,             # 단열재 열전도도 [W/mK]
     x_air_stc,             # 공기층 두께 [m]
     x_ins_stc,             # 단열재 두께 [m]
-    dV_stc,                # STC 유량 [m³/s]
+    dV_stc,                # STC 유량 [m3/s]
     E_pump,                # 펌프 소모 전력 [W]
     is_active=True,        # 활성화 여부 (기본값: True)
 ):
@@ -2939,7 +2886,7 @@ def calc_stc_performance(
     x_ins_stc : float
         단열재 두께 [m]
     dV_stc : float
-        STC 유량 [m³/s]
+        STC 유량 [m3/s]
     E_pump : float
         펌프 소모 전력 [W]
     is_active : bool, optional
@@ -3082,8 +3029,8 @@ def print_simulation_summary(df, simulation_time_step, dV_ou_a_design):
     if not fan_nonzero.empty:
         fan_avg = fan_nonzero.mean()
         fan_avg_pct = (fan_avg / dV_ou_a_design) * 100
-        print(f"  - Min: {fan_nonzero.min():.3f} m³/s | Max: {fan_nonzero.max():.3f} m³/s")
-        print(f"  - Avg: {fan_avg:.3f} m³/s ({fan_avg_pct:.1f}% of design)")
+        print(f"  - Min: {fan_nonzero.min():.3f} m3/s | Max: {fan_nonzero.max():.3f} m3/s")
+        print(f"  - Avg: {fan_avg:.3f} m3/s ({fan_avg_pct:.1f}% of design)")
     else:
         print("  - No active data.")
     print("-" * 50)

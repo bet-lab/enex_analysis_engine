@@ -35,7 +35,8 @@ at each timestep for unconditional stability.
 
   Optional subsystems (class-based injection):
     SolarThermalCollector → Tank (preheat or circuit mode)
-    PVPanel → (future)
+    UVLamp → Periodic UV disinfection
+    PhotovoltaicSystem → PV + ESS (future HP integration)
 ```
 
 ## Modular Structure (v2)
@@ -46,16 +47,16 @@ The model uses **composition-based** architecture:
 graph TB
   ASHPB["AirSourceHeatPumpBoiler"]
   DC["dynamic_context<br/>StepContext · ControlState<br/>Shared control helpers"]
-  SS["subsystems<br/>SolarThermalCollector<br/>PVPanel (future)"]
+  SS["subsystems<br/>SolarThermalCollector<br/>PhotovoltaicSystem · UVLamp"]
 
   ASHPB -->|imports| DC
-  ASHPB -->|self.stc| SS
+  ASHPB -->|self._subsystems| SS
 ```
 
 | Module | Responsibility |
 |---|---|
-| `dynamic_context` | `StepContext`, `ControlState`, HP hysteresis, tank level, residual solver |
-| `subsystems` | `SolarThermalCollector` class (config + methods), future `PVPanel` |
+| `dynamic_context` | `StepContext`, `ControlState`, `SubsystemExergy`, hysteresis, tank level, residual solver |
+| `subsystems` | `SolarThermalCollector`, `PhotovoltaicSystem`, `UVLamp` classes |
 | `AirSourceHeatPumpBoiler` | ASHP-specific physics, optimisation, simulation loop |
 
 ### Data Flow — `analyze_dynamic` per-timestep
@@ -66,7 +67,7 @@ flowchart TD
         direction LR
         C1["time, T0, preheat_on"]
         C2["T_tank_w_K, tank_level"]
-        C3["dV_mix_w_out, E_uv"]
+        C3["dV_mix_w_out, T_sup_w_K"]
         C4["I_DN, I_dH"]
     end
 
@@ -76,13 +77,13 @@ flowchart TD
 
     subgraph CTRL["ControlState (from dynamic_context)"]
         direction LR
-        S1["hp_is_on, hp_result, Q_ref_cond"]
+        S1["is_on, Q_heat_source, result"]
         S2["dV_tank_w_in_ctrl"]
     end
     
     subgraph SUBS["sub_states (dict)"]
         direction LR
-        S3["stc_active, Q_contribution, E_subsystem"]
+        S3["Q_contribution, E_subsystem"]
     end
 
     A1 --> CTRL
@@ -94,7 +95,7 @@ flowchart TD
     SUBS --> B
     B --> SOLVE["fsolve → T_next, level_next"]
 
-    SOLVE --> C["_assemble_step_results()"]
+    SOLVE --> C["_assemble_core_results()"]
     CTX --> C
     CTRL --> C
     SUBS --> C
@@ -143,7 +144,7 @@ flowchart TD
 | `T_tank_w_upper_bound` | 65.0 | °C | Tank upper setpoint |
 | `T_tank_w_lower_bound` | 60.0 | °C | Tank lower setpoint |
 | `T_mix_w_out` | 40.0 | °C | Service water delivery temperature |
-| `T_tank_w_in` | 15.0 | °C | Mains water supply temperature |
+| `T_sup_w` | 15.0 | °C | Default mains water supply temperature |
 | `dV_mix_w_out_max` | 0.0045 | m³/s | Max service flow rate |
 
 ### Subsystems (class-based injection)
@@ -151,6 +152,7 @@ flowchart TD
 | Parameter | Type | Description |
 |---|---|---|
 | `stc` | `SolarThermalCollector \| None` | Solar thermal collector (see `subsystems` guide) |
+| `uv` | `UVLamp \| None` | UV disinfection lamp |
 
 ## Usage
 
@@ -191,6 +193,18 @@ df = hp.analyze_dynamic(
     T_tank_w_init_C=20.0,
     dhw_usage_schedule=schedule,
     T0_schedule=T0_schedule,
+)
+```
+
+### Dynamic Simulation with `T_sup_w_schedule`
+
+```python
+# Seasonal mains water temperature variation
+T_sup_w_schedule = np.full(tN, 15.0)  # or load from file
+
+df = hp.analyze_dynamic(
+    ...,
+    T_sup_w_schedule=T_sup_w_schedule,
 )
 ```
 
@@ -236,13 +250,14 @@ df_ex = hp.postprocess_exergy(result_df)
 | `_calc_state(...)` | Evaluate refrigerant cycle at a given operating point |
 | `_optimize_operation(...)` | Brent 1-D minimisation of `E_tot` |
 | `_determine_hp_state(ctx, ...)` | HP hysteresis + cycle optimisation |
-| `_assemble_step_results(...)` | Post-solve reporting dict assembly |
+| `_print_opt_failure(...)` | Detailed optimisation failure diagnostics |
+| `_assemble_core_results(...)` | Post-solve reporting dict assembly |
 
 ### Shared Functions (from `dynamic_context`)
 
 | Function | Description |
 |---|---|
-| `determine_hp_on_off(...)` | Pure hysteresis logic |
+| `determine_heat_source_on_off(...)` | Pure hysteresis logic |
 | `determine_tank_refill_flow(...)` | Tank level management |
 | `tank_mass_energy_residual(...)` | Energy/mass balance residuals for `fsolve` |
 

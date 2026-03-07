@@ -40,7 +40,7 @@ class GroundSourceHeatPumpBoiler:
 
         # 1. Refrigerant / cycle / compressor -------------------------
         refrigerant    = 'R410A',
-        V_disp_cmp     = 0.0005,        # [m³] Compressor displacement
+        V_disp_cmp     = 0.0005,        # [m3] Compressor displacement
         eta_cmp_isen   = 0.7,           # [-]  Isentropic efficiency
 
         # 2. Heat exchanger -------------------------------------------
@@ -56,7 +56,7 @@ class GroundSourceHeatPumpBoiler:
         T_tank_w_in            = 15.0,  # [°C] Mains water supply temp
 
         hp_capacity            = 8000.0,   # [W]   HP rated capacity
-        dV_mix_w_out_max       = 0.0001,   # [m³/s] Max service flow rate
+        dV_mix_w_out_max       = 0.0001,   # [m3/s] Max service flow rate
 
         # Tank / insulation
         r0       = 0.2,    # [m]     Tank inner radius
@@ -79,7 +79,7 @@ class GroundSourceHeatPumpBoiler:
         # Soil properties
         k_s   = 2.0,       # [W/m·K] Soil thermal conductivity
         c_s   = 800,       # [J/kg·K] Soil specific heat
-        rho_s = 2000,      # [kg/m³] Soil density
+        rho_s = 2000,      # [kg/m3] Soil density
 
         # Circulation pump
         E_pmp = 200,       # [W] Pump electrical power
@@ -168,7 +168,7 @@ class GroundSourceHeatPumpBoiler:
         self.rho_s  = rho_s
         self.E_pmp  = E_pmp
 
-        # --- Unit conversions (°C → K, L/min → m³/s) ---
+        # --- Unit conversions (°C → K, L/min → m3/s) ---
         self.T0_K       = cu.C2K(T0)
         self.Ts_K       = cu.C2K(self.Ts)
         self.T_b_f_in_K = cu.C2K(self.T_b_f_in)
@@ -330,21 +330,20 @@ class GroundSourceHeatPumpBoiler:
         cycle_states = calc_ref_state(
             T_evap_K=T_ref_evap_sat_K, T_cond_K=T_ref_cond_sat_K,
             refrigerant=self.ref, eta_cmp_isen=self.eta_cmp_isen,
-            T0_K=T0_K, P0=101325,
             dT_superheat=self.dT_superheat, dT_subcool=self.dT_subcool
         )
 
-        rho_ref_cmp_in = cycle_states['rho_ref_cmp_in']
+        rho_ref_cmp_in = cycle_states['rho_ref_cmp_in [kg/m3]']
 
         # --- Step 4: Extract state-point properties (descriptive names) ---
-        T_ref_cmp_in_K  = cycle_states['T_ref_cmp_in_K'];  P_ref_cmp_in  = cycle_states['P_ref_cmp_in']
-        h_ref_cmp_in    = cycle_states['h_ref_cmp_in'];     s_ref_cmp_in  = cycle_states['s_ref_cmp_in']
-        T_ref_cmp_out_K = cycle_states['T_ref_cmp_out_K'];   P_ref_cmp_out = cycle_states['P_ref_cmp_out']
-        h_ref_cmp_out   = cycle_states['h_ref_cmp_out'];     s_ref_cmp_out = cycle_states['s_ref_cmp_out']
-        T_ref_exp_in_K  = cycle_states['T_ref_exp_in_K'];   P_ref_exp_in  = cycle_states['P_ref_exp_in']
-        h_ref_exp_in    = cycle_states['h_ref_exp_in'];     s_ref_exp_in  = cycle_states['s_ref_exp_in']
-        T_ref_exp_out_K = cycle_states['T_ref_exp_out_K'];   P_ref_exp_out = cycle_states['P_ref_exp_out']
-        h_ref_exp_out   = cycle_states['h_ref_exp_out'];     s_ref_exp_out = cycle_states['s_ref_exp_out']
+        T_ref_cmp_in_K  = cycle_states['T_ref_cmp_in_K'];  P_ref_cmp_in  = cycle_states['P_ref_cmp_in [Pa]']
+        h_ref_cmp_in    = cycle_states['h_ref_cmp_in [J/kg]'];     s_ref_cmp_in  = cycle_states['s_ref_cmp_in [J/(kg·K)]']
+        T_ref_cmp_out_K = cycle_states['T_ref_cmp_out_K'];   P_ref_cmp_out = cycle_states['P_ref_cmp_out [Pa]']
+        h_ref_cmp_out   = cycle_states['h_ref_cmp_out [J/kg]'];     s_ref_cmp_out = cycle_states['s_ref_cmp_out [J/(kg·K)]']
+        T_ref_exp_in_K  = cycle_states['T_ref_exp_in_K'];   P_ref_exp_in  = cycle_states['P_ref_exp_in [Pa]']
+        h_ref_exp_in    = cycle_states['h_ref_exp_in [J/kg]'];     s_ref_exp_in  = cycle_states['s_ref_exp_in [J/(kg·K)]']
+        T_ref_exp_out_K = cycle_states['T_ref_exp_out_K'];   P_ref_exp_out = cycle_states['P_ref_exp_out [Pa]']
+        h_ref_exp_out   = cycle_states['h_ref_exp_out [J/kg]'];     s_ref_exp_out = cycle_states['s_ref_exp_out [J/(kg·K)]']
 
         if (h_ref_exp_in - h_ref_cmp_out) == 0:
             return None
@@ -378,49 +377,34 @@ class GroundSourceHeatPumpBoiler:
             LMTD_evap = (dT1_evap - dT2_evap) / np.log(dT1_evap / dT2_evap)
             Q_LMTD_evap = self.UA_evap * LMTD_evap
 
-        # --- Step 8: Specific exergy at each state point ---
-        P0 = 101325
-        h0 = CP.PropsSI('H', 'T', T0_K, 'P', P0, self.ref)
-        s0 = CP.PropsSI('S', 'T', T0_K, 'P', P0, self.ref)
-
-        x_ref_cmp_in  = (h_ref_cmp_in  - h0) - T0_K * (s_ref_cmp_in  - s0)
-        x_ref_cmp_out = (h_ref_cmp_out - h0) - T0_K * (s_ref_cmp_out - s0)
-        x_ref_exp_in  = (h_ref_exp_in  - h0) - T0_K * (s_ref_exp_in  - s0)
-        x_ref_exp_out = (h_ref_exp_out - h0) - T0_K * (s_ref_exp_out - s0)
-
         # Saturation-point properties
         T_ref_evap_sat_K_star = cycle_states.get('T_ref_evap_sat_K', np.nan)
         T_ref_cond_sat_v_K    = cycle_states.get('T_ref_cond_sat_v_K', np.nan)
         T_ref_cond_sat_l_K    = cycle_states.get('T_ref_cond_sat_l_K', np.nan)
-        P_ref_cond_sat_v      = cycle_states.get('P_ref_cond_sat_v', P_ref_cmp_out)
+        P_ref_cond_sat_v      = cycle_states.get('P_ref_cond_sat_v [Pa]', P_ref_cmp_out)
 
         P_ref_evap_sat = P_ref_cmp_in
         h_ref_evap_sat = CP.PropsSI('H', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
-        s_ref_evap_sat = CP.PropsSI('S', 'P', P_ref_evap_sat, 'Q', 1, self.ref)
-        x_ref_evap_sat = (h_ref_evap_sat - h0) - T0_K * (s_ref_evap_sat - s0)
 
-        h_ref_cond_sat_v = cycle_states.get('h_ref_cond_sat_v', np.nan)
-        s_ref_cond_sat_v = cycle_states.get('s_ref_cond_sat_v', np.nan)
-        if np.isnan(h_ref_cond_sat_v) or np.isnan(s_ref_cond_sat_v):
+        h_ref_cond_sat_v = cycle_states.get('h_ref_cond_sat_v [J/kg]', np.nan)
+        if np.isnan(h_ref_cond_sat_v):
             h_ref_cond_sat_v = CP.PropsSI('H', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)
-            s_ref_cond_sat_v = CP.PropsSI('S', 'P', P_ref_cond_sat_v, 'Q', 1, self.ref)
-        x_ref_cond_sat_v = (h_ref_cond_sat_v - h0) - T0_K * (s_ref_cond_sat_v - s0)
 
         P_ref_cond_sat_l = P_ref_exp_in
         h_ref_cond_sat_l = CP.PropsSI('H', 'P', P_ref_cond_sat_l, 'Q', 0, self.ref)
-        s_ref_cond_sat_l = CP.PropsSI('S', 'P', P_ref_cond_sat_l, 'Q', 0, self.ref)
-        x_ref_cond_sat_l = (h_ref_cond_sat_l - h0) - T0_K * (s_ref_cond_sat_l - s0)
 
         # --- Step 9: Assemble result dictionary ---
         T_bhe_f_in = cu.K2C(T_bhe_f_in_K)
 
-        return {
+        result: dict = cycle_states.copy()
+        
+        result.update({
             'hp_is_on': True,
             'converged': True,
 
             # === Temperatures [°C] ===
             'T_ref_evap_sat [°C]': cu.K2C(T_ref_evap_sat_K_star),
-            'T_ref_cond_sat_v [°C]': cu.K2C(T_ref_cond_sat_v_K),
+            'T_ref_cond_sat_v [°C]': cu.K2C(T_ref_cond_sat_v_K) if not np.isnan(T_ref_cond_sat_v_K) else np.nan,
             'T_ref_cond_sat_l [°C]': cu.K2C(T_ref_cond_sat_l_K),
             'T0 [°C]': T0,
             'T_ref_cmp_in [°C]': cu.K2C(T_ref_cmp_in_K),
@@ -444,44 +428,17 @@ class GroundSourceHeatPumpBoiler:
             'dV_mix_sup_w_in [m3/s]': getattr(self, 'dV_mix_sup_w_in', 0.0),
 
             # === Pressures [Pa] ===
-            'P_ref_cmp_in [Pa]': P_ref_cmp_in,
-            'P_ref_cmp_out [Pa]': P_ref_cmp_out,
-            'P_ref_exp_in [Pa]': P_ref_exp_in,
-            'P_ref_exp_out [Pa]': P_ref_exp_out,
             'P_ref_evap_sat [Pa]': P_ref_evap_sat,
-            'P_ref_cond_sat_v [Pa]': P_ref_cond_sat_v,
             'P_ref_cond_sat_l [Pa]': P_ref_cond_sat_l,
 
             # === Mass flow [kg/s] ===
             'm_dot_ref [kg/s]': m_dot_ref,
             'cmp_rpm [rpm]': cmp_rps * 60,
 
-            # === Enthalpy [J/kg] ===
-            'h_ref_cmp_in [J/kg]': h_ref_cmp_in,
-            'h_ref_cmp_out [J/kg]': h_ref_cmp_out,
-            'h_ref_exp_in [J/kg]': h_ref_exp_in,
-            'h_ref_exp_out [J/kg]': h_ref_exp_out,
+            # === Specific enthalpy [J/kg] ===
             'h_ref_evap_sat [J/kg]': h_ref_evap_sat,
             'h_ref_cond_sat_v [J/kg]': h_ref_cond_sat_v,
             'h_ref_cond_sat_l [J/kg]': h_ref_cond_sat_l,
-
-            # === Entropy [J/(kg·K)] ===
-            's_ref_cmp_in [J/(kg·K)]': s_ref_cmp_in,
-            's_ref_cmp_out [J/(kg·K)]': s_ref_cmp_out,
-            's_ref_exp_in [J/(kg·K)]': s_ref_exp_in,
-            's_ref_exp_out [J/(kg·K)]': s_ref_exp_out,
-            's_ref_evap_sat [J/(kg·K)]': s_ref_evap_sat,
-            's_ref_cond_sat_v [J/(kg·K)]': s_ref_cond_sat_v,
-            's_ref_cond_sat_l [J/(kg·K)]': s_ref_cond_sat_l,
-
-            # === Exergy [J/kg] ===
-            'x_ref_cmp_in [J/kg]': x_ref_cmp_in,
-            'x_ref_cmp_out [J/kg]': x_ref_cmp_out,
-            'x_ref_exp_in [J/kg]': x_ref_exp_in,
-            'x_ref_exp_out [J/kg]': x_ref_exp_out,
-            'x_ref_evap_sat [J/kg]': x_ref_evap_sat,
-            'x_ref_cond_sat_v [J/kg]': x_ref_cond_sat_v,
-            'x_ref_cond_sat_l [J/kg]': x_ref_cond_sat_l,
 
             # === Heat rates [W] ===
             'Q_cond_load [W]': Q_cond_load,
@@ -495,7 +452,7 @@ class GroundSourceHeatPumpBoiler:
             'E_cmp [W]': E_cmp,
             'E_pmp [W]': self.E_pmp,
             'E_tot [W]': E_cmp + self.E_pmp,
-        }
+        })
 
     
     def analyze_steady(
@@ -518,7 +475,7 @@ class GroundSourceHeatPumpBoiler:
         T_b_f_in : float
             Borehole fluid inlet temperature [°C].
         dV_mix_w_out : float, optional
-            Service water flow rate [m³/s].  Used to compute Q_cond_load.
+            Service water flow rate [m3/s].  Used to compute Q_cond_load.
         Q_cond_load : float, optional
             Target condenser heat rate [W].
         T0 : float, optional
