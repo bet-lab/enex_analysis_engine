@@ -14,6 +14,7 @@ Categories:
 import numpy as np
 
 __all__ = [
+    'T0_K', 'P0_PA',
     'c_a', 'rho_a', 'k_a',
     'c_w', 'rho_w', 'mu_w', 'k_w', 'beta',
     'g',
@@ -56,6 +57,8 @@ g = 9.81            # Gravitational acceleration [m/s²]
 # ═══════════════════════════════════════════════════════════════════════════════
 
 sigma = 5.67e-8     # Stefan-Boltzmann constant [W/m²K⁴]
+T0_K = 293.15       # Default dead state temperature [K] (20°C)
+P0_PA = 101325.0    # Default dead state pressure [Pa] (1 atm)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
