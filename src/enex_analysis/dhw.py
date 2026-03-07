@@ -5,6 +5,8 @@ Domestic Hot Water (DHW) load modeling.
 import numpy as np
 import pandas as pd
 
+from . import calc_util as cu
+
 
 def make_dhw_schedule_from_Annex_42_profile(
     flow_rate_array: np.ndarray, df_time_step: int, simulation_time_step: int
@@ -108,7 +110,7 @@ def calc_total_water_use_from_schedule(
 
     if info:
         if info_unit == "L":
-            print(f"Total water use: {total_m3 * 1000:.1f} L/day")
+            print(f"Total water use: {total_m3 * cu.m32L:.1f} L/day")
         else:
             print(f"Total water use: {total_m3:.3f} m3/day")
 
@@ -173,7 +175,7 @@ def build_dhw_usage_ratio(
         h = int(parts[0])
         m = int(parts[1]) if len(parts) > 1 else 0
         s = int(parts[2]) if len(parts) > 2 else 0
-        return h * 3600 + m * 60 + s
+        return h * cu.h2s + m * cu.m2s + s
 
     ratio = np.zeros_like(t_array, dtype=float)
 

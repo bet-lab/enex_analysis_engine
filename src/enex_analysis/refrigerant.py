@@ -7,6 +7,8 @@ from typing import Any
 import CoolProp.CoolProp as CP
 import numpy as np
 
+from . import calc_util as cu
+
 
 def calc_ref_state(
     T_evap_K: float,  # 증발 온도 [K] (포화 온도로 해석)
@@ -170,12 +172,12 @@ def calc_ref_state(
             "T_ref_evap_sat_K": T_ref_cmp_out_K,
             "T_ref_cond_sat_l_K": T_ref_exp_in_K,
             "T_ref_cond_sat_v_K": np.nan,
-            "T_ref_cmp_in [°C]": T_ref_cmp_out_K - 273.15,
-            "T_ref_cmp_out [°C]": T_ref_cmp_in_K - 273.15,
-            "T_ref_exp_in [°C]": T_ref_exp_out_K - 273.15,
-            "T_ref_exp_out [°C]": T_ref_exp_in_K - 273.15,
-            "T_ref_evap_sat [°C]": T_ref_cmp_out_K - 273.15,
-            "T_ref_cond_sat_l [°C]": T_ref_exp_in_K - 273.15,
+            "T_ref_cmp_in [°C]": cu.K2C(T_ref_cmp_out_K),
+            "T_ref_cmp_out [°C]": cu.K2C(T_ref_cmp_in_K),
+            "T_ref_exp_in [°C]": cu.K2C(T_ref_exp_out_K),
+            "T_ref_exp_out [°C]": cu.K2C(T_ref_exp_in_K),
+            "T_ref_evap_sat [°C]": cu.K2C(T_ref_cmp_out_K),
+            "T_ref_cond_sat_l [°C]": cu.K2C(T_ref_exp_in_K),
             "T_ref_cond_sat_v [°C]": np.nan,
             "h_ref_cmp_in [J/kg]": h_ref_cmp_out,
             "h_ref_cmp_out [J/kg]": h_ref_cmp_in,
@@ -211,13 +213,13 @@ def calc_ref_state(
             "T_ref_evap_sat_K": T_ref_evap_sat_K,
             "T_ref_cond_sat_v_K": T_ref_cond_sat_v_K,
             "T_ref_cond_sat_l_K": T_ref_cond_sat_l_K,
-            "T_ref_cmp_in [°C]": T_ref_cmp_in_K - 273.15,
-            "T_ref_cmp_out [°C]": T_ref_cmp_out_K - 273.15,
-            "T_ref_exp_in [°C]": T_ref_exp_in_K - 273.15,
-            "T_ref_exp_out [°C]": T_ref_exp_out_K - 273.15,
-            "T_ref_evap_sat [°C]": T_ref_evap_sat_K - 273.15,
-            "T_ref_cond_sat_l [°C]": T_ref_cond_sat_l_K - 273.15,
-            "T_ref_cond_sat_v [°C]": T_ref_cond_sat_v_K - 273.15,
+            "T_ref_cmp_in [°C]": cu.K2C(T_ref_cmp_in_K),
+            "T_ref_cmp_out [°C]": cu.K2C(T_ref_cmp_out_K),
+            "T_ref_exp_in [°C]": cu.K2C(T_ref_exp_in_K),
+            "T_ref_exp_out [°C]": cu.K2C(T_ref_exp_out_K),
+            "T_ref_evap_sat [°C]": cu.K2C(T_ref_evap_sat_K),
+            "T_ref_cond_sat_l [°C]": cu.K2C(T_ref_cond_sat_l_K),
+            "T_ref_cond_sat_v [°C]": cu.K2C(T_ref_cond_sat_v_K),
             "h_ref_cmp_in [J/kg]": h_ref_cmp_in,
             "h_ref_cmp_out [J/kg]": h_ref_cmp_out,
             "h_ref_cond_sat_v [J/kg]": h_ref_cond_sat_v,

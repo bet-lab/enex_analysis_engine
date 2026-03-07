@@ -491,7 +491,7 @@ class GroundSourceHeatPump_cooling:
     def system_update(self):
 
         # Unit conversion
-        self.dV_f = self.dV_f / 60 / 1000  # L/min to m³/s
+        self.dV_f = self.dV_f * cu.s2m * cu.L2m3  # L/min to m³/s
 
         self.time = self.time * cu.h2s  # Convert hours to seconds
 
@@ -775,7 +775,7 @@ class GroundSourceHeatPump_heating:
     def system_update(self):
         # Unit conversion
         self.time = self.time * cu.h2s  # Convert hours to seconds
-        self.dV_f = self.dV_f / 60 / 1000  # L/min to m³/s
+        self.dV_f = self.dV_f * cu.s2m * cu.L2m3  # L/min to m³/s
 
         # Celcius to Kelvin
         self.T0 = cu.C2K(self.T0)

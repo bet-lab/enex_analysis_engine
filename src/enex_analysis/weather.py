@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import pvlib
 
+from . import calc_util as cu
+
 
 def load_kma_solar_csv(
     csv_path: str, encoding: str = "euc-kr"
@@ -75,10 +77,10 @@ def load_kma_T0_sol_hourly_csv(
     df.set_index("datetime", inplace=True)
 
     # 온도를 Kelvin으로 변환
-    df["T0_K"] = df[temp_col] + 273.15
+    df["T0_K"] = cu.C2K(df[temp_col])
 
     # 일사량을 W/m2로 변환 (1시간 누적 MJ/m2 -> W/m2)
-    df["ghi"] = df[ghi_col] * 1e6 / 3600
+    df["ghi"] = df[ghi_col] * cu.MJ2J * cu.s2h
     df.loc[df["ghi"] < 0, "ghi"] = 0
 
     return df[["T0_K", "ghi"]]

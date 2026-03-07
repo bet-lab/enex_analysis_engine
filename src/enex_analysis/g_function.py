@@ -11,6 +11,7 @@ import numpy as np
 from scipy import integrate
 from scipy.special import erf
 
+from . import calc_util as cu
 from .constants import SP
 
 __all__ = [
@@ -148,7 +149,7 @@ def air_dynamic_viscosity(T_K):
     mu = mu0 * (T/T0)^1.5 * (T0 + S) / (T + S)
     where mu0 = 1.716e-5 Pa·s at T0 = 273.15 K, S = 110.4 K
     """
-    T0 = 273.15  # Reference temperature [K]
+    T0 = cu.C2K(0)  # Reference temperature [K]
     mu0 = 1.716e-5  # Reference viscosity [Pa·s] at T0
     S = 110.4  # Sutherland constant [K] for air
 

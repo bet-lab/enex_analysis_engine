@@ -1139,7 +1139,7 @@ class UVLamp:
     lamp_watts: float = 0.0
     exposure_sec: float = 0.0
     num_switching: int = 1
-    period_sec: float = 3 * 3600
+    period_sec: float = 3 * cu.h2s
 
     def step(
         self,

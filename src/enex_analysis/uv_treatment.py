@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 
+from . import calc_util as cu
+
 
 def calc_uv_lamp_power(
     current_time_s: float,
@@ -151,7 +153,7 @@ def calc_uv_exposure_time(
     absorption_coeff = 2.303 * uv_absorbance
 
     # Linear power density [mW/cm]
-    p_l_mw_cm = (uvc_output_W * 1000) / lamp_arc_length_cm
+    p_l_mw_cm = (uvc_output_W * cu.W2mW) / lamp_arc_length_cm
 
     # Intensity at tank wall [mW/cm²]
     intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(

@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from . import calc_util as cu
+
 
 def print_simulation_summary(
     df: pd.DataFrame, simulation_time_step: int, dV_ou_a_design: float
@@ -26,7 +28,7 @@ def print_simulation_summary(
         print("Empty DataFrame provided.")
         return
 
-    energy_kJ = simulation_time_step / 1000  # J to kJ conversion factor
+    energy_kJ = simulation_time_step * cu.J2kJ  # J to kJ conversion factor
 
     print("-" * 50)
     print("SIMULATION SUMMARY")
@@ -39,10 +41,10 @@ def print_simulation_summary(
 
     total_elec = E_comp + E_pump + E_fan
 
-    print(f"Total Electricity Consumption: {total_elec / 3600:.2f} kWh")
-    print(f"  - Compressor: {E_comp / 3600:.2f} kWh")
-    print(f"  - Pump:       {E_pump / 3600:.2f} kWh")
-    print(f"  - Fan:        {E_fan / 3600:.2f} kWh")
+    print(f"Total Electricity Consumption: {total_elec * cu.s2h:.2f} kWh")
+    print(f"  - Compressor: {E_comp * cu.s2h:.2f} kWh")
+    print(f"  - Pump:       {E_pump * cu.s2h:.2f} kWh")
+    print(f"  - Fan:        {E_fan * cu.s2h:.2f} kWh")
     print("-" * 50)
 
 
@@ -99,29 +101,29 @@ def plot_th_diagram(
         # Draw saturation dome
         T_dome = np.linspace(T_min, T_crit - 0.1, 100)
         H_sat_liq = [
-            CP.PropsSI("H", "T", t, "Q", 0, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("H", "T", t, "Q", 0, refrigerant) * cu.J2kJ for t in T_dome
         ]
         H_sat_vap = [
-            CP.PropsSI("H", "T", t, "Q", 1, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("H", "T", t, "Q", 1, refrigerant) * cu.J2kJ for t in T_dome
         ]
 
-        ax.plot(H_sat_liq, T_dome - 273.15, "k-", linewidth=1.5, alpha=0.5)
-        ax.plot(H_sat_vap, T_dome - 273.15, "k-", linewidth=1.5, alpha=0.5)
+        ax.plot(H_sat_liq, cu.K2C(T_dome), "k-", linewidth=1.5, alpha=0.5)
+        ax.plot(H_sat_vap, cu.K2C(T_dome), "k-", linewidth=1.5, alpha=0.5)
 
         # Plot cycle points
         H = [
-            result["H1"] / 1000,
-            result["H2"] / 1000,
-            result["H3"] / 1000,
-            result["H4"] / 1000,
-            result["H1"] / 1000,
+            result["H1"] * cu.J2kJ,
+            result["H2"] * cu.J2kJ,
+            result["H3"] * cu.J2kJ,
+            result["H4"] * cu.J2kJ,
+            result["H1"] * cu.J2kJ,
         ]
         T_C = [
-            result["T1"] - 273.15,
-            result["T2"] - 273.15,
-            result["T3"] - 273.15,
-            result["T4"] - 273.15,
-            result["T1"] - 273.15,
+            cu.K2C(result["T1"]),
+            cu.K2C(result["T2"]),
+            cu.K2C(result["T3"]),
+            cu.K2C(result["T4"]),
+            cu.K2C(result["T1"]),
         ]
 
         ax.plot(H, T_C, "b-o", linewidth=2, markersize=6)
@@ -192,13 +194,13 @@ def plot_ph_diagram(
         # Draw saturation dome
         T_dome = np.linspace(T_min, T_crit - 0.1, 100)
         H_sat_liq = [
-            CP.PropsSI("H", "T", t, "Q", 0, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("H", "T", t, "Q", 0, refrigerant) * cu.J2kJ for t in T_dome
         ]
         H_sat_vap = [
-            CP.PropsSI("H", "T", t, "Q", 1, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("H", "T", t, "Q", 1, refrigerant) * cu.J2kJ for t in T_dome
         ]
         P_sat = [
-            CP.PropsSI("P", "T", t, "Q", 0, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("P", "T", t, "Q", 0, refrigerant) * cu.Pa2kPa for t in T_dome
         ]
 
         ax.semilogy(H_sat_liq, P_sat, "k-", linewidth=1.5, alpha=0.5)
@@ -206,18 +208,18 @@ def plot_ph_diagram(
 
         # Plot cycle points
         H = [
-            result["H1"] / 1000,
-            result["H2"] / 1000,
-            result["H3"] / 1000,
-            result["H4"] / 1000,
-            result["H1"] / 1000,
+            result["H1"] * cu.J2kJ,
+            result["H2"] * cu.J2kJ,
+            result["H3"] * cu.J2kJ,
+            result["H4"] * cu.J2kJ,
+            result["H1"] * cu.J2kJ,
         ]
         P = [
-            result["P1"] / 1000,
-            result["P2"] / 1000,
-            result["P3"] / 1000,
-            result["P4"] / 1000,
-            result["P1"] / 1000,
+            result["P1"] * cu.Pa2kPa,
+            result["P2"] * cu.Pa2kPa,
+            result["P3"] * cu.Pa2kPa,
+            result["P4"] * cu.Pa2kPa,
+            result["P1"] * cu.Pa2kPa,
         ]
 
         ax.plot(H, P, "r-s", linewidth=2, markersize=6)
@@ -289,29 +291,29 @@ def plot_ts_diagram(
         # Draw saturation dome
         T_dome = np.linspace(T_min, T_crit - 0.1, 100)
         S_sat_liq = [
-            CP.PropsSI("S", "T", t, "Q", 0, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("S", "T", t, "Q", 0, refrigerant) * cu.J2kJ for t in T_dome
         ]
         S_sat_vap = [
-            CP.PropsSI("S", "T", t, "Q", 1, refrigerant) / 1000 for t in T_dome
+            CP.PropsSI("S", "T", t, "Q", 1, refrigerant) * cu.J2kJ for t in T_dome
         ]
 
-        ax.plot(S_sat_liq, T_dome - 273.15, "k-", linewidth=1.5, alpha=0.5)
-        ax.plot(S_sat_vap, T_dome - 273.15, "k-", linewidth=1.5, alpha=0.5)
+        ax.plot(S_sat_liq, cu.K2C(T_dome), "k-", linewidth=1.5, alpha=0.5)
+        ax.plot(S_sat_vap, cu.K2C(T_dome), "k-", linewidth=1.5, alpha=0.5)
 
         # Plot cycle points
         S = [
-            result["S1"] / 1000,
-            result["S2"] / 1000,
-            result["S3"] / 1000,
-            result["S4"] / 1000,
-            result["S1"] / 1000,
+            result["S1"] * cu.J2kJ,
+            result["S2"] * cu.J2kJ,
+            result["S3"] * cu.J2kJ,
+            result["S4"] * cu.J2kJ,
+            result["S1"] * cu.J2kJ,
         ]
         T_C = [
-            result["T1"] - 273.15,
-            result["T2"] - 273.15,
-            result["T3"] - 273.15,
-            result["T4"] - 273.15,
-            result["T1"] - 273.15,
+            cu.K2C(result["T1"]),
+            cu.K2C(result["T2"]),
+            cu.K2C(result["T3"]),
+            cu.K2C(result["T4"]),
+            cu.K2C(result["T1"]),
         ]
 
         ax.plot(S, T_C, "g-^", linewidth=2, markersize=6)
