@@ -135,8 +135,23 @@ def calc_cold_water_temp(df: pd.DataFrame, target_date_str: str) -> float:
     float
         Calculated cold water temperature [degC].
     """
-    T_out_avg = df["T_avg"].mean()
-    T_maxdiff = (df["T_avg"].max() - df["T_avg"].min()) / 2
+    # 온도 컬럼 동적 탐색 (T_avg, 기온, temp, T0 등 다양한 이름 대응)
+    _TEMP_PATTERNS = ["t_avg", "기온", "temp", "t0", "°c", "℃"]
+    temp_col: str | None = None
+    for pat in _TEMP_PATTERNS:
+        matched = df.columns[df.columns.str.lower().str.contains(pat.lower())]
+        if len(matched) > 0:
+            temp_col = str(matched[0])
+            break
+    if temp_col is None:
+        raise ValueError(
+            f"calc_cold_water_temp: 온도 컬럼을 찾을 수 없습니다. "
+            f"현재 컬럼: {df.columns.tolist()}. "
+            f"'T_avg', '기온', 'temp', 'T0' 등의 키워드가 포함된 컬럼이 필요합니다."
+        )
+
+    T_out_avg = df[temp_col].mean()
+    T_maxdiff = (df[temp_col].max() - df[temp_col].min()) / 2
 
     target_date = pd.to_datetime(target_date_str)
     day_of_year = target_date.dayofyear

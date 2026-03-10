@@ -57,48 +57,61 @@ def generate_entropy_exergy_term(
     return s, h, exergy
 
 
-def calc_energy_flow(G: float, T: float, T0: float) -> float:
+def calc_energy_flow(G, T, T0):
     """Calculate energy flow rate.
 
     Parameters
     ----------
-    G : float
+    G : float or pd.Series
         Heat capacity flow rate (mass_flow * Cp) [W/K].
-    T : float
+    T : float or pd.Series
         Current temperature [K].
-    T0 : float
+    T0 : float or pd.Series
         Reference/dead state temperature [K].
 
     Returns
     -------
-    float
+    float or pd.Series
         Energy flow rate [W].
     """
     return G * (T - T0)
 
 
-def calc_exergy_flow(G: float, T: float, T0: float) -> float:
+def calc_exergy_flow(G, T, T0):
     """Calculate exergy flow rate.
 
     Parameters
     ----------
-    G : float
+    G : float or pd.Series
         Heat capacity flow rate (mass_flow * Cp) [W/K].
-    T : float
+    T : float or pd.Series
         Current temperature [K].
-    T0 : float
+    T0 : float or pd.Series
         Reference/dead state temperature [K].
 
     Returns
     -------
-    float
+    float or pd.Series
         Exergy flow rate [W].
     """
     import numpy as np
+    import pandas as pd
 
-    if T <= 0 or T0 <= 0:
-        return 0.0
-    return float(G * ((T - T0) - T0 * np.log(T / T0)))
+    is_series = isinstance(T, pd.Series) or isinstance(T0, pd.Series) or isinstance(G, pd.Series)
+    if is_series:
+        # 벡터화 처리: T <= 0 또는 T0 <= 0인 경우 0으로 마스킹
+        invalid = (T <= 0) | (T0 <= 0)
+        T_safe = np.where(T <= 0, 1.0, T)
+        T0_safe = np.where(T0 <= 0, 1.0, T0)
+        result = G * ((T_safe - T0_safe) - T0_safe * np.log(T_safe / T0_safe))
+        if isinstance(result, pd.Series):
+            return result.mask(invalid, 0.0)
+        result = np.where(invalid, 0.0, result)
+        return pd.Series(result, index=T.index if isinstance(T, pd.Series) else None)
+    else:
+        if T <= 0 or T0 <= 0:
+            return 0.0
+        return float(G * ((T - T0) - T0 * np.log(T / T0)))
 
 
 def calc_refrigerant_exergy(
