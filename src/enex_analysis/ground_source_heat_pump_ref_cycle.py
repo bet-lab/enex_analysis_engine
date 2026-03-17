@@ -178,6 +178,11 @@ class GroundSourceHeatPump_cooling_RefCycle:
         self.E_pmp = 200.0
 
         # ------------------------------------------------------------------
+        # RWHX (refrigerant-to-water heat exchanger) heat-transfer
+        # ------------------------------------------------------------------
+        self.UA_rwhx = 3000.0    # overall conductance [W/K]
+
+        # ------------------------------------------------------------------
         # Temporal superposition (pygfunction)
         # ------------------------------------------------------------------
         self.Q_bh_history = [0.0]
@@ -245,60 +250,85 @@ class GroundSourceHeatPump_cooling_RefCycle:
             T_b_history_effect += delta_Q * g_val
 
         # ------------------------------------------------------------------
-        # C2 helper: evaluate one refrigerant cycle given T_evap_C, T_cond_K
+        # C2 helper: evaluate one refrigerant cycle given T_evap_C & T_f_out_K
+        # T_cond is solved internally from the RWHX ε-NTU constraint:
+        #   Q_rwhx = ε·C_w·(T_cond − T_f_out)   (water enters at T_f_out)
+        #   Q_rwhx = m_r·(h2 − h3)               (refrigerant condenser load)
         # ------------------------------------------------------------------
-        def _cycle(T_evap_C: float, T_cond_K: float):
-            """Return (E_cmp, E_fan, m_r, dV_iu, p1,h1,s1,T1_K,
-                                              p2,h2,s2,T2_K,
-                                              p3,h3,s3,T3_K,
-                                              p4,h4,s4,T4_K)
+        def _cycle(T_evap_C: float, T_f_out_K: float):
+            """Return (E_cmp, E_fan, m_r, dV_iu,
+                       p1,h1,s1,T1_K, p2,h2,s2,T2_K,
+                       p3,h3,s3,T3_K, p4,h4,s4,T4_K,
+                       T_cond_K)
             Raises ValueError if infeasible.
             """
             T_evap_K = cu.C2K(T_evap_C)
-            if T_evap_K >= T_cond_K - 1.0:
-                raise ValueError("T_evap >= T_cond: infeasible cycle.")
 
-            # State 1: compressor inlet (superheated)
+            # ── Solve T_cond from RWHX ε-NTU constraint ──────────────────
+            def _rwhx_resid(T_c: float) -> float:
+                if T_c <= T_evap_K + 0.5:
+                    return 1e6
+                try:
+                    p1_ = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
+                    h1_ = PropsSI("H", "T", T_evap_K + self.SH, "P", p1_, self.ref)
+                    s1_ = PropsSI("S", "T", T_evap_K + self.SH, "P", p1_, self.ref)
+                    p2_ = PropsSI("P", "T", T_c, "Q", 1, self.ref)
+                    h2s_ = PropsSI("H", "P", p2_, "S", s1_, self.ref)
+                    h2_  = h1_ + (h2s_ - h1_) / self.eta_is
+                    h3_  = PropsSI("H", "T", T_c - self.SC, "P", p2_, self.ref)
+                    dh   = h1_ - h3_
+                    if dh < 1.0:
+                        return 1e6
+                    Q_rwhx = (self.Q_r_iu / dh) * (h2_ - h3_)
+                    return T_c - (T_f_out_K + Q_rwhx / (eps_rwhx * C_w))
+                except Exception:
+                    return 1e6
+
+            T_c_lb = max(T_f_out_K + 0.1, T_evap_K + 1.0)
+            T_c_ub = 353.15  # 80 °C
+            try:
+                T_cond_K = brentq(_rwhx_resid, T_c_lb, T_c_ub,
+                                   xtol=0.01, maxiter=60)
+            except ValueError:
+                raise ValueError(
+                    f"RWHX cooling: no T_cond solution at "
+                    f"T_evap={T_evap_C:.1f}°C, T_f_out={T_f_out_K-273.15:.1f}°C"
+                )
+
+            if T_cond_K <= T_evap_K + 1.0:
+                raise ValueError("T_evap >= T_cond after RWHX solve.")
+
+            # ── Full refrigerant cycle at solved T_cond ───────────────────
             p1 = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
             T1_K = T_evap_K + self.SH
             h1 = PropsSI("H", "T", T1_K, "P", p1, self.ref)
             s1 = PropsSI("S", "T", T1_K, "P", p1, self.ref)
 
-            # State 2: compressor outlet
             p2 = PropsSI("P", "T", T_cond_K, "Q", 1, self.ref)
             h2s = PropsSI("H", "P", p2, "S", s1, self.ref)
             h2 = h1 + (h2s - h1) / self.eta_is
             T2_K = PropsSI("T", "P", p2, "H", h2, self.ref)
             s2 = PropsSI("S", "P", p2, "H", h2, self.ref)
 
-            # State 3: expansion valve inlet (subcooled)
             p3 = p2
             T3_K = T_cond_K - self.SC
             h3 = PropsSI("H", "T", T3_K, "P", p3, self.ref)
             s3 = PropsSI("S", "T", T3_K, "P", p3, self.ref)
 
-            # State 4: expansion valve outlet (isenthalpic)
             p4 = p1
             h4 = h3
             T4_K = PropsSI("T", "P", p4, "H", h4, self.ref)
             s4 = PropsSI("S", "P", p4, "H", h4, self.ref)
 
-            # Mass flow rate from indoor load: Q = m_r * (h1 - h4)
             dh_evap = h1 - h4
             if dh_evap < 1.0:
                 raise ValueError("h1 - h4 too small.")
-            m_r = self.Q_r_iu / dh_evap
-
-            # Compressor electrical power
+            m_r   = self.Q_r_iu / dh_evap
             E_cmp = m_r * (h2 - h1) / self.eta_el
 
-            # Indoor unit: ε-NTU to find airflow dV_iu
-            # Cooling: refrigerant (evaporator) is T_evap, air enters at T_room
-            # Feasibility: Q_r_iu < UA_iu * (T_room - T_evap)
-            C_a = _solve_Ca_from_NTU(
-                self.UA_iu, self.Q_r_iu, T_a_iu_in_K, T_evap_K
-            )
-            m_a = C_a / c_a
+            C_a   = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu,
+                                        T_a_iu_in_K, T_evap_K)
+            m_a   = C_a / c_a
             dV_iu = m_a / rho_a
             E_fan = Fan().get_power(self.fan_iu, dV_iu)
 
@@ -306,7 +336,8 @@ class GroundSourceHeatPump_cooling_RefCycle:
                     p1, h1, s1, T1_K,
                     p2, h2, s2, T2_K,
                     p3, h3, s3, T3_K,
-                    p4, h4, s4, T4_K)
+                    p4, h4, s4, T4_K,
+                    T_cond_K)
 
         # ------------------------------------------------------------------
         # C. Outer loop: T_f_in convergence
@@ -314,40 +345,37 @@ class GroundSourceHeatPump_cooling_RefCycle:
         _LARGE = 1e12
         max_outer = 30
         tol_outer = 1e-3
-        T_f_in_K = T_g_K
+        T_f_in_K  = T_g_K
+        T_f_out_K = T_g_K   # initial guess; updated each outer iteration
 
         # variables set inside loop, needed after
         T_evap_opt_C = None
         _cycle_result = None
+        T_cond_K = T_g_K + 5.0  # fallback init (overwritten by _cycle)
 
         for _outer in range(max_outer):
 
-            # --------------------------------------------------------------
-            # C1. Condensing temperature from RWHX approach assumption
-            # --------------------------------------------------------------
-            T_cond_K = T_f_in_K + 5.0
+            # C1 removed: T_cond is now determined inside _cycle from
+            # the RWHX ε-NTU constraint (no fixed approach temperature).
 
             # --------------------------------------------------------------
             # C2. Inner optimisation: find T_evap* minimising E_cmp + E_fan
+            #     _cycle(T_evap_C, T_f_out_K) internally solves T_cond.
             #
-            #   Feasibility bound (upper limit on T_evap):
+            #   Feasibility bound (upper limit on T_evap from indoor unit):
             #     Q_r_iu < UA_iu * (T_room - T_evap)
-            #     → T_evap < T_room - Q_r_iu/UA_iu
-            #   Safety margin of 0.5 K applied.
+            #     → T_evap < T_room - Q_r_iu/UA_iu − 0.5 K
             # --------------------------------------------------------------
             T_evap_ub_C = (T_a_iu_in_K - self.Q_r_iu / self.UA_iu
                            - 0.5) - 273.15
-            # Also cap below T_cond (cycle must be feasible)
-            T_evap_ub_C = min(T_evap_ub_C, T_cond_K - 1.0 - 273.15)
             T_evap_lb_C = self.T_evap_min
 
             if T_evap_lb_C >= T_evap_ub_C:
-                # Window collapsed – fall back to midpoint
                 T_evap_opt_C = 0.5 * (T_evap_lb_C + T_evap_ub_C)
             else:
                 def _objective(T_evap_C: float) -> float:
                     try:
-                        E_cmp, E_fan, *_ = _cycle(T_evap_C, T_cond_K)
+                        E_cmp, E_fan, *_ = _cycle(T_evap_C, T_f_out_K)
                         return E_cmp + E_fan
                     except (ValueError, Exception):
                         return _LARGE
@@ -361,17 +389,17 @@ class GroundSourceHeatPump_cooling_RefCycle:
                 T_evap_opt_C = result.x
 
             try:
-                _cycle_result = _cycle(T_evap_opt_C, T_cond_K)
+                _cycle_result = _cycle(T_evap_opt_C, T_f_out_K)
             except ValueError:
-                # If still infeasible, step inward
                 T_evap_opt_C = T_evap_lb_C + 0.1
-                _cycle_result = _cycle(T_evap_opt_C, T_cond_K)
+                _cycle_result = _cycle(T_evap_opt_C, T_f_out_K)
 
             (E_cmp, E_fan_iu, m_r, dV_iu,
              p1, h1, s1, T1_K,
              p2, h2, s2, T2_K,
              p3, h3, s3, T3_K,
-             p4, h4, s4, T4_K) = _cycle_result
+             p4, h4, s4, T4_K,
+             T_cond_K) = _cycle_result
 
             # --------------------------------------------------------------
             # C3. Ground-loop heat balance
@@ -387,16 +415,18 @@ class GroundSourceHeatPump_cooling_RefCycle:
             T_f_K = T_b_K + Q_bh * self.R_b
 
             dT_f = Q_bh * self.H_b / (2.0 * c_w * rho_w * dV_f_m3s)
-            T_f_in_new_K = T_f_K + dT_f   # hot end  (entering borehole)
-            T_f_out_K    = T_f_K - dT_f   # cool end (leaving borehole)
+            T_f_in_new_K  = T_f_K + dT_f   # hot end  (entering borehole)
+            T_f_out_new_K = T_f_K - dT_f   # cool end (leaving borehole)
 
             # --------------------------------------------------------------
             # C4. Convergence on T_f_in
             # --------------------------------------------------------------
             if abs(T_f_in_new_K - T_f_in_K) < tol_outer:
-                T_f_in_K = T_f_in_new_K
+                T_f_in_K  = T_f_in_new_K
+                T_f_out_K = T_f_out_new_K
                 break
-            T_f_in_K = T_f_in_new_K
+            T_f_in_K  = T_f_in_new_K
+            T_f_out_K = T_f_out_new_K
 
         # ------------------------------------------------------------------
         # D. Store history & advance timer
@@ -406,6 +436,7 @@ class GroundSourceHeatPump_cooling_RefCycle:
 
         # Convenience attributes
         self.T_evap_opt_C = T_evap_opt_C
+        self.T_cond_K = T_cond_K        # solved from RWHX ε-NTU constraint
         self.m_r = m_r
         self.E_cmp = E_cmp
         self.E_fan_iu = E_fan_iu
@@ -591,6 +622,11 @@ class GroundSourceHeatPump_heating_RefCycle:
         # Pump power
         self.E_pmp = 200.0
 
+        # ------------------------------------------------------------------
+        # RWHX (refrigerant-to-water heat exchanger) heat-transfer
+        # ------------------------------------------------------------------
+        self.UA_rwhx = 3000.0    # overall conductance [W/K]
+
         # Temporal superposition
         self.Q_bh_history = [0.0]
         self.sim_hours = 8760
@@ -633,6 +669,8 @@ class GroundSourceHeatPump_heating_RefCycle:
         # A. Unit conversions & dead-state
         # ------------------------------------------------------------------
         dV_f_m3s = self.dV_f * cu.s2m * cu.L2m3
+        C_w      = c_w * rho_w * dV_f_m3s          # water-side capacity rate [W/K]
+        eps_rwhx = 1.0 - math.exp(-self.UA_rwhx / C_w)  # ε-NTU (Cr=0 limit)
 
         T0_K     = cu.C2K(self.T0)
         T_g_K    = cu.C2K(self.T_g)
@@ -657,53 +695,84 @@ class GroundSourceHeatPump_heating_RefCycle:
             T_b_history_effect += delta_Q * g_val
 
         # ------------------------------------------------------------------
-        # C2 helper: evaluate one refrigerant cycle given T_evap_K, T_cond_C
+        # C2 helper: evaluate one refrigerant cycle given T_cond_C & T_f_out_K
+        # T_evap is solved internally from the RWHX ε-NTU constraint:
+        #   Q_rwhx = ε·C_w·(T_f_out − T_evap)   (water enters at T_f_out)
+        #   Q_rwhx = m_r·(h1 − h3)               (refrigerant evaporator load)
         # ------------------------------------------------------------------
-        def _cycle(T_evap_K: float, T_cond_C: float):
-            """Return (E_cmp, E_fan, m_r, dV_iu, p1…s4) or raises ValueError."""
+        def _cycle(T_cond_C: float, T_f_out_K: float):
+            """Return (E_cmp, E_fan, m_r, dV_iu,
+                       p1,h1,s1,T1_K, p2,h2,s2,T2_K,
+                       p3,h3,s3,T3_K, p4,h4,s4,T4_K,
+                       T_evap_K)
+            Raises ValueError if infeasible.
+            """
             T_cond_K = cu.C2K(T_cond_C)
-            if T_evap_K >= T_cond_K - 1.0:
-                raise ValueError("T_evap >= T_cond.")
 
-            # State 1: compressor inlet
-            p1 = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
-            T1_K = T_evap_K + self.SH
-            h1 = PropsSI("H", "T", T1_K, "P", p1, self.ref)
-            s1 = PropsSI("S", "T", T1_K, "P", p1, self.ref)
-
-            # State 2: compressor outlet
-            p2 = PropsSI("P", "T", T_cond_K, "Q", 1, self.ref)
-            h2s = PropsSI("H", "P", p2, "S", s1, self.ref)
-            h2 = h1 + (h2s - h1) / self.eta_is
-            T2_K = PropsSI("T", "P", p2, "H", h2, self.ref)
-            s2 = PropsSI("S", "P", p2, "H", h2, self.ref)
-
-            # State 3: expansion valve inlet
-            p3 = p2
+            # Pre-compute condenser-side properties (depend only on T_cond)
+            p2   = PropsSI("P", "T", T_cond_K, "Q", 1, self.ref)
             T3_K = T_cond_K - self.SC
-            h3 = PropsSI("H", "T", T3_K, "P", p3, self.ref)
-            s3 = PropsSI("S", "T", T3_K, "P", p3, self.ref)
+            h3   = PropsSI("H", "T", T3_K, "P", p2, self.ref)
+            s3   = PropsSI("S", "T", T3_K, "P", p2, self.ref)
 
-            # State 4: expansion valve outlet (isenthalpic)
+            # ── Solve T_evap from RWHX ε-NTU constraint ──────────────────
+            def _rwhx_resid(T_e: float) -> float:
+                if T_e >= T_cond_K - 0.5 or T_e >= T_f_out_K - 0.05:
+                    return 1e6
+                try:
+                    p1_  = PropsSI("P", "T", T_e, "Q", 1, self.ref)
+                    T1_  = T_e + self.SH
+                    h1_  = PropsSI("H", "T", T1_, "P", p1_, self.ref)
+                    s1_  = PropsSI("S", "T", T1_, "P", p1_, self.ref)
+                    h2s_ = PropsSI("H", "P", p2, "S", s1_, self.ref)
+                    h2_  = h1_ + (h2s_ - h1_) / self.eta_is
+                    dh_c = h2_ - h3
+                    if dh_c < 1.0:
+                        return 1e6
+                    m_r_  = self.Q_r_iu / dh_c
+                    Q_ref = m_r_ * (h1_ - h3)   # evaporator heat absorption
+                    Q_wat = eps_rwhx * C_w * (T_f_out_K - T_e)
+                    return Q_ref - Q_wat
+                except Exception:
+                    return 1e6
+
+            T_e_ub = min(T_cond_K - 1.0, T_f_out_K - 0.1)
+            T_e_lb = 233.15  # -40 °C hard lower bound
+            try:
+                T_evap_K = brentq(_rwhx_resid, T_e_lb, T_e_ub,
+                                   xtol=0.01, maxiter=60)
+            except ValueError:
+                raise ValueError(
+                    f"RWHX heating: no T_evap solution at "
+                    f"T_cond={T_cond_C:.1f}°C, T_f_out={T_f_out_K-273.15:.1f}°C"
+                )
+
+            # ── Full refrigerant cycle at solved (T_evap_K, T_cond_K) ───────
+            p1   = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
+            T1_K = T_evap_K + self.SH
+            h1   = PropsSI("H", "T", T1_K, "P", p1, self.ref)
+            s1   = PropsSI("S", "T", T1_K, "P", p1, self.ref)
+
+            h2s = PropsSI("H", "P", p2, "S", s1, self.ref)
+            h2  = h1 + (h2s - h1) / self.eta_is
+            T2_K = PropsSI("T", "P", p2, "H", h2, self.ref)
+            s2   = PropsSI("S", "P", p2, "H", h2, self.ref)
+
+            p3 = p2
             p4 = p1
-            h4 = h3
+            h4   = h3
             T4_K = PropsSI("T", "P", p4, "H", h4, self.ref)
-            s4 = PropsSI("S", "P", p4, "H", h4, self.ref)
+            s4   = PropsSI("S", "P", p4, "H", h4, self.ref)
 
-            # Mass flow from heating load: Q_r_iu = m_r * (h2 - h3)
             dh_cond = h2 - h3
             if dh_cond < 1.0:
                 raise ValueError("h2 - h3 too small.")
-            m_r = self.Q_r_iu / dh_cond
-
+            m_r   = self.Q_r_iu / dh_cond
             E_cmp = m_r * (h2 - h1) / self.eta_el
 
-            # Indoor unit: ε-NTU for heating condenser
-            # Refrigerant condenses at T_cond_K; air enters at T_room_K
-            C_a = _solve_Ca_from_NTU(
-                self.UA_iu, self.Q_r_iu, T_a_iu_in_K, T_cond_K
-            )
-            m_a = C_a / c_a
+            C_a   = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu,
+                                        T_a_iu_in_K, T_cond_K)
+            m_a   = C_a / c_a
             dV_iu = m_a / rho_a
             E_fan = Fan().get_power(self.fan_iu, dV_iu)
 
@@ -711,7 +780,8 @@ class GroundSourceHeatPump_heating_RefCycle:
                     p1, h1, s1, T1_K,
                     p2, h2, s2, T2_K,
                     p3, h3, s3, T3_K,
-                    p4, h4, s4, T4_K)
+                    p4, h4, s4, T4_K,
+                    T_evap_K)
 
         # ------------------------------------------------------------------
         # C. Outer loop: T_f_out convergence
@@ -726,22 +796,19 @@ class GroundSourceHeatPump_heating_RefCycle:
 
         for _outer in range(max_outer):
 
-            # ---------------------------------------------------------------
-            # C1. Evaporating temperature from RWHX approach assumption
-            # ---------------------------------------------------------------
-            T_evap_K = T_f_out_K - 5.0
+            # C1 removed: T_evap is now determined inside _cycle from
+            # the RWHX ε-NTU constraint (no fixed approach temperature).
 
             # ---------------------------------------------------------------
             # C2. Inner optimisation: T_cond* minimising E_cmp + E_fan
+            #     _cycle(T_cond_C, T_f_out_K) internally solves T_evap.
             #
-            #   Feasibility bound (lower limit on T_cond):
+            #   Feasibility bound (lower limit on T_cond from indoor unit):
             #     Q_r_iu < UA_iu * (T_cond - T_room)
-            #     → T_cond > T_room + Q_r_iu/UA_iu + 0.5
+            #     → T_cond > T_room + Q_r_iu/UA_iu + 0.5 K
             # ---------------------------------------------------------------
             T_cond_lb_C = (T_a_iu_in_K + self.Q_r_iu / self.UA_iu
                            + 0.5) - 273.15
-            # Also ensure T_cond > T_evap + 1
-            T_cond_lb_C = max(T_cond_lb_C, T_evap_K + 1.0 - 273.15)
             T_cond_ub_C = self.T_cond_max
 
             if T_cond_lb_C >= T_cond_ub_C:
@@ -749,7 +816,7 @@ class GroundSourceHeatPump_heating_RefCycle:
             else:
                 def _objective(T_cond_C: float) -> float:
                     try:
-                        E_cmp, E_fan, *_ = _cycle(T_evap_K, T_cond_C)
+                        E_cmp, E_fan, *_ = _cycle(T_cond_C, T_f_out_K)
                         return E_cmp + E_fan
                     except (ValueError, Exception):
                         return _LARGE
@@ -763,16 +830,17 @@ class GroundSourceHeatPump_heating_RefCycle:
                 T_cond_opt_C = result.x
 
             try:
-                _cycle_result = _cycle(T_evap_K, T_cond_opt_C)
+                _cycle_result = _cycle(T_cond_opt_C, T_f_out_K)
             except ValueError:
                 T_cond_opt_C = T_cond_lb_C + 0.1
-                _cycle_result = _cycle(T_evap_K, T_cond_opt_C)
+                _cycle_result = _cycle(T_cond_opt_C, T_f_out_K)
 
             (E_cmp, E_fan_iu, m_r, dV_iu,
              p1, h1, s1, T1_K,
              p2, h2, s2, T2_K,
              p3, h3, s3, T3_K,
-             p4, h4, s4, T4_K) = _cycle_result
+             p4, h4, s4, T4_K,
+             T_evap_K) = _cycle_result
 
             # ---------------------------------------------------------------
             # C3. Ground-loop heat balance (heating: extraction → Q_bh < 0)
