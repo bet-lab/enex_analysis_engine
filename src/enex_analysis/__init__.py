@@ -147,6 +147,10 @@ from .gas_boiler_tank import (
 from .ground_source_heat_pump_boiler import (
     GroundSourceHeatPumpBoiler,
 )
+from .ground_source_heat_pump_ref_cycle import (
+    GroundSourceHeatPump_cooling_RefCycle,
+    GroundSourceHeatPump_heating_RefCycle,
+)
 from .heat_transfer import (
     TRIDIAG_MATRIX_ALGORITHM,
     calc_h_vertical_plate,
