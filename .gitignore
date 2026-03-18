@@ -55,6 +55,9 @@ docs/guides/theory/theory_manual_KR.log
 docs/guides/theory/theory_manual_EN.fdb_latexmk
 docs/guides/theory/theory_manual_EN.fls
 docs/guides/theory/theory_manual_EN.log
+*.log
+*.toc
+*.aux
 
 # Image files
 *.png
