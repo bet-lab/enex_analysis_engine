@@ -2,8 +2,7 @@
 Refrigerant cycle calculations and optimization.
 """
 
-from typing import Any
-
+from typing import Any, Callable
 import CoolProp.CoolProp as CP
 import numpy as np
 
@@ -14,7 +13,7 @@ def calc_ref_state(
     T_evap_K: float,  # 증발 온도 [K] (포화 온도로 해석)
     T_cond_K: float,  # 응축 온도 [K] (포화 온도로 해석)
     refrigerant: str,  # 냉매 이름
-    eta_cmp_isen: float,  # 압축기 단열 효율
+    eta_cmp_isen: float | Callable,  # 압축기 단열 효율 (Float 또는 함수)
     mode: str = "heating",  # 작동 모드 ('heating' 또는 'cooling')
     dT_superheat: float = 0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
     dT_subcool: float = 0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
@@ -91,18 +90,18 @@ def calc_ref_state(
     P_cond = CP.PropsSI("P", "T", T_ref_cond_sat_l_K, "Q", 0, refrigerant)
 
     # 포화 상태 추가 계산
-    h_ref_evap_sat = CP.PropsSI("H", "P", P_evap, "Q", 1, refrigerant)
-    s_ref_evap_sat = CP.PropsSI("S", "P", P_evap, "Q", 1, refrigerant)
-    h_ref_cond_sat_l = CP.PropsSI("H", "P", P_cond, "Q", 0, refrigerant)
-    s_ref_cond_sat_l = CP.PropsSI("S", "P", P_cond, "Q", 0, refrigerant)
+    h_ref_evap_sat = CP.PropsSI("H", "T", T_ref_evap_sat_K, "Q", 1, refrigerant)
+    s_ref_evap_sat = CP.PropsSI("S", "T", T_ref_evap_sat_K, "Q", 1, refrigerant)
+    h_ref_cond_sat_l = CP.PropsSI("H", "T", T_ref_cond_sat_l_K, "Q", 0, refrigerant)
+    s_ref_cond_sat_l = CP.PropsSI("S", "T", T_ref_cond_sat_l_K, "Q", 0, refrigerant)
 
     # 2단계: State 1 (실제 과열 증기) 계산
     T_ref_cmp_in_K = T_ref_evap_sat_K + dT_superheat
 
     if abs(dT_superheat) < 1e-6:
-        h_ref_cmp_in = CP.PropsSI("H", "P", P_evap, "Q", 1, refrigerant)
-        s_ref_cmp_in = CP.PropsSI("S", "P", P_evap, "Q", 1, refrigerant)
-        rho_ref_cmp_in = CP.PropsSI("D", "P", P_evap, "Q", 1, refrigerant)
+        h_ref_cmp_in = h_ref_evap_sat
+        s_ref_cmp_in = s_ref_evap_sat
+        rho_ref_cmp_in = CP.PropsSI("D", "T", T_ref_evap_sat_K, "Q", 1, refrigerant)
     else:
         h_ref_cmp_in = CP.PropsSI(
             "H", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant
@@ -117,7 +116,12 @@ def calc_ref_state(
     # 3단계: State 2 (압축기 출구 - 고압 과열 증기) 계산
     h2_isen = CP.PropsSI("H", "P", P_cond, "S", s_ref_cmp_in, refrigerant)
 
-    h_ref_cmp_out = h_ref_cmp_in + (h2_isen - h_ref_cmp_in) / eta_cmp_isen
+    if callable(eta_cmp_isen):
+        val_eta_cmp_isen = eta_cmp_isen(P_cond / P_evap)
+    else:
+        val_eta_cmp_isen = eta_cmp_isen
+
+    h_ref_cmp_out = h_ref_cmp_in + (h2_isen - h_ref_cmp_in) / val_eta_cmp_isen
     T_ref_cmp_out_K = CP.PropsSI(
         "T", "P", P_cond, "H", h_ref_cmp_out, refrigerant
     )
@@ -136,8 +140,8 @@ def calc_ref_state(
     T_ref_exp_in_K = T_ref_cond_sat_l_K - dT_subcool
 
     if abs(dT_subcool) < 1e-6:
-        h_ref_exp_in = CP.PropsSI("H", "P", P_cond, "Q", 0, refrigerant)
-        s_ref_exp_in = CP.PropsSI("S", "P", P_cond, "Q", 0, refrigerant)
+        h_ref_exp_in = h_ref_cond_sat_l
+        s_ref_exp_in = s_ref_cond_sat_l
     else:
         h_ref_exp_in = CP.PropsSI(
             "H", "T", T_ref_exp_in_K, "P", P_cond, refrigerant
