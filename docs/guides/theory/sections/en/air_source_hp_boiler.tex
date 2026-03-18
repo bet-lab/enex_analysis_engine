@@ -51,6 +51,19 @@ Compressor outlet (isentropic + efficiency):
 \end{equation}
 The fan flow rate $\dot{V}_\text{fan}$ is determined by matching the air-side capacity to the refrigerant-side evaporation duty $Q_\text{ref,evap} = \dot{m}_\text{ref}(h_\text{eva,out} - h_\text{exp,out})$.
 
+\paragraph{Evaporator heat transfer scaling.}
+The overall heat transfer coefficient ($UA$) of the evaporator is dynamically scaled with the air volume flow rate ($\dot{V}_\text{fan}$). For computational efficiency, the heat exchanger geometry is simplified, and the relationship between the air-side heat transfer coefficient ($h$) and the flow rate ($\dot{V}_\text{fan}$) is modeled using the following scaling law:
+\begin{equation}\label{eq:ashp-UA}
+  UA = UA_\text{ref} \left( \frac{\dot{V}_\text{fan}}{\dot{V}_\text{ref}} \right)^n
+\end{equation}
+The exponent $n=0.65$ is derived from the plain fin-and-tube heat exchanger correlation proposed by Wang et al. (2000)~\cite{wang2000heat}. 
+
+First, by the definition of the Colburn $j$-factor, the heat transfer coefficient $h$ is proportional to the product of the maximum air velocity $w_\text{max}$ ($\propto \dot{V}_\text{fan}$) and $j$, such that $h \propto j \cdot \dot{V}_\text{fan}$. Second, according to Wang's correlation, for typical HVAC operating ranges ($1,000 < Re < 10,000$ and $\ge 4$ tube rows), the $j$-factor for plain fins can be approximated as a power-law function of the Reynolds number ($Re$), exhibiting the relationship $j \propto Re^{-0.35} \propto \dot{V}_\text{fan}^{-0.35}$. Substituting this into the proportionality for $h$ yields:
+\begin{equation}\label{eq:ashp-h-scaling}
+  h \propto \dot{V}_\text{fan} \cdot \dot{V}_\text{fan}^{-0.35} = \dot{V}_\text{fan}^{0.65}
+\end{equation}
+This $\dot{V}_\text{fan}^{0.65}$ scaling reflects the heat transfer characteristics of the transition region where laminar and turbulent flows coexist due to the narrow fin spacing, resulting in a lower exponent compared to fully developed turbulent internal flows (e.g., the Dittus-Boelter correlation, where $n=0.8$).
+
 \subsection{Compressor model}
 
 Mass flow rate from displacement volume:

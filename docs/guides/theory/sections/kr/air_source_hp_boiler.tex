@@ -51,6 +51,19 @@
 \end{equation}
 팬 유량 $\dot{V}_\text{fan}$은 공기측 용량과 냉매측 증발 부하 $Q_\text{ref,evap} = \dot{m}_\text{ref}(h_\text{eva,out} - h_\text{exp,out})$를 일치시켜 결정한다.
 
+\paragraph{증발기 열관류율 스케일링.}
+증발기의 총합 열관류율($UA$)은 공기 풍량($\dot{V}_\text{fan}$)의 변동에 따라 동적으로 스케일링된다. 본 모델은 계산 효율성을 위해 열교환기 형상을 단순화하였으며, 공기측 열전달 계수($h$)와 풍량($\dot{V}_\text{fan}$)의 관계를 다음의 척도법(Scaling law)을 적용하여 모델링하였다:
+\begin{equation}\label{eq:ashp-UA}
+  UA = UA_\text{ref} \left( \frac{\dot{V}_\text{fan}}{\dot{V}_\text{ref}} \right)^n
+\end{equation}
+여기서 지수 $n=0.65$는 Wang et al. (2000)~\cite{wang2000heat}이 제시한 평면 핀-관(Plain fin-and-tube) 열교환기 상관식에 근거하여 다음과 같이 유도된다.
+
+첫째, Colburn $j$-팩터의 정의에 따라 열전달 계수 $h$는 최대 풍속 $w_\text{max}$($\propto \dot{V}_\text{fan}$)와 $j$의 곱에 비례한다 ($h \propto j \cdot \dot{V}_\text{fan}$). 둘째, Wang의 상관식에 따르면 일반적인 공조용 열교환기 운전 범위($1,000 < Re < 10,000$, 4열 이상 관)에서 평면 핀의 $j$-팩터는 레이놀즈 수($Re$)의 지수 함수로 근사되며, $j \propto Re^{-0.35} \propto \dot{V}_\text{fan}^{-0.35}$의 비례 관계를 따른다. 이를 $h$에 대한 비례식에 대입하면 다음과 같은 지수 법칙(Power-law)이 성립한다:
+\begin{equation}\label{eq:ashp-h-scaling}
+  h \propto \dot{V}_\text{fan} \cdot \dot{V}_\text{fan}^{-0.35} = \dot{V}_\text{fan}^{0.65}
+\end{equation}
+이러한 $\dot{V}_\text{fan}^{0.65}$ 스케일링은 핀 사이의 좁은 간격으로 인해 층류와 난류가 혼재된 전이 영역(Transition region)의 핀-관 열전달 특성을 반영한 것으로, 일반적인 완전 발달 난류 관내 유동 상관식(예: Dittus-Boelter 식, $n=0.8$)보다 낮은 지수를 가지게 된다.
+
 \subsection{압축기 모델}
 
 배제 체적으로부터의 질량류량:
