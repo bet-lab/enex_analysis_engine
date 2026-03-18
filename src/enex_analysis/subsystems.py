@@ -207,24 +207,12 @@ class SolarThermalCollector:
             ``(T_stc_w_out_K, T_stc_K, ksi_stc)`` — outlet temp,
             mean plate temp, and dimensionless parameter.
         """
-        A = self.A_stc_pipe
-        ksi = np.exp(-A * U_stc / G_stc)
+        A_U = max(1e-6, self.A_stc_pipe * U_stc)
+        ksi = np.exp(-A_U / G_stc)
 
-        numer = (
-            T0_K
-            + (
-                Q_sol_stc
-                + Q_stc_w_in
-                + A * U_stc * (ksi * T_stc_w_in_K / (1 - ksi))
-                + A * U_stc * T0_K
-            )
-            / G_stc
-        )
-
-        denom = 1 + (A * U_stc) / ((1 - ksi) * G_stc)
-
-        T_out_K = numer / denom
-        T_stc_K = T_out_K / (1 - ksi) - ksi / (1 - ksi) * T_stc_w_in_K
+        T_out_K = ksi * T_stc_w_in_K + (1 - ksi) * T0_K + (1 - ksi) * Q_sol_stc / A_U
+        T_stc_K = T0_K + (Q_sol_stc - G_stc * (T_out_K - T_stc_w_in_K)) / A_U
+        
         return T_out_K, T_stc_K, ksi
 
     # ----------------------------------------------------------
@@ -406,7 +394,7 @@ class SolarThermalCollector:
         dV_feed: float = (
             ctrl.dV_tank_w_in_ctrl
             if ctrl.dV_tank_w_in_ctrl is not None
-            else 0.0
+            else ctx.dV_mix_w_out
         )
         raw: dict = self.calculate_dynamic(
             I_DN=ctx.I_DN,
@@ -978,20 +966,31 @@ class PhotovoltaicSystem:
         X_c_ctrl = S_g_ctrl * T0_K
 
         # Stage 3: ESS (Battery)
-        # For now, charge ESS with all available power until full (SOC=1.0)
-        # Discharge is not yet tied to HP logic, so E_ess_dis = 0
+        # HP load is provided via ctrl.result
+        E_hp_load = ctrl.result.get("E_tot [W]", 0.0)
+        # Required ESS discharge to meet HP load
+        E_ess_dis_target = E_hp_load / self.eta_inv if self.eta_inv > 0 else 0.0
+        
+        # Charge ESS with available PV power
         E_ess_chg = E_ctrl_out
-        E_ess_dis = 0.0
-
-        # Enforce SOC constraint
+        
+        # Enforce SOC constraints
         energy_available_to_store = (1.0 - self.SOC_ess) * self.C_ess_max
         max_chg_power = (
             energy_available_to_store / (self.eta_ess_chg * dt)
             if dt > 0
             else 0.0
         )
-
         E_ess_chg_actual = min(E_ess_chg, max_chg_power)
+        
+        energy_available_to_discharge = self.SOC_ess * self.C_ess_max
+        max_dis_power = (
+            energy_available_to_discharge * self.eta_ess_dis / dt
+            if dt > 0
+            else 0.0
+        )
+        E_ess_dis = min(E_ess_dis_target, max_dis_power)
+
         # Excess generation goes unused or dumped for now
 
         # Update SOC via Euler integration
