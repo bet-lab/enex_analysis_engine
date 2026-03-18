@@ -9,15 +9,24 @@ from typing import Any
 
 import numpy as np
 from scipy import integrate
+from scipy.interpolate import interp1d
 from scipy.special import erf
 
 from . import calc_util as cu
 from .constants import SP
 
+try:
+    import pygfunction as gt
+
+    HAS_PYGFUNCTION = True
+except ImportError:
+    HAS_PYGFUNCTION = False
+
 __all__ = [
     "f",
     "chi",
     "G_FLS",
+    "precompute_gfunction",
     "air_dynamic_viscosity",
     "air_prandtl_number",
 ]
@@ -129,6 +138,85 @@ def G_FLS(t, ks, as_, rb, H):
     result = factor * values
     _g_func_cache[key] = result
     return result
+
+
+def precompute_gfunction(
+    N_1: int,
+    N_2: int,
+    B: float,
+    H_b: float,
+    D_b: float,
+    r_b: float,
+    alpha_s: float,
+    k_s: float,
+    t_max_s: float,
+    dt_s: float,
+) -> interp1d:
+    """Precompute g-function using pygfunction and return an interpolator.
+
+    Creates a rectangular borehole field and computes the g-function
+    for log-spaced time steps up to t_max_s (plus an extra margin).
+    Returns a callable `interp1d` object predicting the g-function [mK/W].
+
+    Parameters
+    ----------
+    N_1 : int
+        Number of boreholes in x-direction.
+    N_2 : int
+        Number of boreholes in y-direction.
+    B : float
+        Borehole spacing [m].
+    H_b : float
+        Borehole depth/length [m].
+    D_b : float
+        Buried depth [m].
+    r_b : float
+        Borehole radius [m].
+    alpha_s : float
+        Ground thermal diffusivity [m²/s].
+    k_s : float
+        Ground thermal conductivity [W/mK].
+    t_max_s : float
+        Maximum simulation time [s].
+    dt_s : float
+        Simulation timestep [s].
+
+    Returns
+    -------
+    scipy.interpolate.interp1d
+        Interpolator function mapping `time [s]` to `g-function [mK/W]`.
+    """
+    if not HAS_PYGFUNCTION:
+        raise ImportError(
+            "pygfunction is not installed. Run `uv pip install pygfunction` to use multi-borehole features."
+        )
+
+    # Generate log-spaced times starting from very short time to slightly beyond t_max
+    # Include dt_s to ensure the initial steps are well-covered.
+    t_min = min(dt_s / 2.0, 3600.0)
+    times = np.geomspace(t_min, t_max_s * 1.5, num=100)
+    
+    # We also need to map 0.0 -> 0.0 for t=0 pulse calculations
+    times = np.concatenate(([0.0], times))
+
+    boreField = gt.boreholes.rectangle_field(
+        N_1=N_1, N_2=N_2, B_1=B, B_2=B, H=H_b, D=D_b, r_b=r_b
+    )
+
+    gfunc_obj = gt.gfunction.gFunction(boreField, alpha_s, time=times[1:])
+    g_vals = gfunc_obj.gFunc
+
+    # pygfunction returns dimensionless g-function 
+    # GSHPB expects dimensioned g-function [mK/W] -> g_dim = g_n / (2 * pi * k_s)
+    g_vals_dim = g_vals / (2 * np.pi * k_s)
+    
+    # Prepend 0.0 for t=0
+    g_vals_dim = np.concatenate(([0.0], g_vals_dim))
+
+    # Create interpolator
+    return interp1d(
+        times, g_vals_dim, kind="linear", bounds_error=False, fill_value="extrapolate"
+    )
 
 
 def air_dynamic_viscosity(T_K):
