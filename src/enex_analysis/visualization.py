@@ -35,9 +35,9 @@ def print_simulation_summary(
     print("-" * 50)
 
     # Energy metrics
-    E_comp = df["W_comp"].sum() * energy_kJ if "W_comp" in df else 0
-    E_pump = df["W_pump"].sum() * energy_kJ if "W_pump" in df else 0
-    E_fan = df["W_fan"].sum() * energy_kJ if "W_fan" in df else 0
+    E_comp = df["E_cmp [W]"].sum() * energy_kJ if "E_cmp [W]" in df else 0
+    E_pump = df["E_pump [W]"].sum() * energy_kJ if "E_pump [W]" in df else 0
+    E_fan = df["E_ou_fan [W]"].sum() * energy_kJ if "E_ou_fan [W]" in df else 0
 
     total_elec = E_comp + E_pump + E_fan
 
