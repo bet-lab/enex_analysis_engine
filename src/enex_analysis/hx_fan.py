@@ -15,7 +15,7 @@ def calc_UA_from_dV_fan(
     A_cross: float,
     UA: float,
 ) -> float:
-    """Calculate velocity-dependent UA via Dittus-Boelter scaling.
+    """Calculate velocity-dependent UA via lumped scaling (Wang et al., 2000).
 
     Parameters
     ----------
@@ -32,10 +32,17 @@ def calc_UA_from_dV_fan(
     -------
     float
         Scaled UA value [W/K].
+        
+    Notes
+    -----
+    Instead of the Dittus-Boelter tube-side exponent (0.8), this uses 
+    a simplified lumped exponent of 0.65. This derivation is based on 
+    the Colburn j-factor proportionality to Re^-0.35 from the plain 
+    fin-and-tube correlation by Wang et al. (2000, DOI: 10.1016/S0017-9310(99)00333-6).
     """
     v = dV_fan / A_cross if A_cross > 0 else 0
     v_design = dV_fan_design / A_cross if A_cross > 0 else 0
-    return UA * (v / v_design) ** 0.8
+    return UA * (v / v_design) ** 0.65
 
 
 def calc_fan_power_from_dV_fan(
