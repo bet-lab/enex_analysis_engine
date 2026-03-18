@@ -51,19 +51,20 @@
 \contentsline {subsection}{\numberline {5.3}Heat exchanger models}{10}{subsection.5.3}%
 \contentsline {paragraph}{Condenser (submerged coil).}{10}{section*.23}%
 \contentsline {paragraph}{Evaporator (air-side energy balance).}{11}{section*.24}%
+\contentsline {paragraph}{Evaporator heat transfer scaling.}{11}{section*.25}%
 \contentsline {subsection}{\numberline {5.4}Compressor model}{11}{subsection.5.4}%
 \contentsline {subsection}{\numberline {5.5}Differential Evolution optimisation}{11}{subsection.5.5}%
-\contentsline {paragraph}{Objective.}{11}{section*.25}%
-\contentsline {paragraph}{Constraints.}{11}{section*.26}%
-\contentsline {subsection}{\numberline {5.6}Storage tank energy balance}{11}{subsection.5.6}%
-\contentsline {paragraph}{Fully implicit discretisation.}{11}{section*.27}%
+\contentsline {paragraph}{Objective.}{11}{section*.26}%
+\contentsline {paragraph}{Constraints.}{11}{section*.27}%
+\contentsline {subsection}{\numberline {5.6}Storage tank energy balance}{12}{subsection.5.6}%
+\contentsline {paragraph}{Fully implicit discretisation.}{12}{section*.28}%
 \contentsline {subsection}{\numberline {5.7}Exergy analysis}{12}{subsection.5.7}%
-\contentsline {paragraph}{Refrigerant loop.}{12}{section*.28}%
-\contentsline {paragraph}{Indoor unit (condenser side).}{12}{section*.29}%
-\contentsline {paragraph}{Overall exergy efficiency.}{12}{section*.30}%
+\contentsline {paragraph}{Refrigerant loop.}{12}{section*.29}%
+\contentsline {paragraph}{Indoor unit (condenser side).}{12}{section*.30}%
+\contentsline {paragraph}{Overall exergy efficiency.}{12}{section*.31}%
 \contentsline {section}{\numberline {6}Ground source heat pump boiler}{12}{section.6}%
 \contentsline {subsection}{\numberline {6.1}Assumptions}{12}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Ground-coupled evaporator}{12}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Modified COP correlation}{12}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.2}Ground-coupled evaporator}{13}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Modified COP correlation}{13}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}Brine loop energy balance}{13}{subsection.6.4}%
 \contentsline {subsection}{\numberline {6.5}Exergy analysis}{13}{subsection.6.5}%

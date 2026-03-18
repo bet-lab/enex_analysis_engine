@@ -51,18 +51,19 @@
 \contentsline {subsection}{\numberline {5.3}열교환기 모델}{10}{subsection.5.3}%
 \contentsline {paragraph}{응축기 (침수 코일).}{10}{section*.23}%
 \contentsline {paragraph}{증발기 (공기측 에너지 수지).}{10}{section*.24}%
-\contentsline {subsection}{\numberline {5.4}압축기 모델}{10}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}Differential Evolution 최적화}{10}{subsection.5.5}%
-\contentsline {paragraph}{목적함수.}{10}{section*.25}%
-\contentsline {paragraph}{제약 조건.}{10}{section*.26}%
+\contentsline {paragraph}{증발기 열관류율 스케일링.}{10}{section*.25}%
+\contentsline {subsection}{\numberline {5.4}압축기 모델}{11}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Differential Evolution 최적화}{11}{subsection.5.5}%
+\contentsline {paragraph}{목적함수.}{11}{section*.26}%
+\contentsline {paragraph}{제약 조건.}{11}{section*.27}%
 \contentsline {subsection}{\numberline {5.6}저탕조 에너지 밸런스}{11}{subsection.5.6}%
-\contentsline {paragraph}{완전 음해법(Fully Implicit) 이산화.}{11}{section*.27}%
+\contentsline {paragraph}{완전 음해법(Fully Implicit) 이산화.}{11}{section*.28}%
 \contentsline {subsection}{\numberline {5.7}엑서지 분석}{11}{subsection.5.7}%
-\contentsline {paragraph}{냉매 루프.}{11}{section*.28}%
-\contentsline {paragraph}{실내기 (응축기측).}{11}{section*.29}%
-\contentsline {paragraph}{전체 엑서지 효율.}{11}{section*.30}%
-\contentsline {section}{\numberline {6}지열원 히트펌프 급탕기}{11}{section.6}%
-\contentsline {subsection}{\numberline {6.1}가정}{11}{subsection.6.1}%
+\contentsline {paragraph}{냉매 루프.}{11}{section*.29}%
+\contentsline {paragraph}{실내기 (응축기측).}{12}{section*.30}%
+\contentsline {paragraph}{전체 엑서지 효율.}{12}{section*.31}%
+\contentsline {section}{\numberline {6}지열원 히트펌프 급탕기}{12}{section.6}%
+\contentsline {subsection}{\numberline {6.1}가정}{12}{subsection.6.1}%
 \contentsline {subsection}{\numberline {6.2}지중 결합 증발기}{12}{subsection.6.2}%
 \contentsline {subsection}{\numberline {6.3}수정 COP 상관식}{12}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}브라인 루프 에너지 수지}{12}{subsection.6.4}%

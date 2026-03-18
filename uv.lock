@@ -665,6 +665,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pvlib" },
+    { name = "pygfunction" },
     { name = "salib" },
     { name = "scipy" },
     { name = "tqdm" },
@@ -707,6 +708,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pvlib", specifier = ">=0.15.0" },
+    { name = "pygfunction", specifier = ">=2.3.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.5" },
@@ -2149,6 +2151,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pygfunction"
+version = "2.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+    { name = "secondarycoolantprops" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/04/ff9fe619570aeae55aeb21ea62a7d915c3d56f3b6f7c4fe4851fa44e4291/pygfunction-2.3.1.tar.gz", hash = "sha256:8b319b88ae90dcc625f849cfa6275a1e2e5c884225fff8fc65bb2c20a9bac933", size = 130306, upload_time = "2025-08-04T09:32:31.178Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/59/df31b7eff0713638e35d0363374ed6c3cdeba6d262aeffcc81049a227251/pygfunction-2.3.1-py3-none-any.whl", hash = "sha256:b32cde693fc38080ad69da720f3e5c78205d0f8f16aa71072d7200ebb65a5295", size = 122474, upload_time = "2025-08-04T09:32:30.175Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.19.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2616,6 +2633,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/03/f3/e699e19cabe96bbac5189c04aaa970718f0105cff03d458dc5e2b6bd1e8c/scipy-1.15.2-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:bae43364d600fdc3ac327db99659dcb79e6e7ecd279a75fe1266669d9a652828", size = 36545159, upload_time = "2025-02-17T00:34:26.724Z" },
     { url = "https://files.pythonhosted.org/packages/af/f5/ab3838e56fe5cc22383d6fcf2336e48c8fe33e944b9037fbf6cbdf5a11f8/scipy-1.15.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:f031846580d9acccd0044efd1a90e6f4df3a6e12b4b6bd694a7bc03a89892b28", size = 39136566, upload_time = "2025-02-17T00:34:34.512Z" },
     { url = "https://files.pythonhosted.org/packages/0a/c8/b3f566db71461cabd4b2d5b39bcc24a7e1c119535c8361f81426be39bb47/scipy-1.15.2-cp313-cp313t-win_amd64.whl", hash = "sha256:fe8a9eb875d430d81755472c5ba75e84acc980e4a8f6204d402849234d3017db", size = 40477705, upload_time = "2025-02-17T00:34:43.619Z" },
+]
+
+[[package]]
+name = "secondarycoolantprops"
+version = "1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f2/6e/8c6ae405efb15c6957ef2898308fede474e914faa2a649dfad94c8b53602/secondarycoolantprops-1.4.tar.gz", hash = "sha256:0c9115d3dcc922aae814904ea04bd9317a2234eef787fb0c00be21352248efd2", size = 9601, upload_time = "2026-01-09T02:00:03.117Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/3c/be9686363835fa6031cf111995c377df877a843af0d2888a4b691f75676e/secondarycoolantprops-1.4-py3-none-any.whl", hash = "sha256:5ebbe8da1f8f70b786cad505c77a30a0b5ba390c5d68d81ab118c2029c509986", size = 14027, upload_time = "2026-01-09T02:00:01.974Z" },
 ]
 
 [[package]]

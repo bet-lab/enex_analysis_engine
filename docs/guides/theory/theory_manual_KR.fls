@@ -1,8 +1,8 @@
-PWD /home/habin/Codes/enex_analysis_engine/docs/guides/theory
+PWD /home/habin/Codes/enex_engine/enex_analysis_engine/docs/guides/theory
 INPUT /usr/local/texlive/2025/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT /home/habin/Codes/enex_analysis_engine/docs/guides/theory/theory_manual_KR.tex
+INPUT /home/habin/Codes/enex_engine/enex_analysis_engine/docs/guides/theory/theory_manual_KR.tex
 OUTPUT theory_manual_KR.log
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls

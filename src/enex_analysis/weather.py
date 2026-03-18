@@ -149,31 +149,19 @@ def decompose_ghi_to_poa(
     dhi = dni_dhi["dhi"]
 
     # 3. POA 변환
-    if transposition.lower() == "perez":
-        # perez 모델은 extraterrestrial irradiance와 airmass가 필요
-        dni_extra = pvlib.irradiance.get_extra_radiation(times)
-        airmass = location.get_airmass(times=times)
-        poa = pvlib.irradiance.perez(
-            surface_tilt=tilt,
-            surface_azimuth=azimuth,
-            dhi=dhi,
-            dni=dni,
-            dni_extra=dni_extra,
-            solar_zenith=solar_position["zenith"],
-            solar_azimuth=solar_position["azimuth"],
-            airmass=airmass["airmass_absolute"],
-        )
-    else:
-        # isotropic 폴백
-        poa = pvlib.irradiance.get_total_irradiance(
-            surface_tilt=tilt,
-            surface_azimuth=azimuth,
-            solar_zenith=solar_position["zenith"],
-            solar_azimuth=solar_position["azimuth"],
-            dni=dni,
-            ghi=ghi,
-            dhi=dhi,
-            model="isotropic",
-        )
+    dni_extra = pvlib.irradiance.get_extra_radiation(times)
+    airmass = location.get_airmass(times=times)
+    poa = pvlib.irradiance.get_total_irradiance(
+        surface_tilt=tilt,
+        surface_azimuth=azimuth,
+        solar_zenith=solar_position["zenith"],
+        solar_azimuth=solar_position["azimuth"],
+        dni=dni,
+        ghi=ghi,
+        dhi=dhi,
+        dni_extra=dni_extra,
+        airmass=airmass["airmass_absolute"],
+        model=transposition.lower(),
+    )
 
     return poa
