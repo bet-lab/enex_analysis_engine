@@ -8,8 +8,11 @@ and future models can share the same infrastructure.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
+
+import numpy as np
 
 from .constants import c_w, rho_w
 
@@ -516,5 +519,8 @@ def tank_mass_energy_residual(
     r_energy: float = (
         C_next * T_next - C_curr * ctx.T_tank_w_K - dt * (Q_total - Q_loss)
     )
+    
+    # Scale to prevent fsolve Jacobian singularity (r_energy is O(1e5) while r_mass is O(1))
+    r_energy_scaled = r_energy / C_tank
 
-    return [r_energy, r_mass]
+    return [r_energy_scaled, r_mass]
