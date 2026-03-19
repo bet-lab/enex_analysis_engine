@@ -867,6 +867,15 @@ class AirSourceHeatPumpBoiler:
             return {"stc": self.stc.is_preheat_on(hour_of_day)}
         return {}
 
+    def _needs_solar_input(self) -> bool:
+        """Return True if any subsystem requires solar irradiance (I_DN, I_dH).
+
+        Default: checks if self.stc or self.pv exists (backward-compat).
+        Scenario subclasses should override this if they don't attach 
+        components directly to self.stc/self.pv.
+        """
+        return self.stc is not None or self.pv is not None
+
     def _build_residual_fn(
         self,
         ctx: "StepContext",
@@ -1082,7 +1091,7 @@ class AirSourceHeatPumpBoiler:
         results_data: list[dict] = []
 
         # STC/PV schedule flags — kept for StepContext.I_DN/I_dH defaults
-        _use_solar: bool = self.stc is not None or self.pv is not None
+        _use_solar: bool = self._needs_solar_input()
 
         for n in tqdm(range(tN), desc="ASHPB Simulating"):
             t_s: float = time[n]
@@ -1110,7 +1119,6 @@ class AirSourceHeatPumpBoiler:
                 hour_of_day=hour_of_day,
                 T0=T0_schedule[n],
                 T0_K=cu.C2K(T0_schedule[n]),
-                preheat_on=activation_flags.get("stc", False),  # backward-compat alias
                 activation_flags=activation_flags,
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
@@ -1311,30 +1319,13 @@ class AirSourceHeatPumpBoiler:
         )
         df.loc[df.index[0], "Xst_tank [W]"] = 0.0
 
-        # ── 8. Subsystem exergy (protocol) ─────────────────
-        X_sub_tot_add = 0.0
-        X_sub_in_tank_add = 0.0
-        X_sub_out_tank_add = 0.0
-
-        for _name, sub in self._subsystems.items():
-            if hasattr(sub, "calc_exergy"):
-                ex_res = sub.calc_exergy(df, T0_K)
-                if ex_res is not None:
-                    for col_name, s in ex_res.columns.items():
-                        df[col_name] = s
-                    X_sub_tot_add = X_sub_tot_add + ex_res.X_tot_add  # type: ignore[operator]
-                    X_sub_in_tank_add = (
-                        X_sub_in_tank_add + ex_res.X_in_tank_add  # type: ignore[operator]
-                    )
-                    X_sub_out_tank_add = (
-                        X_sub_out_tank_add + ex_res.X_out_tank_add  # type: ignore[operator]
-                    )
-
+        # ── 8. Removed Subsystem exergy (protocol) ─────────
+        # Subsystems handle their own exergy via _postprocess hook.
+        
         # ── 9. Total exergy input (system-level) ──────────
         X_tot = df["E_cmp [W]"] + df["E_ou_fan [W]"]
         if "X_uv [W]" in df.columns:
             X_tot = X_tot + df["X_uv [W]"].fillna(0)
-        X_tot = X_tot + X_sub_tot_add
         df["X_tot [W]"] = X_tot
 
         # ── 10. Component exergy destruction ───────────────
@@ -1364,14 +1355,12 @@ class AirSourceHeatPumpBoiler:
         X_in_tank = df["X_ref_cond [W]"] + df["X_tank_w_in [W]"].fillna(0)
         if "X_uv [W]" in df.columns:
             X_in_tank = X_in_tank + df["X_uv [W]"].fillna(0)
-        X_in_tank = X_in_tank + X_sub_in_tank_add
 
         X_out_tank = df[
             "Xst_tank [W]"
         ]  # df['X_tank_loss [W]']를 제외하는 이유는 X_tank_loss 또한 exergy consumption에 포함시기 위함임
         if "X_tank_w_out [W]" in df.columns:
             X_out_tank = X_out_tank + df["X_tank_w_out [W]"].fillna(0)
-        X_out_tank = X_out_tank + X_sub_out_tank_add
 
         df["Xc_tank [W]"] = X_in_tank - X_out_tank
 
