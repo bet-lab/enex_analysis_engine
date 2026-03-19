@@ -773,12 +773,6 @@ class AirSourceHeatPumpBoiler:
             hp_result = self._calc_state(
                 opt.x, T_tank_w, Q_cond_target, ctx.T0, flow_state=flow_state,
             )
-            if (
-                not opt.success
-                or hp_result is None
-                or hp_result.get("converged") is False
-            ):
-                self._print_opt_failure(ctx, T_tank_w, Q_cond_target, opt, hp_result)
 
         if hp_result is None:
             hp_result = {}
@@ -788,17 +782,6 @@ class AirSourceHeatPumpBoiler:
             hp_result,
             float(hp_result.get("Q_ref_cond [W]", 0.0)),
         )
-
-    def _print_opt_failure(
-        self,
-        ctx: StepContext,
-        T_tank_w: float,
-        Q_cond_target: float,
-        opt,
-        hp_result: dict | None,
-    ) -> None:
-        """Print detailed optimisation failure diagnostics."""
-        pass
 
     def _assemble_core_results(
         self,
