@@ -43,8 +43,10 @@ class StepContext:
         Dead-state / outdoor-air temperature [°C].
     T0_K : float
         Dead-state temperature [K].
-    preheat_on : bool
-        Whether the preheat window is active.
+    activation_flags : dict[str, bool]
+        Per-subsystem schedule activation flags for this step.
+        e.g. ``{"stc": True}`` when the STC preheat window is active.
+        An empty dict means no subsystem has a schedule constraint.
     T_tank_w_K : float
         Current tank water temperature [K].
     tank_level : float
@@ -65,7 +67,7 @@ class StepContext:
     hour_of_day: float
     T0: float
     T0_K: float
-    preheat_on: bool
+    activation_flags: dict  # dict[str, bool] — subsystem schedule keys e.g. {"stc": True}
     T_tank_w_K: float
     tank_level: float
     dV_mix_w_out: float
@@ -314,11 +316,13 @@ def determine_tank_refill_flow(
     tank_level_upper_bound: float,
     dV_tank_w_in_refill: float,
     is_refilling: bool,
-    use_stc: bool,
-    mode: str,
-    preheat_on: bool,
 ) -> tuple[float | None, bool]:
-    """Determine refill flow rate from current level and mode.
+    """Determine refill flow rate from current level and operational mode.
+
+    Pure tank-level management: all subsystem-specific flow
+    overrides (e.g. STC mains-preheat forced refill) are the
+    responsibility of the scenario class via
+    ``_run_subsystems`` / ``ctrl.dV_tank_w_in_ctrl``.
 
     Parameters
     ----------
@@ -342,12 +346,6 @@ def determine_tank_refill_flow(
         Refill flow rate [m³/s].
     is_refilling : bool
         Whether we are currently in a refill cycle.
-    use_stc : bool
-        Whether STC is active for this simulation.
-    mode : str
-        ``'tank_circuit'`` or ``'mains_preheat'``.
-    preheat_on : bool
-        Whether the preheat window is active.
 
     Returns
     -------
@@ -378,8 +376,6 @@ def determine_tank_refill_flow(
     else:
         lo: float = tank_level_lower_bound
         hi: float = tank_level_upper_bound
-        if use_stc and mode == "mains_preheat" and preheat_on:
-            lo, hi = 1.0, 1.0
         if not is_refilling and lv < lo - 1e-6:
             is_refilling = True
         if is_refilling:
@@ -495,23 +491,6 @@ def tank_mass_energy_residual(
         ss: dict = sub_states.get(name, {})
         Q_sub_total += ss.get("Q_contribution", 0.0)
         E_sub_total += ss.get("E_subsystem", 0.0)
-
-        # Tank-circuit STC: recalculate at T_next
-        if (
-            hasattr(sub, "mode")
-            and sub.mode == "tank_circuit"
-            and ss.get("stc_active", False)
-        ):
-            stc_r: dict = sub.calc_performance(
-                I_DN_stc=ctx.I_DN,
-                I_dH_stc=ctx.I_dH,
-                T_stc_w_in_K=T_next,
-                T0_K=ctx.T0_K,
-                is_active=True,
-            )
-            Q_sub_total = stc_r.get("Q_stc_w_out", 0.0) - stc_r.get(
-                "Q_stc_w_in", 0.0
-            )
 
     Q_total: float = (
         ctrl.Q_heat_source + E_sub_total + Q_sub_total + Q_flow_net

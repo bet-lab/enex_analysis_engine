@@ -13,25 +13,6 @@ Categories:
 
 import numpy as np
 
-__all__ = [
-    "T0_K",
-    "P0_PA",
-    "c_a",
-    "rho_a",
-    "k_a",
-    "c_w",
-    "rho_w",
-    "mu_w",
-    "k_w",
-    "beta",
-    "g",
-    "sigma",
-    "k_D",
-    "k_d",
-    "ex_eff_NG",
-    "SP",
-]
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. Air Properties

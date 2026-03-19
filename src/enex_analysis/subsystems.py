@@ -1,19 +1,17 @@
 """Attachable subsystems for heat-pump boiler models.
 
-Each subsystem is a self-contained class that bundles its
-configuration parameters with the methods that operate on them.
-A boiler model receives subsystem instances as optional
-constructor arguments, enabling plug-in / plug-out composition.
-
-Every subsystem implements the ``Subsystem`` protocol
-(defined in ``dynamic_context``), providing ``step()``
-and ``assemble_results()`` for seamless integration into
-the time-stepping simulation loop.
+Each subsystem is a self-contained **pure physics engine**: given
+physical input state it returns a standardised output dict.
+All simulation orchestration (activation logic, result assembly,
+exergy calculation) is the responsibility of the scenario class
+that uses the subsystem.
 
 Subsystem catalogue
 -------------------
 - ``SolarThermalCollector`` — flat-plate / evacuated-tube STC
-- (future) ``PVPanel`` — photovoltaic power generation
+  physics engine (``calc_performance``, ``is_preheat_on``)
+- ``PhotovoltaicSystem`` — PV + ESS + inverter chain
+- ``UVLamp`` — UV disinfection lamp
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ import numpy as np
 
 from . import calc_util as cu
 from .constants import c_w, k_a, k_D, k_d, rho_w
-from .enex_functions import calc_energy_flow, calc_exergy_flow
+from .enex_functions import calc_energy_flow
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -57,14 +55,19 @@ STC_OFF: dict = STC_OFF_STEP
 
 @dataclass
 class SolarThermalCollector:
-    """Solar Thermal Collector (STC) subsystem.
+    """Solar Thermal Collector (STC) — pure physics engine.
 
     Bundles collector geometry, optical and thermal properties,
-    pump parameters, and preheat-window settings.  The two
-    placement modes (``tank_circuit`` and ``mains_preheat``) are
-    handled internally by :meth:`step`.
+    and pump parameters.  This class is a **stateless physics
+    calculator**: given physical inputs it returns a performance
+    dict.  All simulation orchestration (activation logic,
+    result assembly, exergy calculation) is the responsibility
+    of the scenario class that uses this engine.
 
-    Implements the ``Subsystem`` protocol.
+    The public API consists of:
+
+    - :meth:`calc_performance` — single-timestep thermal performance
+    - :meth:`is_preheat_on` — schedule check
 
     Parameters
     ----------
@@ -93,11 +96,9 @@ class SolarThermalCollector:
     preheat_end_hour : float
         Preheat window end hour.
     dV_stc_w : float
-        STC loop flow rate [m³/s].
+        Default STC loop flow rate [m³/s].
     E_stc_pump : float
         STC pump rated power [W].
-    mode : str
-        ``'tank_circuit'`` or ``'mains_preheat'``.
     """
 
     # Collector
@@ -117,9 +118,6 @@ class SolarThermalCollector:
     preheat_end_hour: float = 18.0
     dV_stc_w: float = 0.001
     E_stc_pump: float = 50.0
-
-    # Placement
-    mode: str = "tank_circuit"
 
     # ----------------------------------------------------------
     # Physics helpers
@@ -353,522 +351,6 @@ class SolarThermalCollector:
         bool
         """
         return self.preheat_start_hour <= hour_of_day < self.preheat_end_hour
-
-    # ----------------------------------------------------------
-    # Subsystem Protocol: step()
-    # ----------------------------------------------------------
-
-    def step(
-        self,
-        ctx: StepContext,
-        ctrl: ControlState,
-        dt: float,
-        T_tank_w_in_K: float,
-    ) -> dict:
-        """Compute STC state for one simulation timestep.
-
-        Handles both ``tank_circuit`` and ``mains_preheat``
-        placements.  Returns a standardised dict compatible
-        with the ``Subsystem`` protocol.
-
-        Parameters
-        ----------
-        ctx : StepContext
-            Current-step immutable context.
-        ctrl : ControlState
-            HP control decisions.
-        dt : float
-            Time-step size [s].
-        T_tank_w_in_K : float
-            Mains water inlet temperature [K].
-
-        Returns
-        -------
-        dict
-            Keys: ``stc_active``, ``stc_result``,
-            ``T_stc_w_out_K``, ``T_stc_pump_w_out_K``,
-            ``Q_contribution``, ``E_subsystem``,
-            ``T_tank_w_in_override_K``.
-        """
-        # Delegate to internal calculation
-        dV_feed: float = (
-            ctrl.dV_tank_w_in_ctrl
-            if ctrl.dV_tank_w_in_ctrl is not None
-            else ctx.dV_mix_w_out
-        )
-        raw: dict = self.calculate_dynamic(
-            I_DN=ctx.I_DN,
-            I_dH=ctx.I_dH,
-            T_tank_w_K=ctx.T_tank_w_K,
-            T0_K=ctx.T0_K,
-            preheat_on=ctx.preheat_on,
-            dV_tank_w_in=dV_feed,
-            T_tank_w_in_K=T_tank_w_in_K,
-        )
-
-        stc_active: bool = raw["stc_active"]
-        E_pump: float = raw["E_stc_pump"]
-
-        # Compute protocol-required fields
-        T_tank_w_in_override: float | None = None
-        if self.mode == "mains_preheat" and stc_active:
-            T_tank_w_in_override = raw["T_stc_w_out_K"]
-
-        return {
-            "stc_active": stc_active,
-            "stc_result": raw["stc_result"],
-            "T_stc_w_out_K": raw["T_stc_w_out_K"],
-            "T_stc_pump_w_out_K": raw["T_stc_pump_w_out_K"],
-            "Q_stc_w_out": raw.get("Q_stc_w_out", 0.0),
-            "Q_stc_pump_w_out": raw.get(
-                "Q_stc_pump_w_out",
-                0.0,
-            ),
-            "Q_stc_w_in": raw.get("Q_stc_w_in", 0.0),
-            "Q_contribution": 0.0,
-            "E_subsystem": E_pump,
-            "T_tank_w_in_override_K": T_tank_w_in_override,
-        }
-
-    # ----------------------------------------------------------
-    # Subsystem Protocol: assemble_results()
-    # ----------------------------------------------------------
-
-    def assemble_results(
-        self,
-        ctx: StepContext,
-        ctrl: ControlState,
-        step_state: dict,
-        T_solved_K: float,
-    ) -> dict:
-        """Build STC-related entries for the step result dict.
-
-        For ``tank_circuit`` placement, re-evaluates STC
-        performance at the solved temperature to obtain
-        accurate reporting values.
-
-        Parameters
-        ----------
-        ctx : StepContext
-            Current-step immutable context.
-        ctrl : ControlState
-            HP control decisions.
-        step_state : dict
-            Dict returned by ``step()``.
-        T_solved_K : float
-            Solved tank temperature [K].
-
-        Returns
-        -------
-        dict
-            Result entries for STC columns.
-        """
-        stc_active: bool = step_state["stc_active"]
-        stc_result: dict = step_state["stc_result"]
-        E_pump: float = step_state["E_subsystem"]
-        T_stc_w_out_K: float = np.nan
-
-        if self.mode == "tank_circuit":
-            stc_result = self.calc_performance(
-                I_DN_stc=ctx.I_DN,
-                I_dH_stc=ctx.I_dH,
-                T_stc_w_in_K=T_solved_K,
-                T0_K=ctx.T0_K,
-                is_active=stc_active,
-            )
-            T_stc_w_out_K = stc_result["T_stc_w_out_K"]
-        elif self.mode == "mains_preheat":
-            T_stc_w_out_K = step_state["T_stc_pump_w_out_K"]
-
-        T_stc_pump_w_out_K: float = stc_result.get(
-            "T_stc_pump_w_out_K",
-            T_stc_w_out_K,
-        )
-
-        r: dict = {
-            "stc_active [-]": stc_active,
-            "I_DN_stc [W/m2]": ctx.I_DN,
-            "I_dH_stc [W/m2]": ctx.I_dH,
-            "I_sol_stc [W/m2]": stc_result.get(
-                "I_sol_stc",
-                np.nan,
-            ),
-            "Q_sol_stc [W]": stc_result.get(
-                "Q_sol_stc",
-                np.nan,
-            ),
-            "S_sol_stc [W/K]": stc_result.get(
-                "S_sol_stc",
-                np.nan,
-            ),
-            "X_sol_stc [W]": stc_result.get(
-                "X_sol_stc",
-                np.nan,
-            ),
-            "Q_stc_w_out [W]": stc_result.get(
-                "Q_stc_w_out",
-                0.0,
-            ),
-            "Q_stc_pump_w_out [W]": stc_result.get(
-                "Q_stc_pump_w_out",
-                0.0,
-            ),
-            "Q_stc_w_in [W]": stc_result.get(
-                "Q_stc_w_in",
-                0.0,
-            ),
-            "Q_l_stc [W]": stc_result.get(
-                "Q_l_stc",
-                np.nan,
-            ),
-            "T_stc_w_out [°C]": (
-                cu.K2C(T_stc_w_out_K)
-                if not np.isnan(T_stc_w_out_K)
-                else np.nan
-            ),
-            "T_stc_w_in [°C]": cu.K2C(T_solved_K),
-            "T_stc [°C]": cu.K2C(
-                stc_result.get("T_stc_K", np.nan),
-            ),
-            "E_stc_pump [W]": E_pump,
-        }
-
-        if self.mode == "tank_circuit":
-            r["T_stc_pump_w_out [°C]"] = (
-                cu.K2C(T_stc_pump_w_out_K)
-                if not np.isnan(T_stc_pump_w_out_K)
-                else np.nan
-            )
-
-        return r
-
-    # ----------------------------------------------------------
-    # Subsystem Protocol: calc_exergy()
-    # ----------------------------------------------------------
-
-    def calc_exergy(
-        self,
-        df: pd.DataFrame,
-        T0_K: pd.Series,
-    ) -> SubsystemExergy | None:
-        """Compute STC exergy items from simulation results.
-
-        Migrated from ``enex_functions.postprocess_exergy``
-        STC block (L2624-2654).  Mode-aware: ``tank_circuit``
-        adds to tank boundary; ``mains_preheat`` returns zero
-        tank contributions (core ``X_tank_w_in`` already
-        reflects preheated temperature).
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Simulation result DataFrame.
-        T0_K : pd.Series
-            Dead-state temperature per timestep [K].
-
-        Returns
-        -------
-        SubsystemExergy | None
-            STC exergy columns and tank-boundary addends.
-        """
-
-        from .dynamic_context import SubsystemExergy
-
-        # Guard: required columns must be present
-        if (
-            "T_stc_w_in [°C]" not in df.columns
-            or "T_stc_w_out [°C]" not in df.columns
-        ):
-            return None
-
-        cols: dict[str, pd.Series] = {}
-
-        T_stc_w_in_K = cu.C2K(df["T_stc_w_in [°C]"])
-        T_stc_w_out_K = cu.C2K(df["T_stc_w_out [°C]"])
-        T_stc_pump_w_out_K = cu.C2K(
-            df.get(
-                "T_stc_pump_w_out [°C]",
-                df["T_stc_w_out [°C]"],
-            ),
-        )
-        T_stc_K = cu.C2K(df["T_stc [°C]"])
-
-        # Heat capacity rate G_stc [W/K]
-        dT_stc_in = (T_stc_w_in_K - T0_K).replace(0, np.nan)
-        G_stc = (df["Q_stc_w_in [W]"].fillna(0) / dT_stc_in).fillna(0)
-
-        # Water exergy flows
-        cols["X_stc_w_in [W]"] = calc_exergy_flow(
-            G_stc,
-            T_stc_w_in_K,
-            T0_K,
-        )
-        cols["X_stc_w_out [W]"] = calc_exergy_flow(
-            G_stc,
-            T_stc_w_out_K,
-            T0_K,
-        )
-        cols["X_stc_pump_w_out [W]"] = calc_exergy_flow(
-            G_stc,
-            T_stc_pump_w_out_K,
-            T0_K,
-        )
-
-        # Electricity = exergy (pump)
-        E_pump = df["E_stc_pump [W]"].fillna(0)
-        cols["X_stc_pump [W]"] = E_pump
-
-        # Heat loss exergy
-        cols["X_l_stc [W]"] = df["Q_l_stc [W]"].fillna(0) * (
-            1 - T0_K / T_stc_K.replace(0, np.nan)
-        )
-
-        # STC exergy destruction
-        is_stc_active = df.get(
-            "stc_active [-]",
-            False,
-        )
-
-        if "X_sol_stc [W]" in df.columns:
-            Xc_stc_raw = (
-                df["X_sol_stc [W]"].fillna(0)
-                + cols["X_stc_w_in [W]"].fillna(0)
-                + E_pump
-                - cols["X_stc_pump_w_out [W]"].fillna(0)
-                - cols["X_l_stc [W]"].fillna(0)
-            )
-            cols["Xc_stc [W]"] = np.where(
-                is_stc_active,
-                Xc_stc_raw,
-                0.0,
-            )
-
-        # Mode-aware tank boundary contributions
-        X_tot_add = E_pump
-
-        if self.mode == "tank_circuit":
-            # STC draws water from tank and returns it
-            X_in_tank_add = cols["X_stc_pump_w_out [W]"].fillna(0)
-            X_out_tank_add = cols["X_stc_w_in [W]"].fillna(0)
-        else:
-            # mains_preheat: core X_tank_w_in already
-            # accounts for the preheated temperature
-            X_in_tank_add = 0.0
-            X_out_tank_add = 0.0
-
-        return SubsystemExergy(
-            columns=cols,
-            X_tot_add=X_tot_add,
-            X_in_tank_add=X_in_tank_add,
-            X_out_tank_add=X_out_tank_add,
-        )
-
-    # ----------------------------------------------------------
-    # Core dynamic calculation (backward compatible)
-    # ----------------------------------------------------------
-
-    def calculate_dynamic(
-        self,
-        I_DN: float,
-        I_dH: float,
-        T_tank_w_K: float,
-        T0_K: float,
-        preheat_on: bool,
-        dV_tank_w_in: float,
-        T_tank_w_in_K: float,
-    ) -> dict:
-        """Compute STC performance for a single timestep.
-
-        Handles both ``tank_circuit`` and ``mains_preheat``
-        placement modes, including probing calculations for
-        activation decisions.
-
-        Parameters
-        ----------
-        I_DN : float
-            Direct-normal irradiance [W/m²].
-        I_dH : float
-            Diffuse-horizontal irradiance [W/m²].
-        T_tank_w_K : float
-            Current tank water temperature [K].
-        T0_K : float
-            Dead-state temperature [K].
-        preheat_on : bool
-            Whether the preheat window is active.
-        dV_tank_w_in : float
-            Current refill flow rate [m³/s].
-        T_tank_w_in_K : float
-            Mains water inlet temperature [K].
-
-        Returns
-        -------
-        dict
-            Keys: ``stc_active``, ``stc_result``,
-            ``T_stc_w_out_K``, ``T_stc_pump_w_out_K``,
-            ``Q_stc_w_out``, ``Q_stc_pump_w_out``,
-            ``Q_stc_w_in``, ``E_stc_pump``.
-        """
-        stc_active: bool = False
-        stc_result: dict = {}
-        T_stc_w_out_K: float = np.nan
-        T_stc_pump_w_out_K: float = np.nan
-        Q_stc_w_out: float = 0.0
-        Q_stc_pump_w_out: float = 0.0
-        Q_stc_w_in: float = 0.0
-        E_stc_pump_val: float = 0.0
-
-        if self.mode == "tank_circuit":
-            stc_result = self._calc_tank_circuit(
-                I_DN,
-                I_dH,
-                T_tank_w_K,
-                T0_K,
-                preheat_on,
-            )
-            stc_active = stc_result["_active"]
-            E_stc_pump_val = self.E_stc_pump if stc_active else 0.0
-            T_stc_w_out_K = stc_result["T_stc_w_out_K"]
-            T_stc_pump_w_out_K = stc_result.get(
-                "T_stc_pump_w_out_K",
-                T_stc_w_out_K,
-            )
-            Q_stc_w_out = stc_result.get(
-                "Q_stc_w_out",
-                0.0,
-            )
-            Q_stc_pump_w_out = stc_result.get(
-                "Q_stc_pump_w_out",
-                0.0,
-            )
-            Q_stc_w_in = stc_result.get(
-                "Q_stc_w_in",
-                0.0,
-            )
-
-        elif self.mode == "mains_preheat":
-            stc_result = self._calc_mains_preheat(
-                I_DN,
-                I_dH,
-                T_tank_w_in_K,
-                T0_K,
-                preheat_on,
-                dV_tank_w_in,
-            )
-            stc_active = stc_result["_active"]
-            E_stc_pump_val = self.E_stc_pump if stc_active else 0.0
-            T_stc_w_out_K = stc_result["T_stc_w_out_K"]
-            T_stc_pump_w_out_K = stc_result.get(
-                "T_stc_pump_w_out_K",
-                T_stc_w_out_K,
-            )
-            Q_stc_w_out = stc_result.get(
-                "Q_stc_w_out",
-                0.0,
-            )
-            Q_stc_pump_w_out = stc_result.get(
-                "Q_stc_pump_w_out",
-                0.0,
-            )
-            Q_stc_w_in = stc_result.get(
-                "Q_stc_w_in",
-                0.0,
-            )
-
-        # Strip internal flag before returning
-        stc_result.pop("_active", None)
-
-        return {
-            "stc_active": stc_active,
-            "stc_result": stc_result,
-            "T_stc_w_out_K": T_stc_w_out_K,
-            "T_stc_pump_w_out_K": T_stc_pump_w_out_K,
-            "Q_stc_w_out": Q_stc_w_out,
-            "Q_stc_pump_w_out": Q_stc_pump_w_out,
-            "Q_stc_w_in": Q_stc_w_in,
-            "E_stc_pump": E_stc_pump_val,
-        }
-
-    # ----------------------------------------------------------
-    # Private helpers
-    # ----------------------------------------------------------
-
-    def _calc_tank_circuit(
-        self,
-        I_DN: float,
-        I_dH: float,
-        T_tank_w_K: float,
-        T0_K: float,
-        preheat_on: bool,
-    ) -> dict:
-        """Tank-circuit STC with probing activation."""
-        probe: dict = self.calc_performance(
-            I_DN_stc=I_DN,
-            I_dH_stc=I_dH,
-            T_stc_w_in_K=T_tank_w_K,
-            T0_K=T0_K,
-            is_active=True,
-        )
-
-        active: bool = preheat_on and probe["T_stc_w_out_K"] > T_tank_w_K
-
-        if active:
-            result: dict = probe
-        else:
-            result = self.calc_performance(
-                I_DN_stc=I_DN,
-                I_dH_stc=I_dH,
-                T_stc_w_in_K=T_tank_w_K,
-                T0_K=T0_K,
-                is_active=False,
-            )
-
-        result["_active"] = active
-        return result
-
-    def _calc_mains_preheat(
-        self,
-        I_DN: float,
-        I_dH: float,
-        T_tank_w_in_K: float,
-        T0_K: float,
-        preheat_on: bool,
-        dV_tank_w_in: float,
-    ) -> dict:
-        """Mains-preheat STC with probing activation."""
-        if preheat_on and dV_tank_w_in > 0:
-            probe: dict = self.calc_performance(
-                I_DN_stc=I_DN,
-                I_dH_stc=I_dH,
-                T_stc_w_in_K=T_tank_w_in_K,
-                T0_K=T0_K,
-                dV_stc=dV_tank_w_in,
-                is_active=True,
-            )
-            if probe["T_stc_w_out_K"] > T_tank_w_in_K:
-                probe["_active"] = True
-                return probe
-            else:
-                result: dict = self.calc_performance(
-                    I_DN_stc=I_DN,
-                    I_dH_stc=I_dH,
-                    T_stc_w_in_K=T_tank_w_in_K,
-                    T0_K=T0_K,
-                    dV_stc=dV_tank_w_in,
-                    is_active=False,
-                )
-                result["_active"] = False
-                return result
-        else:
-            result = self.calc_performance(
-                I_DN_stc=I_DN,
-                I_dH_stc=I_dH,
-                T_stc_w_in_K=T_tank_w_in_K,
-                T0_K=T0_K,
-                dV_stc=1.0,
-                is_active=False,
-            )
-            result["_active"] = False
-            return result
 
 
 # ------------------------------------------------------------------

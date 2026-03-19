@@ -8,11 +8,6 @@ Provides:
 
 import numpy as np
 
-__all__ = [
-    "TDMA",
-    "_add_loop_advection_terms",
-]
-
 
 def TDMA(a, b, c, d):
     """

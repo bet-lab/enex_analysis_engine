@@ -22,15 +22,6 @@ try:
 except ImportError:
     HAS_PYGFUNCTION = False
 
-__all__ = [
-    "f",
-    "chi",
-    "G_FLS",
-    "precompute_gfunction",
-    "air_dynamic_viscosity",
-    "air_prandtl_number",
-]
-
 
 def f(x):
     """

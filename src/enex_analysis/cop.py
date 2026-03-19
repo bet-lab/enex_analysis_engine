@@ -7,12 +7,6 @@ Provides empirical COP correlations for:
 
 from . import calc_util as cu
 
-__all__ = [
-    "calc_ASHP_cooling_COP",
-    "calc_ASHP_heating_COP",
-    "calc_GSHP_COP",
-]
-
 
 def calc_ASHP_cooling_COP(T_a_int_out, T_a_ext_in, Q_r_int, Q_r_max, COP_ref):
     """
