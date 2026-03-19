@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from . import calc_util as cu
+from .constants import c_w, rho_w
 from .air_source_heat_pump_boiler import AirSourceHeatPumpBoiler
 from .subsystems import SolarThermalCollector
 
@@ -95,6 +96,9 @@ class ASHPB_STC_preheat(AirSourceHeatPumpBoiler):
     # ------------------------------------------------------------------
     # Hook: subsystem step
     # ------------------------------------------------------------------
+
+    def _needs_solar_input(self) -> bool:
+        return True
 
     def _get_activation_flags(self, hour_of_day: float) -> dict[str, bool]:
         """Return STC schedule flag: {"stc": bool}."""
@@ -250,6 +254,11 @@ class ASHPB_STC_preheat(AirSourceHeatPumpBoiler):
                 "Q_stc_pump_w_out [W]": stc_result.get("Q_stc_pump_w_out", 0.0),
                 "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
                 "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
+                "dV_stc [m3/s]": (
+                    ctrl.dV_tank_w_in_ctrl
+                    if ctrl.dV_tank_w_in_ctrl is not None
+                    else ctx.dV_mix_w_out
+                ),
                 "T_stc_w_out [°C]": (
                     cu.K2C(T_stc_w_out_K)
                     if not np.isnan(T_stc_w_out_K)
@@ -308,9 +317,8 @@ class ASHPB_STC_preheat(AirSourceHeatPumpBoiler):
         T_stc_pump_w_out_K = T_stc_w_out_K
         T_stc_K = cu.C2K(df["T_stc [°C]"])
 
-        # Heat capacity rate [W/K]
-        dT_stc_in = (T_stc_w_in_K - T0_K).replace(0, np.nan)
-        G_stc = (df["Q_stc_w_in [W]"].fillna(0) / dT_stc_in).fillna(0)
+        # Heat capacity rate [W/K] from explicit flow rate
+        G_stc = c_w * rho_w * df["dV_stc [m3/s]"].fillna(0)
 
         # 3. Water exergy flows
         df["X_stc_w_in [W]"] = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)

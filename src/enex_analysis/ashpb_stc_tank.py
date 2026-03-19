@@ -95,6 +95,9 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
     # Hook: subsystem step
     # ------------------------------------------------------------------
 
+    def _needs_solar_input(self) -> bool:
+        return True
+
     def _get_activation_flags(self, hour_of_day: float) -> dict[str, bool]:
         """Return STC schedule flag: {"stc": bool}."""
         return {"stc": self._stc.is_preheat_on(hour_of_day)}
@@ -290,6 +293,7 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
                 "Q_stc_pump_w_out [W]": stc_result.get("Q_stc_pump_w_out", 0.0),
                 "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
                 "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
+                "dV_stc [m3/s]": self._stc.dV_stc_w,
                 "T_stc_w_out [°C]": (
                     cu.K2C(T_stc_w_out_K)
                     if not np.isnan(T_stc_w_out_K)
@@ -353,9 +357,8 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         )
         T_stc_K = cu.C2K(df["T_stc [°C]"])
 
-        # Heat capacity rate [W/K] derived from Q_stc_w_in / (T_in - T0)
-        dT_stc_in = (T_stc_w_in_K - T0_K).replace(0, np.nan)
-        G_stc = (df["Q_stc_w_in [W]"].fillna(0) / dT_stc_in).fillna(0)
+        # Heat capacity rate [W/K] from explicit flow rate
+        G_stc = c_w * rho_w * df["dV_stc [m3/s]"].fillna(0)
 
         # 3. Water exergy flows
         df["X_stc_w_in [W]"] = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
