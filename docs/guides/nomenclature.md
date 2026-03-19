@@ -46,6 +46,7 @@ All variable names follow a standardized order separated by underscores (`_`):
 | `h` | Specific enthalpy | J/kg |
 | `s` | Specific entropy | J/(kg·K) |
 | `x` | Specific exergy | J/kg |
+| `SOC`| State of Charge | - |
 | `I` | Solar irradiance | W/m² |
 | `v` | Velocity | m/s |
 | `G` | Heat capacity flow | W/K |
@@ -56,7 +57,7 @@ All variable names follow a standardized order separated by underscores (`_`):
 ### 2.2 Medium and Subsystem Symbols
 
 - **Medium**: `w` (water), `a` (air), `ref` (refrigerant), `sol` (solar radiation)
-- **Subsystem**: `cmp` (compressor), `cond` (condenser), `evap` (evaporator), `exp` (expansion valve), `ou` (outdoor unit), `tank` (thermal storage), `stc` (solar thermal collector), `mix` (mixing valve), `pump` (pump), `bhe` (borehole heat exchanger)
+- **Subsystem**: `cmp` (compressor), `cond` (condenser), `evap` (evaporator), `exp` (expansion valve), `ou` (outdoor unit), `tank` (thermal storage), `stc` (solar thermal collector), `pv` (photovoltaic), `ess` (energy storage), `ctrl` (charge controller), `inv` (inverter), `grid` (power grid), `mix` (mixing valve), `pump` (pump), `bhe` (borehole heat exchanger)
 
 ### 2.3 Subsystem Hierarchy
 
@@ -113,7 +114,8 @@ When a flow exists between two subsystems, name it after the **upstream (source)
 6. **Saturation**: `_sat` suffix (e.g., `T_ref_evap_sat`)
 7. **Target/Setpoint Values**: `_target` suffix (e.g., `Q_cond_target`). Replaces legacy `_load` suffix.
 8. **Heated/Modified Inputs**: `_heated` suffix for values modified by an upstream process (e.g., `T_tank_w_in_heated` = mains water preheated by STC).
-9. **Flow Qualifiers (Modifier Before Medium)**: Qualifiers like `sup` (supply/supplemental), `serv` (service), or `heated` that describe the *type* of medium are placed **before** the medium symbol `w`, following the subsystem hierarchy (e.g., `dV_mix_sup_w_in` = supplemental water entering the mixing valve, not `dV_mix_w_in_sup`).
+9. **Grid/Export/Dump**: For energy exports and unused variables: `_import`, `_export`, `_dump` (e.g. `E_grid_import`, `E_dump`).
+10. **Flow Qualifiers (Modifier Before Medium)**: Qualifiers like `sup` (supply/supplemental), `serv` (service), or `heated` that describe the *type* of medium are placed **before** the medium symbol `w`, following the subsystem hierarchy (e.g., `dV_mix_sup_w_in` = supplemental water entering the mixing valve, not `dV_mix_w_in_sup`).
 
 ## 6. Heat Exchanger Variable Naming
 
