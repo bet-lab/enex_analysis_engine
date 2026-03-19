@@ -4,44 +4,42 @@
 
 ## Overview
 
-Provides self-contained subsystem classes that can be plugged into any
-boiler model. Each subsystem bundles its configuration parameters with the
-methods that operate on them, enabling **plug-in / plug-out composition** via
-optional constructor injection. All subsystems implement the `Subsystem` protocol
-defined in `dynamic_context`.
+Provides self-contained subsystem classes that serve as **pure physics engines**. 
+Each subsystem bundles its physical parameters with methods that calculate
+thermal or electrical performance based on specific environmental inputs.
+These engines are **stateless**; they do not retain simulation timeline information. 
+Instead, they are composed via constructor injection into specific **Scenario Classes** (e.g., `ASHPB_STC_tank`, `ASHPB_PV_ESS`) which handle simulation orchestration, activation scheduling, and result assembly.
 
 ```python
-# Example: attach STC and UV to an ASHPB
-from enex_analysis.subsystems import SolarThermalCollector, UVLamp
-from enex_analysis import AirSourceHeatPumpBoiler
+# Example: attach STC to a specific ASHPB Scenario Class
+from enex_analysis.subsystems import SolarThermalCollector
+from enex_analysis.ashpb_stc_tank import ASHPB_STC_tank
 
-stc = SolarThermalCollector(A_stc=4.0, mode='tank_circuit')
-uv = UVLamp(lamp_watts=40.0, exposure_sec=300, num_switching=1)
-hp = AirSourceHeatPumpBoiler(..., stc=stc, uv=uv)
+stc = SolarThermalCollector(A_stc=4.0)
+hp = ASHPB_STC_tank(..., stc=stc)
 ```
 
 ## Architecture
 
 ```mermaid
 graph TB
-  HP["Heat Pump / Boiler Model<br/>(ASHPB / EB / GBT / SAGB)"]
+  HP["Scenario Class<br/>(ASHPB_STC_tank / ASHPB_PV_ESS)"]
   STC["SolarThermalCollector"]
   PV["PhotovoltaicSystem"]
-  UV["UVLamp"]
+  ESS["EnergyStorageSystem"]
 
-  HP -->|self._subsystems['stc']| STC
-  HP -->|self._subsystems['pv']| PV
-  HP -->|self._subsystems['uv']| UV
+  HP -->|Composition| STC
+  HP -->|Composition| PV
+  HP -->|Composition| ESS
 ```
 
-### Extension Pattern
+### Extension Pattern (Phase 3)
 
 To add a new subsystem:
 
-1. Create a `@dataclass` class in `subsystems.py` implementing the `Subsystem` protocol
-2. Add `step()`, `assemble_results()`, and `calc_exergy()` methods
-3. Add an optional parameter to the boiler's `__init__`
-4. Wire the subsystem into the simulation loop
+1. Create a `dataclass` in `subsystems.py` to hold physical state variables and parameters.
+2. Implement pure physical calculators (e.g., `calc_performance`) that return a dictionary of generated/consumed heat or power.
+3. Keep the module stateless. Move time-step orchestration or state routing to a specific **Scenario class** (e.g., inheriting from `AirSourceHeatPumpBoiler`) to manage the hooks (`_run_subsystems()`, `_augment_results()`, and `_postprocess()`).
 
 ---
 
@@ -67,27 +65,16 @@ Flat-plate or evacuated-tube solar thermal collector with two placement modes.
 | `preheat_end_hour` | 18.0 | h | Preheat window end |
 | `dV_stc_w` | 0.001 | m³/s | STC loop flow rate |
 | `E_stc_pump` | 50.0 | W | STC pump rated power |
-| `mode` | `'tank_circuit'` | – | `'tank_circuit'` or `'mains_preheat'` |
 
-### Placement Modes
-
-| Mode | Description |
-|---|---|
-| `tank_circuit` | STC heats water circulated from/to the tank |
-| `mains_preheat` | STC preheats mains water before it enters the tank |
+(*Placement Modes such as `tank_circuit` and `mains_preheat` are now orchestrated by scenario classes like `ASHPB_STC_tank` and `ASHPB_STC_preheat` rather than the subsystem itself.*)
 
 ### Methods
 
 | Method | Description |
 |---|---|
-| `is_enabled` | Property: `True` when `A_stc > 0` |
 | `is_preheat_on(hour)` | Check if hour falls in preheat window |
 | `calc_overall_heat_transfer_coeff()` | Compute overall U-value from parallel resistances |
 | `calc_performance(...)` | Core STC thermal analysis (one operating point) |
-| `step(...)` | *Protocol method:* Compute STC state for one timestep |
-| `assemble_results(...)` | *Protocol method:* Build STC result entries for DataFrame |
-| `calc_exergy(...)` | *Protocol method:* Compute STC exergy columns and tank-boundary addends |
-| `calculate_dynamic(...)` | Backward-compatible core dynamic calculation |
 
 ### Usage
 
@@ -96,24 +83,13 @@ stc = SolarThermalCollector(
     A_stc=4.0,
     stc_tilt=35.0,
     stc_azimuth=180.0,
-    mode='tank_circuit',
     preheat_start_hour=6,
     preheat_end_hour=18,
 )
 
-# Standalone usage (one timestep):
-result = stc.calculate_dynamic(
-    I_DN=500.0,
-    I_dH=100.0,
-    T_tank_w_K=333.15,
-    T0_K=278.15,
-    preheat_on=True,
-    dV_tank_w_in=0.001,
-    T_tank_w_in_K=288.15,
-)
-
-# Plugged into a boiler:
-hp = AirSourceHeatPumpBoiler(..., stc=stc)
+# Plugged into a scenario boiler:
+from enex_analysis.ashpb_stc_tank import ASHPB_STC_tank
+hp = ASHPB_STC_tank(..., stc=stc)
 df = hp.analyze_dynamic(...)
 ```
 
@@ -156,10 +132,14 @@ state-of-charge (SOC) tracking and full entropy/exergy accounting.
 ### Usage
 
 ```python
-from enex_analysis.subsystems import PhotovoltaicSystem
+from enex_analysis.subsystems import PhotovoltaicSystem, EnergyStorageSystem
+from enex_analysis.ashpb_pv_ess import ASHPB_PV_ESS
 
-pv = PhotovoltaicSystem(A_pv=10.0, eta_pv=0.22, C_ess_max=3.6e6)
-hp = AirSourceHeatPumpBoiler(..., pv=pv)  # future integration
+pv = PhotovoltaicSystem(A_pv=10.0, eta_pv=0.22)
+ess = EnergyStorageSystem(C_ess_max=3.6e6)
+
+# Provide PV and ESS systems to the HP Scenario Class
+hp = ASHPB_PV_ESS(..., pv=pv, ess=ess)
 ```
 
 ---

@@ -33,31 +33,34 @@ at each timestep for unconditional stability.
                 │  Expansion Valve    │
                 └─────────────────────┘
 
-  Optional subsystems (class-based injection):
-    SolarThermalCollector → Tank (preheat or circuit mode)
-    UVLamp → Periodic UV disinfection
-    PhotovoltaicSystem → PV + ESS (future HP integration)
+  Subsystem Integration (via Scenario Subclasses):
+    ASHPB_STC_tank, ASHPB_STC_preheat → SolarThermalCollector integration
+    ASHPB_PV_ESS → PhotovoltaicSystem + EnergyStorageSystem
+    (UVLamp can be injected directly or via subclass)
 ```
 
-## Modular Structure (v2)
+## Modular Structure (Phase 3)
 
-The model uses **composition-based** architecture:
+The model uses a **Template Method** supplemented by **composition-based** architecture:
 
 ```mermaid
 graph TB
-  ASHPB["AirSourceHeatPumpBoiler"]
-  DC["dynamic_context<br/>StepContext · ControlState<br/>Shared control helpers"]
-  SS["subsystems<br/>SolarThermalCollector<br/>PhotovoltaicSystem · UVLamp"]
+  ASHPB["AirSourceHeatPumpBoiler<br/>(Core Engine)"]
+  DC["dynamic_context<br/>StepContext · ControlState"]
+  SCENARIOS["Scenario Subclasses<br/>ASHPB_STC_tank, ASHPB_PV_ESS"]
+  SS["subsystems<br/>STC, PV, ESS (Pure Physics)"]
 
   ASHPB -->|imports| DC
-  ASHPB -->|self._subsystems| SS
+  SCENARIOS --"Inherits"--> ASHPB
+  SCENARIOS --"Composes"--> SS
 ```
 
 | Module | Responsibility |
 |---|---|
 | `dynamic_context` | `StepContext`, `ControlState`, `SubsystemExergy`, hysteresis, tank level, residual solver |
-| `subsystems` | `SolarThermalCollector`, `PhotovoltaicSystem`, `UVLamp` classes |
-| `AirSourceHeatPumpBoiler` | ASHP-specific physics, optimisation, simulation loop |
+| `subsystems` | Pure physics engines (stateless): `SolarThermalCollector`, `PhotovoltaicSystem`, `EnergyStorageSystem` |
+| `AirSourceHeatPumpBoiler` | ASHP-specific cycle physics, optimisation, simulation inner loop |
+| `ashpb_*.py` | Scenario subclasses that orchestrate hooks (`_run_subsystems`, `_augment_results`) to route energy flows |
 
 ### Data Flow — `analyze_dynamic` per-timestep
 
@@ -147,12 +150,15 @@ flowchart TD
 | `T_sup_w` | 15.0 | °C | Default mains water supply temperature |
 | `dV_mix_w_out_max` | 0.0045 | m³/s | Max service flow rate |
 
-### Subsystems (class-based injection)
+### Subsystems (Scenario-based injection)
 
-| Parameter | Type | Description |
+While the base class supports `stc` and `pv` for backward compatibility, new developments should use the scenario subclasses:
+
+| Scenario Class | Injected Parameters | Description |
 |---|---|---|
-| `stc` | `SolarThermalCollector \| None` | Solar thermal collector (see `subsystems` guide) |
-| `uv` | `UVLamp \| None` | UV disinfection lamp |
+| `ASHPB_STC_tank` | `stc: SolarThermalCollector` | STC circulated to/from the storage tank. |
+| `ASHPB_STC_preheat` | `stc: SolarThermalCollector` | STC preheats incoming mains water. |
+| `ASHPB_PV_ESS` | `pv: PhotovoltaicSystem, ess: EnergyStorageSystem` | HP powered by PV with Battery and Grid routing. |
 
 ## Usage
 
@@ -208,19 +214,19 @@ df = hp.analyze_dynamic(
 )
 ```
 
-### Dynamic Simulation with STC (class injection)
+### Dynamic Simulation with STC (Scenario Subclass)
 
 ```python
 from enex_analysis.subsystems import SolarThermalCollector
+from enex_analysis.ashpb_stc_tank import ASHPB_STC_tank
 
 stc = SolarThermalCollector(
     A_stc=4.0,
-    mode='tank_circuit',
     stc_tilt=35.0,
     stc_azimuth=180.0,
 )
 
-hp_stc = AirSourceHeatPumpBoiler(..., stc=stc)
+hp_stc = ASHPB_STC_tank(..., stc=stc)
 
 df = hp_stc.analyze_dynamic(
     ...,
