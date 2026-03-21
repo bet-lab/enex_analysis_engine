@@ -31,6 +31,13 @@ def load_kma_solar_csv(
     # 1. 일시 파싱
     time_col = df.columns[df.columns.str.contains("일시|시간")][0]
     df["datetime"] = pd.to_datetime(df[time_col])
+    
+    # [BUGFIX] KMA 데이터는 KST 기준이나, 시간대(tz) 정보가 없는 Naive Datetime으로 파싱됨.
+    # 이를 그대로 pvlib에 넘기면 UTC로 오인하여 9시간의 태양 위치 계산 오차(일몰/일출 시 DNI 폭증 Anomaly 등)가 발생함.
+    # 따라서 반드시 'Asia/Seoul' 시간대를 명시적으로 부여해야 함.
+    if df["datetime"].dt.tz is None:
+        df["datetime"] = df["datetime"].dt.tz_localize("Asia/Seoul")
+        
     df.set_index("datetime", inplace=True)
 
     # 2. 일사량 파싱 (MJ/m2 -> W/m2)
@@ -74,6 +81,13 @@ def load_kma_T0_sol_hourly_csv(
     ghi_col = _find_col(["일사", "ghi", "irradiance", "mj", "solar"])
 
     df["datetime"] = pd.to_datetime(df[time_col])
+    
+    # [BUGFIX] KMA 데이터는 KST 기준이나, 시간대(tz) 정보가 없는 Naive Datetime으로 파싱됨.
+    # 이를 그대로 pvlib에 넘기면 UTC로 오인하여 9시간의 태양 위치 계산 오차(일몰/일출 시 DNI 폭증 Anomaly 등)가 발생함.
+    # 따라서 반드시 'Asia/Seoul' 시간대를 명시적으로 부여해야 함.
+    if df["datetime"].dt.tz is None:
+        df["datetime"] = df["datetime"].dt.tz_localize("Asia/Seoul")
+        
     df.set_index("datetime", inplace=True)
 
     # 온도를 Kelvin으로 변환
