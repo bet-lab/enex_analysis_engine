@@ -32,7 +32,6 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
-    build_dhw_usage_ratio,
     calc_mixing_valve,
     calc_ref_state,
     calc_simple_tank_UA,
@@ -100,11 +99,17 @@ class GroundSourceHeatPumpBoiler:
         # 6. Superheat / subcool
         dT_superheat: float = 3.0,
         dT_subcool: float = 3.0,
-        # 7. Operation Schedule
+        # 7. Tank fluid limits
+        tank_always_full: bool = True,
+        prevent_simultaneous_flow: bool = False,
+        tank_level_lower_bound: float = 0.5,
+        tank_level_upper_bound: float = 1.0,
+        dV_tank_w_in_refill: float = 0.001,
+        # 8. Operation Schedule
         hp_on_schedule: list[tuple[float, float]] | None = None,
-        # 8. Subsystems
+        # 9. Subsystems
         stc: SolarThermalCollector | None = None,
-        # 9. Simulation scope (for precomputing g-functions)
+        # 10. Simulation scope (for precomputing g-functions)
         t_max_s: float = 8760 * 3600,
         dt_s: float = 3600,
     ) -> None:
@@ -114,7 +119,8 @@ class GroundSourceHeatPumpBoiler:
             "k_shell": k_shell, "k_ins": k_ins, "h_o": h_o,
         }
         self.UA_tank = calc_simple_tank_UA(**self.tank_physical)
-        self.C_tank = c_w * rho_w * (math.pi * r0**2 * H)
+        self.V_tank_full: float = math.pi * r0**2 * H
+        self.C_tank = c_w * rho_w * self.V_tank_full
 
         self.ref = refrigerant
         self.V_disp_cmp = V_disp_cmp
@@ -138,6 +144,12 @@ class GroundSourceHeatPumpBoiler:
         self.T_mix_w_out_K = cu.C2K(T_mix_w_out)
         self.T_tank_w_in = T_tank_w_in
         self.T_tank_w_in_K = cu.C2K(T_tank_w_in)
+        
+        self.tank_always_full = tank_always_full
+        self.prevent_simultaneous_flow = prevent_simultaneous_flow
+        self.tank_level_lower_bound = tank_level_lower_bound
+        self.tank_level_upper_bound = tank_level_upper_bound
+        self.dV_tank_w_in_refill = dV_tank_w_in_refill
 
         # UV lamp parameters
         self.lamp_power_watts = lamp_power_watts
@@ -188,11 +200,32 @@ class GroundSourceHeatPumpBoiler:
         self.T_bhe_f_out: float = self.Ts
         self.T_bhe_f_out_K: float = self.Ts_K
         self.Q_bhe: float = 0.0
-        self.dV_mix_w_out: float = 0.0
-        self.dV_tank_w_in: float = 0.0
-        self.dV_mix_sup_w_in: float = 0.0
+        
+        # NOTE: Removed self.dV_mix_w_out, self.dV_tank_w_in, self.dV_mix_sup_w_in
+        # They will be passed inside `flow_state: dict`.
 
-    def _calc_off_state(self, T_tank_w: float, T0: float) -> dict:
+    @staticmethod
+    def _build_flow_state(
+        dV_mix_w_out: float,
+        T_tank_w_K: float,
+        T_tank_w_in_K: float,
+        T_mix_w_out_K: float,
+        dV_tank_w_in_override: float | None = None,
+    ) -> dict:
+        den: float = max(1e-6, T_tank_w_K - T_tank_w_in_K)
+        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
+        dV_tank_w_out: float = alp * dV_mix_w_out
+        dV_tank_w_in: float = (
+            dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
+        )
+        return {
+            "dV_mix_w_out": dV_mix_w_out,
+            "dV_tank_w_out": dV_tank_w_out,
+            "dV_tank_w_in": dV_tank_w_in,
+            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
+        }
+
+    def _calc_off_state(self, T_tank_w: float, T0: float, flow_state: dict) -> dict:
         T_tank_w_K = cu.C2K(T_tank_w)
         mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
         
@@ -217,10 +250,10 @@ class GroundSourceHeatPumpBoiler:
             "T_mix_w_out [°C]": cu.K2C(mix["T_mix_w_out_K"]),
             "T_tank_w_in [°C]": self.T_tank_w_in,
             "Ts [°C]": self.Ts,
-            "T_bhe [°C]": self.Ts,
-            "T_bhe_f [°C]": self.Ts,
-            "T_bhe_f_in [°C]": self.Ts,
-            "T_bhe_f_out [°C]": self.Ts,
+            "T_bhe [°C]": getattr(self, "T_bhe", self.Ts),
+            "T_bhe_f [°C]": getattr(self, "T_bhe_f", self.Ts),
+            "T_bhe_f_in [°C]": cu.K2C(getattr(self, "T_bhe_f_in_K", self.Ts_K)),
+            "T_bhe_f_out [°C]": cu.K2C(getattr(self, "T_bhe_f_out_K", self.Ts_K)),
             "T_ref_evap_sat [°C]": cu.K2C(self.T_bhe_f_in_K),
             "T_ref_cond_sat_v [°C]": T_tank_w,
             "T_ref_cond_sat_l [°C]": T_tank_w,
@@ -229,9 +262,10 @@ class GroundSourceHeatPumpBoiler:
             "T_ref_exp_in [°C]": T_tank_w,
             "T_ref_exp_out [°C]": cu.K2C(self.T_bhe_f_in_K),
             "T_cond [°C]": T_tank_w,
-            "dV_mix_w_out [m3/s]": getattr(self, "dV_mix_w_out", 0.0),
-            "dV_tank_w_in [m3/s]": getattr(self, "dV_tank_w_in", 0.0),
-            "dV_mix_sup_w_in [m3/s]": getattr(self, "dV_mix_sup_w_in", 0.0),
+            "dV_mix_w_out [m3/s]": flow_state.get("dV_mix_w_out", 0.0),
+            "dV_tank_w_in [m3/s]": flow_state.get("dV_tank_w_in", 0.0),
+            "dV_tank_w_out [m3/s]": flow_state.get("dV_tank_w_out", 0.0),
+            "dV_mix_sup_w_in [m3/s]": flow_state.get("dV_mix_sup_w_in", 0.0),
             "dV_bhe_f [m3/s]": self.dV_b_f_m3s,
             "P_ref_cmp_in [Pa]": P_ref_evap_sat,
             "P_ref_cmp_out [Pa]": P_ref_cond_sat,
@@ -266,9 +300,9 @@ class GroundSourceHeatPumpBoiler:
             "cmp_rpm [rpm]": 0.0,
         }
 
-    def _calc_state(self, dT_ref_evap: float, T_tank_w: float, Q_cond_load: float, T0: float) -> dict | None:
+    def _calc_state(self, dT_ref_evap: float, T_tank_w: float, Q_cond_load: float, T0: float, *, flow_state: dict) -> dict | None:
         if Q_cond_load <= 0:
-            return self._calc_off_state(T_tank_w, T0)
+            return self._calc_off_state(T_tank_w, T0, flow_state)
 
         # 1. Analytical Condenser Approach Temperature
         dT_ref_cond = Q_cond_load / self.UA_cond
@@ -360,9 +394,10 @@ class GroundSourceHeatPumpBoiler:
             "T_bhe_f_in [°C]": cu.K2C(T_bhe_f_in_K),
             "T_bhe_f_out [°C]": cu.K2C(T_bhe_f_out_K),
             "dV_bhe_f [m3/s]": self.dV_b_f_m3s,
-            "dV_mix_w_out [m3/s]": getattr(self, "dV_mix_w_out", 0.0),
-            "dV_tank_w_in [m3/s]": getattr(self, "dV_tank_w_in", 0.0),
-            "dV_mix_sup_w_in [m3/s]": getattr(self, "dV_mix_sup_w_in", 0.0),
+            "dV_mix_w_out [m3/s]": flow_state.get("dV_mix_w_out", 0.0),
+            "dV_tank_w_in [m3/s]": flow_state.get("dV_tank_w_in", 0.0),
+            "dV_tank_w_out [m3/s]": flow_state.get("dV_tank_w_out", 0.0),
+            "dV_mix_sup_w_in [m3/s]": flow_state.get("dV_mix_sup_w_in", 0.0),
             "P_ref_evap_sat [Pa]": cycle_states.get("P_ref_cmp_in [Pa]", np.nan),
             "P_ref_cond_sat_l [Pa]": cycle_states.get("P_ref_exp_in [Pa]", np.nan),
             "m_dot_ref [kg/s]": m_dot_ref,
@@ -380,17 +415,14 @@ class GroundSourceHeatPumpBoiler:
         })
         return result
 
-    def _optimize_operation(self, T_tank_w: float, Q_cond_load: float, T0: float):
+    def _optimize_operation(self, T_tank_w: float, Q_cond_load: float, T0: float, *, flow_state: dict):
         from scipy.optimize import brentq
         self._opt_evals = getattr(self, '_opt_evals', 0)
         
         def _objective(dT_evap):
             self._opt_evals += 1
-            perf = self._calc_state(dT_ref_evap=dT_evap, T_tank_w=T_tank_w, Q_cond_load=Q_cond_load, T0=T0)
+            perf = self._calc_state(dT_ref_evap=dT_evap, T_tank_w=T_tank_w, Q_cond_load=Q_cond_load, T0=T0, flow_state=flow_state)
             if perf is None:
-                # If cycle impossible, return a large error to keep root finding stable?
-                # Actually brentq expects continuous function. We return large positive or negative depending on side?
-                # Better to raise ValueError so it's caught outside if it goes completely out of bounds.
                 raise ValueError(f"Cycle impossible at dT_evap={dT_evap}")
             
             err = perf.get("err_Q_evap [W]", np.nan)
@@ -401,10 +433,6 @@ class GroundSourceHeatPumpBoiler:
 
         self._opt_evals = 0
         try:
-            # err = Q_ref_evap - Q_ref_evap_calc.
-            # When dT_evap is small, T_evap is high, cycle Q_evap is high, calc Q_evap is low -> err > 0
-            # When dT_evap is large, T_evap is low, cycle Q_evap is low, calc Q_evap is high -> err < 0
-            # So root must exist.
             opt_x = brentq(_objective, 1, 20.0, xtol=1e-4, maxiter=50)
             class OptRes:
                 success = True
@@ -418,11 +446,8 @@ class GroundSourceHeatPumpBoiler:
 
     def _determine_hp_state(self, ctx: StepContext, is_on_prev: bool) -> tuple[bool, dict, float]:
         T_tank_w = cu.K2C(ctx.T_tank_w_K)
-        Q_tank_loss = self.UA_tank * (ctx.T_tank_w_K - ctx.T0_K)
-        Q_use_loss = c_w * rho_w * self.dV_tank_w_in * (ctx.T_tank_w_K - self.T_tank_w_in_K)
-        total_loss = Q_tank_loss + Q_use_loss
 
-        is_on = determine_heat_source_on_off(
+        hp_is_on = determine_heat_source_on_off(
             T_tank_w_C=T_tank_w,
             T_lower=self.T_tank_w_lower_bound,
             T_upper=self.T_tank_w_upper_bound,
@@ -431,21 +456,28 @@ class GroundSourceHeatPumpBoiler:
             on_schedule=self.hp_on_schedule
         )
 
-        Q_cond_load = self.hp_capacity if is_on else 0.0
+        Q_cond_load = self.hp_capacity if hp_is_on else 0.0
+
+        flow_state = self._build_flow_state(
+            dV_mix_w_out=ctx.dV_mix_w_out,
+            T_tank_w_K=ctx.T_tank_w_K,
+            T_tank_w_in_K=self.T_tank_w_in_K,
+            T_mix_w_out_K=self.T_mix_w_out_K,
+        )
 
         if Q_cond_load <= self.Q_cond_LOAD_OFF_TOL:
             # OFF
-            perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K))
+            perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K), flow_state=flow_state)
             return False, perf, 0.0
         else:
             # ON
-            opt_res = self._optimize_operation(T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K))
+            opt_res = self._optimize_operation(T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K), flow_state=flow_state)
             if opt_res.success:
-                perf = self._calc_state(opt_res.x, T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K))
+                perf = self._calc_state(opt_res.x, T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K), flow_state=flow_state)
                 if perf is None:
-                    perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K))
+                    perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K), flow_state=flow_state)
             else:
-                perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K))
+                perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K), flow_state=flow_state)
             
             perf["hp_is_on"] = True
             perf["converged"] = opt_res.success
@@ -454,7 +486,83 @@ class GroundSourceHeatPumpBoiler:
                 Q_ref_cond_actual = 0.0
             return True, perf, Q_ref_cond_actual
 
-    def _assemble_core_results(self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, perf: dict) -> dict:
+    # =============================================================
+    # Hooks
+    # =============================================================
+
+    def _get_activation_flags(self, hour_of_day: float) -> dict[str, bool]:
+        flags = {}
+        if self.stc is not None:
+            flags["stc"] = self.stc.is_preheat_on(hour_of_day)
+        return flags
+
+    def _needs_solar_input(self) -> bool:
+        return self.stc is not None
+
+    def _build_residual_fn(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt_s: float,
+        T_tank_w_in_K_n: float,
+        T_sup_w_K_n: float,
+        tank_level: float,
+        sub_states: dict,
+    ):
+        T_prev_K = ctx.T_tank_w_K
+        C_tank = self.C_tank
+
+        def residual(T_cand_K: float) -> float:
+            Q_tank_loss = self.UA_tank * (T_cand_K - ctx.T0_K)
+            mix = calc_mixing_valve(T_cand_K, T_tank_w_in_K_n, self.T_mix_w_out_K)
+            alp = mix["alp"]
+            dV_tank_w_out = alp * ctx.dV_mix_w_out
+            dV_tank_w_in = ctrl.dV_tank_w_in_ctrl if ctrl.dV_tank_w_in_ctrl is not None else dV_tank_w_out
+            
+            Q_out_use = c_w * rho_w * dV_tank_w_in * (T_cand_K - T_tank_w_in_K_n)
+            
+            Q_in = ctrl.Q_heat_source
+            Q_out = Q_tank_loss + Q_out_use
+            
+            return (C_tank * tank_level) * (T_cand_K - T_prev_K) - (Q_in - Q_out) * dt_s
+
+        return residual
+
+    def _run_subsystems(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        dt: float,
+        T_tank_w_in_K: float,
+    ) -> dict[str, dict]:
+        states = {}
+        for name, sub in self._subsystems.items():
+            if hasattr(sub, "step"):
+                states[name] = sub.step(ctx, ctrl, dt, T_tank_w_in_K)
+        return states
+
+    def _augment_results(
+        self,
+        r: dict,
+        ctx: StepContext,
+        ctrl: ControlState,
+        sub_states: dict[str, dict],
+        T_solved_K: float,
+    ) -> None:
+        for name, sub in self._subsystems.items():
+            if hasattr(sub, "assemble_results"):
+                sub_record = sub.assemble_results(
+                    ctx,
+                    ctrl,
+                    sub_states.get(name, {}),
+                    T_solved_K,
+                )
+                r.update(sub_record)
+
+    def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.postprocess_exergy(df)
+
+    def _assemble_core_results(self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, perf: dict, flow_state: dict) -> dict:
         r = perf.copy()
         r["T_tank_w [°C]"] = cu.K2C(T_solved_K)
         r["T0 [°C]"] = cu.K2C(ctx.T0_K)
@@ -463,17 +571,17 @@ class GroundSourceHeatPumpBoiler:
         Q_tank_loss = self.UA_tank * (T_solved_K - ctx.T0_K)
         mix = calc_mixing_valve(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
         r["T_mix_w_out [°C]"] = cu.K2C(mix["T_mix_w_out_K"])
-        Q_use_loss = c_w * rho_w * self.dV_tank_w_in * (T_solved_K - self.T_tank_w_in_K)
         
         r["Q_tank_loss [W]"] = Q_tank_loss
         r["dV_mix_w_out [m3/s]"] = ctx.dV_mix_w_out
-        r["dV_tank_w_in [m3/s]"] = self.dV_tank_w_in
-        r["dV_mix_sup_w_in [m3/s]"] = self.dV_mix_sup_w_in
+        r["dV_tank_w_in [m3/s]"] = flow_state["dV_tank_w_in"]
+        r["dV_tank_w_out [m3/s]"] = flow_state["dV_tank_w_out"]
+        r["dV_mix_sup_w_in [m3/s]"] = flow_state["dV_mix_sup_w_in"]
         r["tank_level [-]"] = 1.0  # lumped capacitance
 
         if self.lamp_power_watts > 0:
             E_uv = calc_uv_lamp_power(
-                ctx.t,
+                ctx.current_time_s,
                 self.period_3hour_sec,
                 self.num_switching_per_3hour,
                 self.uv_lamp_exposure_duration_sec,
@@ -483,23 +591,29 @@ class GroundSourceHeatPumpBoiler:
         else:
             r["E_uv [W]"] = 0.0
 
-        # Replace penalty temp if present
         r.pop("_penalty", None)
 
         return r
+
+    # =============================================================
+    # Orchestration
+    # =============================================================
 
     def analyze_dynamic(
         self,
         simulation_period_sec: float,
         dt_s: float,
         T_tank_w_init_C: float,
-        dhw_usage_schedule: list[tuple],
+        dhw_usage_schedule,
         T0_schedule,
         I_DN_schedule=None,
         I_dH_schedule=None,
+        T_sup_w_schedule=None,
+        tank_level_init: float = 1.0,
         result_save_csv_path=None,
     ) -> pd.DataFrame:
-        
+        from scipy.optimize import fsolve
+
         time = np.arange(0, simulation_period_sec, dt_s)
         tN = len(time)
         T0_schedule = np.array(T0_schedule)
@@ -508,6 +622,11 @@ class GroundSourceHeatPumpBoiler:
             I_DN_schedule = np.zeros(tN)
         if I_dH_schedule is None:
             I_dH_schedule = np.zeros(tN)
+            
+        if T_sup_w_schedule is not None:
+            T_sup_w_arr = np.array(T_sup_w_schedule, dtype=float)
+        else:
+            T_sup_w_arr = np.full(tN, cu.K2C(self.T_tank_w_in_K))
 
         results_data = []
 
@@ -515,7 +634,7 @@ class GroundSourceHeatPumpBoiler:
         self.dt = dt_s
 
         T_tank_w_K = cu.C2K(T_tank_w_init_C)
-        tank_level = 1.0
+        tank_level = tank_level_init
         is_on_prev = False
         is_refilling = False
 
@@ -529,83 +648,110 @@ class GroundSourceHeatPumpBoiler:
         Q_bhe_unit_pulse = np.zeros(tN)
         Q_bhe_unit_old = 0.0
 
-        w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, self.time)
+        # DHW schedule handling: direct m³/s flow array
+        dhw_flow_m3s = np.asarray(dhw_usage_schedule, dtype=float)
+        if len(dhw_flow_m3s) != tN:
+            raise ValueError(f"dhw_usage_schedule length ({len(dhw_flow_m3s)}) != tN ({tN})")
+
+        _use_solar = self._needs_solar_input()
 
         for n in tqdm(range(tN), desc="GSHPB Simulating"):
-            t = time[n]
+            t_s = time[n]
+            hr = t_s * cu.s2h
+            hour_of_day = (t_s % (24 * 3600)) * cu.s2h
+            
             T0_K = cu.C2K(T0_schedule[n])
-            # Determine flow rates
-            dV_mix_w_out = w_use_frac[n] * self.dV_mix_w_out_max
-            preheat_on = self.stc.is_preheat_on((t % (24 * 3600)) * cu.s2h) if self.stc else False
+            T_sup_w_n = T_sup_w_arr[n]
+            T_sup_w_K_n = cu.C2K(T_sup_w_n)
             
-            # Explicit 3-way mixing valve logic (since tank is always full)
-            alp = min(1.0, max(0.0, (self.T_mix_w_out_K - self.T_tank_w_in_K) / max(1e-6, T_tank_w_K - self.T_tank_w_in_K)))
-            dV_tank_w_out = alp * dV_mix_w_out
-            dV_in = dV_tank_w_out
-            dV_sup = (1.0 - alp) * dV_mix_w_out
-            dV_tank_w_in_ctrl = dV_in # Passed to ControlState
-            
-            self.dV_mix_w_out = dV_mix_w_out
-            self.dV_tank_w_in = dV_in
-            self.dV_mix_sup_w_in = dV_sup
-            
-            self.dV_mix_w_out = dV_mix_w_out
-            self.dV_tank_w_in = dV_in
-            self.dV_mix_sup_w_in = dV_sup
+            # Subsystem activation
+            activation_flags = self._get_activation_flags(hour_of_day)
+
+            dV_mix_w_out = dhw_flow_m3s[n]
 
             ctx = StepContext(
                 n=n,
-                current_time_s=t,
-                current_hour=t / cu.h2s,
-                hour_of_day=(t / cu.h2s) % 24,
-                T0=cu.K2C(T0_K),
+                current_time_s=t_s,
+                current_hour=hr,
+                hour_of_day=hour_of_day,
+                T0=T0_schedule[n],
                 T0_K=T0_K,
-                preheat_on=preheat_on,
+                activation_flags=activation_flags,
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
                 dV_mix_w_out=dV_mix_w_out,
-                I_DN=I_DN_schedule[n] if I_DN_schedule is not None else 0.0,
-                I_dH=I_dH_schedule[n] if I_dH_schedule is not None else 0.0,
-                T_sup_w_K=self.T_tank_w_in_K
+                I_DN=I_DN_schedule[n] if _use_solar else 0.0,
+                I_dH=I_dH_schedule[n] if _use_solar else 0.0,
+                T_sup_w_K=T_sup_w_K_n
             )
 
-            # 1. Evaluate Subsystems (pre-state)
-            ctrl_pre = ControlState(is_on=False, Q_heat_source=0.0, dV_tank_w_in_ctrl=None)
-            subsystem_results = {}
-            for name, sub in self._subsystems.items():
-                if hasattr(sub, "step"):
-                    subsystem_results[name] = sub.step(ctx, ctrl_pre, dt_s, self.T_tank_w_in_K)
-
-            # 2. HP state
-            if n % 5 == 0:
-                print(f"[{n}] Calling determine_hp_state. T_tank_w_K={ctx.T_tank_w_K}, is_on_prev={is_on_prev}")
-            hp_is_on, perf, Q_ref_cond = self._determine_hp_state(ctx, is_on_prev)
-            if n % 5 == 0:
-                print(f"[{n}] Done determine_hp_state. hp_is_on={hp_is_on}")
-            
+            # --- Phase A: Control Decisions ---
+            hp_is_on, hp_result, Q_ref_cond = self._determine_hp_state(ctx, is_on_prev)
             is_transitioning_off_to_on = (not is_on_prev) and hp_is_on
-            is_on_prev = hp_is_on
-            
-            ctrl = ControlState(is_on=hp_is_on, Q_heat_source=Q_ref_cond, dV_tank_w_in_ctrl=None)
+            hp_is_on_prev = hp_is_on
 
-            # 3. Tank Energy Balance
-            Q_tank_loss = self.UA_tank * (T_tank_w_K - T0_K)
-            E_uv_val = calc_uv_lamp_power(t, self.period_3hour_sec, self.num_switching_per_3hour, self.uv_lamp_exposure_duration_sec, self.lamp_power_watts)
-            
-            Q_sub_in = sum(s.get("Q_stc_w_out", 0.0) for s in subsystem_results.values() if s.get("stc_active"))
-            Q_sub_out = sum(s.get("Q_stc_w_in", 0.0) for s in subsystem_results.values() if s.get("stc_active"))
-            Q_in = Q_ref_cond + E_uv_val + Q_sub_in
-            Q_out_use = c_w * rho_w * dV_in * (T_tank_w_K - self.T_tank_w_in_K)
-            
-            Q_net = (Q_in - Q_sub_out) - Q_tank_loss - Q_out_use
-            T_tank_solved_K = T_tank_w_K + (Q_net / self.C_tank) * dt_s
+            # Refill logic
+            flow_state_guess = self._build_flow_state(
+                dV_mix_w_out=ctx.dV_mix_w_out,
+                T_tank_w_K=ctx.T_tank_w_K,
+                T_tank_w_in_K=T_sup_w_K_n,
+                T_mix_w_out_K=self.T_mix_w_out_K,
+            )
+            dV_tank_w_in_ctrl, is_refilling = determine_tank_refill_flow(
+                dt=dt_s,
+                tank_level=ctx.tank_level,
+                dV_tank_w_out=flow_state_guess["dV_tank_w_out"],
+                V_tank_full=self.V_tank_full,
+                tank_always_full=self.tank_always_full,
+                prevent_simultaneous_flow=self.prevent_simultaneous_flow,
+                tank_level_lower_bound=self.tank_level_lower_bound,
+                tank_level_upper_bound=self.tank_level_upper_bound,
+                dV_tank_w_in_refill=self.dV_tank_w_in_refill,
+                is_refilling=is_refilling,
+            )
 
-            # 4. G-function evaluation
+            ctrl = ControlState(
+                is_on=hp_is_on,
+                Q_heat_source=Q_ref_cond,
+                dV_tank_w_in_ctrl=dV_tank_w_in_ctrl,
+            )
+
+            # --- Phase B: Implicit Solving ---
+            sub_states = self._run_subsystems(ctx, ctrl, dt_s, T_sup_w_K_n)
+            
+            res_fn = self._build_residual_fn(
+                ctx=ctx,
+                ctrl=ctrl,
+                dt_s=dt_s,
+                T_tank_w_in_K_n=T_sup_w_K_n,
+                T_sup_w_K_n=T_sup_w_K_n,
+                tank_level=ctx.tank_level,
+                sub_states=sub_states,
+            )
+
+            T_guess_K = ctx.T_tank_w_K
+            (T_solved_K,) = fsolve(res_fn, x0=[T_guess_K])
+            if float(T_solved_K) <= T_sup_w_K_n:
+                T_solved_K = T_sup_w_K_n
+
+            # Flow state evaluated at solved temperature
+            flow_state_final = self._build_flow_state(
+                dV_mix_w_out=ctx.dV_mix_w_out,
+                T_tank_w_K=T_solved_K,
+                T_tank_w_in_K=T_sup_w_K_n,
+                T_mix_w_out_K=self.T_mix_w_out_K,
+                dV_tank_w_in_override=ctrl.dV_tank_w_in_ctrl,
+            )
+            
+            tank_vol_change = (flow_state_final["dV_tank_w_in"] - flow_state_final["dV_tank_w_out"]) * dt_s
+            level_next = min(1.0, max(0.0, ctx.tank_level + tank_vol_change / self.V_tank_full))
+
+            # --- Phase C: BHE Temporal Superposition ---
             if is_transitioning_off_to_on:
                 Q_bhe_unit = 0.0
                 Q_bhe_unit_old = 0.0
             else:
-                Q_bhe_unit = perf.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
+                Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
 
             if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
                 Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
@@ -616,8 +762,8 @@ class GroundSourceHeatPumpBoiler:
                 dQ = Q_bhe_unit_pulse[pulses_idx]
                 tau = time[n] - time[pulses_idx]
                 
-                g_n = self._gfunc_interp(tau)
-                dT_bhe = np.dot(dQ, g_n)
+                g_n_array = self._gfunc_interp(tau)
+                dT_bhe = np.dot(dQ, g_n_array)
 
                 self.T_bhe = self.Ts - dT_bhe
                 T_bhe_K = cu.C2K(self.T_bhe)
@@ -632,32 +778,49 @@ class GroundSourceHeatPumpBoiler:
                 self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
                 T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
                 self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+                
+                # Apply BHE state to hp_result (so it is visible correctly)
+                hp_result["T_bhe [°C]"] = self.T_bhe
+                hp_result["T_bhe_f [°C]"] = self.T_bhe_f
+                hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
+                hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
 
-            # 5. Assemble and advance
-            step_record = self._assemble_core_results(ctx, ctrl, T_tank_solved_K, perf)
-            
-            for name, sub in self._subsystems.items():
-                if hasattr(sub, "assemble_results"):
-                    sub_record = sub.assemble_results(ctx, ctrl, subsystem_results[name], T_tank_solved_K)
-                    step_record.update(sub_record)
-
+            # Assemble step results
+            step_record = self._assemble_core_results(ctx, ctrl, T_solved_K, hp_result, flow_state_final)
+            step_record["tank_level [-]"] = level_next
+            self._augment_results(step_record, ctx, ctrl, sub_states, T_solved_K)
             results_data.append(step_record)
-            if n < tN - 1:
-                T_tank_w_K = T_tank_solved_K
+            
+            # Step forward
+            T_tank_w_K = T_solved_K
+            tank_level = level_next
 
         results_df = pd.DataFrame(results_data)
-        
-        # Additional safe states filling
-        results_df.fillna(method='ffill', inplace=True)
+        results_df.ffill(inplace=True)
+        results_df = self._postprocess(results_df)
 
         if result_save_csv_path:
             results_df.to_csv(result_save_csv_path, index=False)
 
         return results_df
 
+    def analyze_steady(
+        self,
+        T_tank_w: float,
+        T_b_f_in: float,
+        dV_mix_w_out: float | None = None,
+        Q_cond_load: float | None = None,
+        T0: float | None = None,
+        return_dict: bool = True
+    ):
+        """Minimal steady state analytical method"""
+        if dV_mix_w_out is None and Q_cond_load is None:
+            raise ValueError("Provide one of dV_mix_w_out or Q_cond_load.")
+        # Currently a placeholder to match the API
+        return {}
+
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Compute GSHPB-specific exergy variables.
-        """
+        """Compute GSHPB-specific exergy variables."""
         from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy
         
         df = df.copy()
@@ -688,10 +851,7 @@ class GroundSourceHeatPumpBoiler:
         df["X_ref_evap [W]"] = df["Q_ref_evap [W]"] * (1 - T0_K / cu.C2K(df["T_ref_evap_sat [°C]"]))
 
         df["X_tank_w_in [W]"] = calc_exergy_flow(c_w * rho_w * df["dV_tank_w_in [m3/s]"].fillna(0), cu.C2K(df["T_tank_w_in [°C]"]), T0_K)
-        
-        # FIX: The water leaving the tank is dV_tank_w_out, not dV_mix_w_out!
-        # wait, analyze_dynamic doesn't save dV_tank_w_out! It saves dV_tank_w_in, which is the same as dV_tank_w_out for a fully mixed tank.
-        df["X_tank_w_out [W]"] = calc_exergy_flow(c_w * rho_w * df["dV_tank_w_in [m3/s]"].fillna(0), T_tank_K, T0_K)
+        df["X_tank_w_out [W]"] = calc_exergy_flow(c_w * rho_w * df["dV_tank_w_out [m3/s]"].fillna(0), T_tank_K, T0_K)
         
         df["X_mix_w_out [W]"] = calc_exergy_flow(c_w * rho_w * df["dV_mix_w_out [m3/s]"].fillna(0), cu.C2K(df["T_mix_w_out [°C]"]), T0_K)
         df["X_mix_sup_w_in [W]"] = calc_exergy_flow(c_w * rho_w * df["dV_mix_sup_w_in [m3/s]"].fillna(0), cu.C2K(df["T_tank_w_in [°C]"]), T0_K)
@@ -738,9 +898,3 @@ class GroundSourceHeatPumpBoiler:
         df["X_eff_sys [-]"] = df["X_ref_cond [W]"] / df["X_tot [W]"].replace(0, np.nan)
 
         return df
-
-    def analyze_steady(self, T_tank_w, T_b_f_in, dV_mix_w_out=None, Q_cond_load=None, T0=None, return_dict=True):
-        if dV_mix_w_out is None and Q_cond_load is None:
-            raise ValueError("Provide one of dV_mix_w_out or Q_cond_load.")
-        # Minimal shim, not fully rewritten to save context since it might be rarely evaluated compared to dynamic
-        return {}
