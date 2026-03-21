@@ -129,6 +129,18 @@ state-of-charge (SOC) tracking and full entropy/exergy accounting.
 | 3 | ESS (Battery) | `E_ess_out`, `X_ess_out`, `SOC_ess` | `X_c_ess` |
 | 4 | DC/AC Inverter | `E_inv_out`, `X_inv_out` | `X_c_inv` |
 
+### ESS Reference Parameters & Sizing
+
+When configuring `EnergyStorageSystem` integrated with a PV and Heat Pump (`ASHPB_PV_ESS`), consider the following typical values for modern Lithium-ion battery systems (e.g., Zakeri & Syri, 2015 \cite{zakeri2015}):
+
+- **Charging/Discharging Efficiency (`eta_ess_chg`, `eta_ess_dis`)**: Typical one-way efficiency ranges from **0.95 to 0.98**. The round-trip efficiency ($\eta_{chg} \times \eta_{dis}$) is usually 90~95%.
+- **Depth of Discharge (DOD) & Limits**:
+  - `SOC_max`: usually set to **0.90 ~ 1.00** to extend battery lifespan.
+  - `SOC_min`: usually set to **0.10 ~ 0.20** to prevent deep-discharge degradation.
+- **Sizing (Capacity & C-rate)**:
+  - Appropriate ESS capacity `C_ess_max` is strictly tied to PV size and load. A common heuristic for residential/light commercial PV-ESS is **1~2 kWh per 1 kWp of PV**.
+  - Maximum C-rate for sustained operation should typically not exceed **0.5C ~ 1.0C**.
+
 ### Usage
 
 ```python

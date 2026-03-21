@@ -156,6 +156,16 @@ Thermal properties use standard SI units:
    system.c_w = 4186     # Water specific heat [J/kgK]
    system.rho_w = 1000   # Water density [kg/m³]
 
+PV-ESS System Sizing Guidelines
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When simulating heat pump systems coupled with Photovoltaic (PV) arrays and Energy Storage Systems (ESS), the following industry rules of thumb and reference parameters are recommended:
+
+* **PV to Heat Pump Ratio**: While optimal sizing depends heavily on location and load, a typical setup pairs **5 to 10 kWp of PV** for a 15 kW (thermal) heat pump.
+* **Battery to PV Ratio**: A general guideline for battery sizing to maximize self-consumption is **1.0 to 2.0 kWh of battery capacity per 1 kWp of PV**. For example, a 10 kWp PV array pairs well with a 10-20 kWh ESS.
+* **PV Inverter Efficiency** (``eta_inv``): Modern solar inverters exhibit efficiencies ranging from **95% to 98%**. A default setting of **0.96** is widely applicable.
+* **ESS Round-Trip Efficiency**: Typical Lithium-ion (LiFePO4) batteries operate with high round-trip efficiencies exceeding **90-95%**. A default setting of **0.92** is recommended for modern Li-ion models.
+
 Understanding Results
 ---------------------
 
