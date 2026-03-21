@@ -11,15 +11,35 @@ source temperatures year-round. The optimiser uses Differential Evolution
 (SLSQP fallback) to minimise total power, and the condenser LMTD constraint
 is enforced via a penalty function.
 
-## Architecture
+## System Architecture
 
 ```
   Ground Loop ──→ Evaporator (HX) ──→ Compressor ──→ Condenser (HX) ──→ Tank
        ↑                                                                    │
        └────────────────── Borehole Heat Exchanger ◄────────────────────────┘
 
-  Optional:  UV Disinfection Lamp (periodic switching)
+  Subsystem Integration (via Scenario Subclasses):
+    GSHPB_STC_tank, GSHPB_STC_preheat → SolarThermalCollector integration
+    GSHPB_PV_ESS → PhotovoltaicSystem + EnergyStorageSystem
 ```
+
+## Modular Structure (Phase 3)
+
+The model uses a **Template Method** supplemented by **composition-based** architecture, matching the ASHPB implementation:
+
+```mermaid
+graph TB
+  GSHPB["GroundSourceHeatPumpBoiler<br/>(Core Engine)"]
+  DC["dynamic_context<br/>StepContext · ControlState"]
+  SCENARIOS["Scenario Subclasses<br/>GSHPB_STC_tank, GSHPB_PV_ESS"]
+  SS["subsystems<br/>STC, PV, ESS (Pure Physics)"]
+
+  GSHPB -->|imports| DC
+  SCENARIOS --"Inherits"--> GSHPB
+  SCENARIOS --"Composes"--> SS
+```
+
+The storage tank temperature is updated using a **fully implicit** scheme (`scipy.optimize.fsolve`), solving coupled energy and mass balance residuals at each timestep.
 
 ## Key Parameters
 
@@ -40,13 +60,15 @@ is enforced via a penalty function.
 | `T_b_f_in` | 15.0 | °C | Borehole fluid inlet temperature |
 | `UA_evap_design` | 3000.0 | W/K | Evaporator design UA |
 
-### UV Disinfection
+### Subsystems (Scenario-based injection)
 
-| Parameter | Default | Unit | Description |
-|---|---|---|---|
-| `uv_lamp_power` | 40.0 | W | UV-C lamp power |
-| `uv_lamp_exposure_duration_min` | 5.0 | min | UV exposure duration per cycle |
-| `num_switching_per_3hour` | 1 | — | UV switching frequency per 3 h |
+While the base class supports `uv_lamp` features, solar integration utilizes scenario subclasses:
+
+| Scenario Class | Injected Parameters | Description |
+|---|---|---|
+| `GSHPB_STC_tank` | `stc: SolarThermalCollector` | STC circulated to/from the storage tank. |
+| `GSHPB_STC_preheat` | `stc: SolarThermalCollector` | STC preheats incoming mains water. |
+| `GSHPB_PV_ESS` | `pv: PhotovoltaicSystem, ess: EnergyStorageSystem` | HP powered by PV with Battery and Grid routing. |
 
 ## Usage
 
@@ -70,7 +92,7 @@ result = gshp.analyze_steady(
 print(f"COP: {result['cop_sys']:.2f}")
 ```
 
-### Dynamic Simulation
+### Dynamic Simulation (without Subsystems)
 
 ```python
 import numpy as np
@@ -83,8 +105,29 @@ df = gshp.analyze_dynamic(
     simulation_period_sec=86400,
     dt_s=dt_s,
     T_tank_w_init_C=20.0,
-    dhw_usage_schedule=[("7:00", "8:00", 1.0), ("19:00", "21:00", 1.0)],
+    dhw_usage_schedule=[("7:00", "8:00", 1.0)],
     T0_schedule=T0_schedule,
+)
+```
+
+### Dynamic Simulation with STC (Scenario Subclass)
+
+```python
+from enex_analysis.subsystems import SolarThermalCollector
+from enex_analysis.gshpb_stc_tank import GSHPB_STC_tank
+
+stc = SolarThermalCollector(A_stc=4.0)
+
+hp_stc = GSHPB_STC_tank(
+    stc=stc, 
+    refrigerant='R410A',
+    hp_capacity=10000.0,
+)
+
+df = hp_stc.analyze_dynamic(
+    ...,
+    I_DN_schedule=I_DN_array,
+    I_dH_schedule=I_dH_array,
 )
 ```
 

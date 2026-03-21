@@ -3,6 +3,9 @@
 from .ashpb_pv_ess import ASHPB_PV_ESS
 from .ashpb_stc_preheat import ASHPB_STC_preheat
 from .ashpb_stc_tank import ASHPB_STC_tank
+from .gshpb_pv_ess import GSHPB_PV_ESS
+from .gshpb_stc_preheat import GSHPB_STC_preheat
+from .gshpb_stc_tank import GSHPB_STC_tank
 from .air_source_heat_pump_boiler import (
     AirSourceHeatPumpBoiler,
 )

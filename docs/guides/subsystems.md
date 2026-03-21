@@ -8,22 +8,22 @@ Provides self-contained subsystem classes that serve as **pure physics engines**
 Each subsystem bundles its physical parameters with methods that calculate
 thermal or electrical performance based on specific environmental inputs.
 These engines are **stateless**; they do not retain simulation timeline information. 
-Instead, they are composed via constructor injection into specific **Scenario Classes** (e.g., `ASHPB_STC_tank`, `ASHPB_PV_ESS`) which handle simulation orchestration, activation scheduling, and result assembly.
+Instead, they are composed via constructor injection into specific **Scenario Classes** (e.g., `ASHPB_STC_tank`, `GSHPB_PV_ESS`) which handle simulation orchestration, activation scheduling, and result assembly.
 
 ```python
-# Example: attach STC to a specific ASHPB Scenario Class
+# Example: attach STC to a specific Scenario Class
 from enex_analysis.subsystems import SolarThermalCollector
-from enex_analysis.ashpb_stc_tank import ASHPB_STC_tank
+from enex_analysis.gshpb_stc_tank import GSHPB_STC_tank
 
 stc = SolarThermalCollector(A_stc=4.0)
-hp = ASHPB_STC_tank(..., stc=stc)
+hp = GSHPB_STC_tank(..., stc=stc)
 ```
 
 ## Architecture
 
 ```mermaid
 graph TB
-  HP["Scenario Class<br/>(ASHPB_STC_tank / ASHPB_PV_ESS)"]
+  HP["Scenario Class<br/>(ASHPB_* / GSHPB_*)"]
   STC["SolarThermalCollector"]
   PV["PhotovoltaicSystem"]
   ESS["EnergyStorageSystem"]
@@ -39,7 +39,7 @@ To add a new subsystem:
 
 1. Create a `dataclass` in `subsystems.py` to hold physical state variables and parameters.
 2. Implement pure physical calculators (e.g., `calc_performance`) that return a dictionary of generated/consumed heat or power.
-3. Keep the module stateless. Move time-step orchestration or state routing to a specific **Scenario class** (e.g., inheriting from `AirSourceHeatPumpBoiler`) to manage the hooks (`_run_subsystems()`, `_augment_results()`, and `_postprocess()`).
+3. Keep the module stateless. Move time-step orchestration or state routing to a specific **Scenario class** (e.g., inheriting from `AirSourceHeatPumpBoiler` or `GroundSourceHeatPumpBoiler`) to manage the hooks (`_run_subsystems()`, `_augment_results()`, and `_postprocess()`).
 
 ---
 
@@ -66,7 +66,7 @@ Flat-plate or evacuated-tube solar thermal collector with two placement modes.
 | `dV_stc_w` | 0.001 | m³/s | STC loop flow rate |
 | `E_stc_pump` | 50.0 | W | STC pump rated power |
 
-(*Placement Modes such as `tank_circuit` and `mains_preheat` are now orchestrated by scenario classes like `ASHPB_STC_tank` and `ASHPB_STC_preheat` rather than the subsystem itself.*)
+(*Placement Modes such as `tank_circuit` and `mains_preheat` are now orchestrated by scenario classes like `ASHPB_STC_tank` and `GSHPB_STC_preheat` rather than the subsystem itself.*)
 
 ### Methods
 

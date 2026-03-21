@@ -473,7 +473,8 @@ class GroundSourceHeatPumpBoiler:
             # ON
             opt_res = self._optimize_operation(T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K), flow_state=flow_state)
             if opt_res.success:
-                perf = self._calc_state(opt_res.x, T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K), flow_state=flow_state)
+                opt_x = float(getattr(opt_res, "x", 0.0))
+                perf = self._calc_state(opt_x, T_tank_w, Q_cond_load, cu.K2C(ctx.T0_K), flow_state=flow_state)
                 if perf is None:
                     perf = self._calc_off_state(T_tank_w, cu.K2C(ctx.T0_K), flow_state=flow_state)
             else:
@@ -548,7 +549,7 @@ class GroundSourceHeatPumpBoiler:
         ctrl: ControlState,
         sub_states: dict[str, dict],
         T_solved_K: float,
-    ) -> None:
+    ) -> dict:
         for name, sub in self._subsystems.items():
             if hasattr(sub, "assemble_results"):
                 sub_record = sub.assemble_results(
@@ -558,6 +559,7 @@ class GroundSourceHeatPumpBoiler:
                     T_solved_K,
                 )
                 r.update(sub_record)
+        return r
 
     def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         return self.postprocess_exergy(df)
@@ -729,9 +731,11 @@ class GroundSourceHeatPumpBoiler:
                 sub_states=sub_states,
             )
 
+            from typing import cast
             T_guess_K = ctx.T_tank_w_K
-            (T_solved_K,) = fsolve(res_fn, x0=[T_guess_K])
-            if float(T_solved_K) <= T_sup_w_K_n:
+            T_solved_K_arr = cast(np.ndarray, fsolve(res_fn, x0=[T_guess_K]))
+            T_solved_K = float(T_solved_K_arr[0])
+            if T_solved_K <= T_sup_w_K_n:
                 T_solved_K = T_sup_w_K_n
 
             # Flow state evaluated at solved temperature
@@ -821,11 +825,15 @@ class GroundSourceHeatPumpBoiler:
 
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute GSHPB-specific exergy variables."""
-        from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy
+        from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy, calc_energy_flow
         
         df = df.copy()
         T0_K = cu.C2K(df["T0 [°C]"])
         T_tank_K = cu.C2K(df["T_tank_w [°C]"])
+
+        df["Q_tank_w_out [W]"] = calc_energy_flow(
+            c_w * rho_w * df["dV_tank_w_out [m3/s]"].fillna(0), T_tank_K, T0_K
+        )
 
         # 1. Refrigerant state points
         df = calc_refrigerant_exergy(df, self.ref, T0_K)
@@ -858,7 +866,8 @@ class GroundSourceHeatPumpBoiler:
 
         df["X_tank_loss [W]"] = df["Q_tank_loss [W]"] * (1 - T0_K / T_tank_K)
 
-        C_tank_actual = self.C_tank * df.get("tank_level [-]", 1.0)
+        tank_lvl = df["tank_level [-]"].fillna(1.0) if "tank_level [-]" in df.columns else 1.0
+        C_tank_actual = self.C_tank * tank_lvl
         T_tank_K_prev = T_tank_K.shift(1)
         df["Xst_tank [W]"] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / self.dt
         df.loc[df.index[0], "Xst_tank [W]"] = 0.0
