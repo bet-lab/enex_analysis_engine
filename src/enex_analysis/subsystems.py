@@ -507,12 +507,12 @@ class EnergyStorageSystem:
     def _max_chg_power(self, dt: float) -> float:
         """Maximum charging power limited by remaining capacity [W]."""
         headroom = (self.SOC_max - self.SOC_ess) * self.C_ess_max
-        return headroom / (self.eta_ess_chg * dt) if dt > 0 else 0.0
+        return max(0.0, headroom / (self.eta_ess_chg * dt)) if dt > 0 else 0.0
 
     def _max_dis_power(self, dt: float) -> float:
         """Maximum discharge power limited by SOC_min [W]."""
         available = (self.SOC_ess - self.SOC_min) * self.C_ess_max
-        return available * self.eta_ess_dis / dt if dt > 0 else 0.0
+        return max(0.0, available * self.eta_ess_dis / dt) if dt > 0 else 0.0
 
     def _exergy(self, E_chg: float, E_dis: float, T0_K: float) -> dict:
         T0 = max(1e-3, T0_K)
@@ -530,7 +530,7 @@ class EnergyStorageSystem:
         Returns a dict with keys ``E_ess_chg``, ``E_ess_dis``, ``SOC_ess``
         plus exergy keys.
         """
-        E_chg = min(E_req_chg, self._max_chg_power(dt))
+        E_chg = min(max(E_req_chg, 0.0), self._max_chg_power(dt))
         self.SOC_ess += E_chg * self.eta_ess_chg * dt / self.C_ess_max
         self.SOC_ess = min(self.SOC_max, self.SOC_ess)
         return {
@@ -546,7 +546,7 @@ class EnergyStorageSystem:
         Returns a dict with keys ``E_ess_dis`` (actual), ``E_ess_chg``,
         ``SOC_ess`` plus exergy keys.
         """
-        E_dis = min(E_req_dis, self._max_dis_power(dt))
+        E_dis = min(max(E_req_dis, 0.0), self._max_dis_power(dt))
         self.SOC_ess -= E_dis / self.eta_ess_dis * dt / self.C_ess_max
         self.SOC_ess = max(self.SOC_min, self.SOC_ess)
         return {

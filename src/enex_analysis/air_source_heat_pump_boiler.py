@@ -1181,8 +1181,8 @@ class AirSourceHeatPumpBoiler:
                     ier = 1
                 else:
                     raise ValueError(f"Not converged or NaN: {res}")
-            except Exception as e: # Fallback to explicit step if anything fails
-                print(f"DEBUG EXCEPTION res_1d fallback at n={n}: {e}")
+            except Exception: # Fallback to explicit step if anything fails
+                # Exception ignored; explicit Euler fallback will correctly handle the state
                 # Explicit Euler step for energy:
                 # r_energy = C_curr * T_next - C_curr * T_curr - dt * (Q_total - UA*(T_curr - T0)) = 0
                 Q_hp_val = ctrl.Q_heat_source
@@ -1195,7 +1195,7 @@ class AirSourceHeatPumpBoiler:
                 T_tank_w_K = ctx.T_tank_w_K + dt_s * Q_tot / self.C_tank
                 ier = 0
                 if np.isnan(T_tank_w_K) and n < 10:
-                    print(f"DEBUG NaN FALLBACK at n={n}: T_tank={ctx.T_tank_w_K}, dt={dt_s}, Q_tot={Q_tot}, Q_hp={Q_hp_val}, Q_flow={Q_flow_curr}, Q_loss={Q_loss_curr}, dV={dV_out_curr}")
+                    pass  # Silenced NaN fallback debug print
 
             # --- Phase C: core + subsystem results (via Hook) ---
             r: dict = self._assemble_core_results(
