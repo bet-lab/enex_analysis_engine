@@ -55,7 +55,30 @@ class GasBoiler:
         self.dV_w_serv_m3s = dV_w_serv_m3s
         self.Q_comb_load_threshold = 100.0  # Minimum combustion load [W]
 
-    def _calc_on_state(self, Q_comb_load, T0, dV_w_serv):
+    @staticmethod
+    def _build_flow_state(
+        dV_w_serv: float,
+        T_serv_w_K: float,
+        T_sup_w_K: float,
+        T_comb_setpoint_K: float,
+    ) -> dict:
+        den = max(1e-6, T_comb_setpoint_K - T_sup_w_K)
+        alp = min(1.0, max(0.0, (T_serv_w_K - T_sup_w_K) / den))
+
+        dV_w_sup_comb = alp * dV_w_serv
+        dV_w_sup_mix = (1 - alp) * dV_w_serv
+
+        T_serv_w_actual_K = alp * T_comb_setpoint_K + (1 - alp) * T_sup_w_K
+        
+        return {
+            "alp": alp,
+            "dV_w_serv": dV_w_serv,
+            "dV_w_sup_comb": dV_w_sup_comb,
+            "dV_w_sup_mix": dV_w_sup_mix,
+            "T_serv_w_actual_K": T_serv_w_actual_K,
+        }
+
+    def _calc_on_state(self, Q_comb_load, T0, flow_state: dict):
         """Compute energy / entropy / exergy balance for the ON state.
 
         Parameters
@@ -64,8 +87,8 @@ class GasBoiler:
             Required combustion heat load [W].
         T0 : float
             Dead-state (ambient) temperature for exergy analysis [°C].
-        dV_w_serv : float
-            Service water flow rate [m³/s].
+        flow_state : dict
+            Flow rates and mixed temperatures resulting from `_build_flow_state`.
 
         Returns
         -------
@@ -74,22 +97,13 @@ class GasBoiler:
         """
         T0_K = cu.C2K(T0)
 
-        # Mixing valve: blend boiler outlet and bypass mains to reach T_serv_w
-        # alp = boiler fraction, (1 - alp) = bypass fraction
-        den = max(1e-6, self.T_comb_setpoint_K - self.T_sup_w_K)
-        alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
-
-        # Flow split
-        dV_w_sup_comb = alp * dV_w_serv  # Flow through boiler
-        dV_w_sup_mix = (1 - alp) * dV_w_serv  # Bypass flow to mixer
-
-        T_w_comb_out = self.T_comb_setpoint  # Boiler outlet temperature
-
-        # Actual delivery temperature after mixing
-        T_serv_w_actual_K = (
-            alp * self.T_comb_setpoint_K + (1 - alp) * self.T_sup_w_K
-        )
+        alp = flow_state["alp"]
+        dV_w_serv = flow_state["dV_w_serv"]
+        dV_w_sup_comb = flow_state["dV_w_sup_comb"]
+        dV_w_sup_mix = flow_state["dV_w_sup_mix"]
+        T_serv_w_actual_K = flow_state["T_serv_w_actual_K"]
         T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
+        T_w_comb_out = self.T_comb_setpoint
 
         # --- Combustion chamber ---
         E_NG = Q_comb_load / self.eta_comb if self.eta_comb > 0 else 0.0
@@ -274,7 +288,13 @@ class GasBoiler:
         dict
             Off-state result dictionary.
         """
-        result = self._calc_on_state(Q_comb_load=0.0, T0=T0, dV_w_serv=0.0)
+        flow_state = self._build_flow_state(
+            dV_w_serv=0.0,
+            T_serv_w_K=self.T_serv_w_K,
+            T_sup_w_K=self.T_sup_w_K,
+            T_comb_setpoint_K=self.T_comb_setpoint_K,
+        )
+        result = self._calc_on_state(Q_comb_load=0.0, T0=T0, flow_state=flow_state)
 
         # Zero out all numeric values except temperatures and mixing ratio
         for key, value in result.items():
@@ -288,16 +308,8 @@ class GasBoiler:
         result["is_on"] = False
         result["converged"] = True
 
-        # Recompute delivery temperature for consistency
-        den = max(1e-6, self.T_comb_setpoint_K - self.T_sup_w_K)
-        alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
-        T_serv_w_actual_K = (
-            alp * self.T_comb_setpoint_K + (1 - alp) * self.T_sup_w_K
-        )
-        T_serv_w_actual = cu.K2C(T_serv_w_actual_K)
-
         result["T0 [°C]"] = T0
-        result["T_serv_w [°C]"] = T_serv_w_actual
+        result["T_serv_w [°C]"] = cu.K2C(flow_state["T_serv_w_actual_K"])
         result["T_sup_w [°C]"] = self.T_sup_w
         result["T_w_comb_out [°C]"] = self.T_comb_setpoint
         result["T_exh [°C]"] = self.T_exh
@@ -329,11 +341,14 @@ class GasBoiler:
         if dV_w_serv is None:
             dV_w_serv = 0.0
 
-        # Mixing ratio
-        den = max(1e-6, self.T_comb_setpoint_K - self.T_sup_w_K)
-        alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
+        flow_state = self._build_flow_state(
+            dV_w_serv=dV_w_serv,
+            T_serv_w_K=self.T_serv_w_K,
+            T_sup_w_K=self.T_sup_w_K,
+            T_comb_setpoint_K=self.T_comb_setpoint_K,
+        )
 
-        dV_w_sup_comb = alp * dV_w_serv
+        dV_w_sup_comb = flow_state["dV_w_sup_comb"]
         Q_comb_load = (
             c_w
             * rho_w
@@ -347,7 +362,7 @@ class GasBoiler:
             result = self._calc_off_state(T0=T0)
         else:
             result = self._calc_on_state(
-                Q_comb_load=Q_comb_load, T0=T0, dV_w_serv=dV_w_serv
+                Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state
             )
 
         if return_dict:
@@ -407,9 +422,6 @@ class GasBoiler:
         results_data = []
         self.time = time
         self.dt = dt_s
-        self.dV_w_serv = 0.0
-        self.dV_w_sup_comb = 0.0
-        self.dV_w_sup_mix = 0.0
 
         # Build schedule ratio array
         self.w_use_frac = build_dhw_usage_ratio(dhw_usage_schedule, self.time)
@@ -419,27 +431,28 @@ class GasBoiler:
             T0 = T0_schedule[n]
 
             # Current service flow
-            self.dV_w_serv = self.w_use_frac[n] * self.dV_w_serv_m3s
+            dV_w_serv = self.w_use_frac[n] * self.dV_w_serv_m3s
 
-            # Mixing ratio
-            den = max(1e-6, self.T_comb_setpoint_K - self.T_sup_w_K)
-            alp = min(1.0, max(0.0, (self.T_serv_w_K - self.T_sup_w_K) / den))
-
-            self.dV_w_sup_comb = alp * self.dV_w_serv
-            self.dV_w_sup_mix = (1 - alp) * self.dV_w_serv
+            flow_state = self._build_flow_state(
+                dV_w_serv=dV_w_serv,
+                T_serv_w_K=self.T_serv_w_K,
+                T_sup_w_K=self.T_sup_w_K,
+                T_comb_setpoint_K=self.T_comb_setpoint_K,
+            )
+            dV_w_sup_comb = flow_state["dV_w_sup_comb"]
 
             # Required combustion load
             Q_comb_load = (
                 c_w
                 * rho_w
-                * self.dV_w_sup_comb
+                * dV_w_sup_comb
                 * (self.T_comb_setpoint_K - self.T_sup_w_K)
             )
 
-            is_on = (self.T_serv_w > self.T_sup_w) and (self.dV_w_sup_comb > 0)
+            is_on = (self.T_serv_w > self.T_sup_w) and (dV_w_sup_comb > 0)
 
             result = self._calc_on_state(
-                Q_comb_load=Q_comb_load, T0=T0, dV_w_serv=self.dV_w_serv
+                Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state
             )
 
             step_results.update(result)
