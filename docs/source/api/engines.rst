@@ -26,6 +26,14 @@ GasBoiler
    :undoc-members:
    :show-inheritance:
 
+GasBoilerTank
+^^^^^^^^^^^^^
+
+.. autoclass:: enex_analysis.gas_boiler_tank.GasBoilerTank
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 HeatPumpBoiler
 ^^^^^^^^^^^^^^
 
@@ -65,6 +73,30 @@ AirSourceHeatPump_heating
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: enex_analysis_engine.enex_engine.AirSourceHeatPump_heating
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ASHPB_PV_ESS
+^^^^^^^^^^^^
+
+.. autoclass:: enex_analysis.ashpb_pv_ess.ASHPB_PV_ESS
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ASHPB_STC_preheat
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: enex_analysis.ashpb_stc_preheat.ASHPB_STC_preheat
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ASHPB_STC_tank
+^^^^^^^^^^^^^^
+
+.. autoclass:: enex_analysis.ashpb_stc_tank.ASHPB_STC_tank
    :members:
    :undoc-members:
    :show-inheritance:

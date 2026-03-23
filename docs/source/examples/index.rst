@@ -15,5 +15,8 @@ Practical examples demonstrating the capabilities of the Energy-Exergy Analysis 
    air-source-heat-pump
    ground-source-heat-pump
    components
+   ashpb-hybrid
+   gas-boiler-tank
+   ground-source-heat-pump-ref-cycle
    advanced-examples
    tips

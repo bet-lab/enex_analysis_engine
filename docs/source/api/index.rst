@@ -9,3 +9,5 @@ Complete API documentation for all modules, classes, and functions.
    core
    engines
    utilities
+   subsystems
+   advanced
