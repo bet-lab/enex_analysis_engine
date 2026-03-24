@@ -8,6 +8,8 @@ Library of 73+ utility functions organized into functional categories.
 These functions are used internally by the simulation classes and can also
 be called directly for custom analysis workflows.
 
+**Note:** As part of a major codebase refactoring, most of these utility functions have been decoupled into smaller dedicated backend modules (e.g., `cop.py`, `thermodynamics.py`, `heat_transfer.py`, `weather.py`, `g_function.py`, `refrigerant.py`). They are currently re-exported by `enex_functions.py` for backward compatibility, but new code should preferably import them from their specific component modules.
+
 ## Function Categories
 
 ### 1. Friction and Flow

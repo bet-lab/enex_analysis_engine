@@ -129,6 +129,22 @@ state-of-charge (SOC) tracking and full entropy/exergy accounting.
 | 3 | ESS (Battery) | `E_ess_out`, `X_ess_out`, `SOC_ess` | `X_c_ess` |
 | 4 | DC/AC Inverter | `E_inv_out`, `X_inv_out` | `X_c_inv` |
 
+### Dynamic Capacity Bounding
+
+The ``EnergyStorageSystem`` incorporates dynamic internal power bounding at each time step to safely prevent overcharging and deep discharging. The allowable maximum charge or discharge power changes based on the required headroom:
+
+1. **Max Charge Power**: Limited by the remaining capacity up to `SOC_max`. 
+   ```python
+   headroom = (SOC_max - SOC_ess) * C_ess_max
+   max_chg_power = headroom / (eta_ess_chg * dt)
+   ```
+2. **Max Discharge Power**: Limited by available capacity down to `SOC_min`.
+   ```python
+   available = (SOC_ess - SOC_min) * C_ess_max
+   max_dis_power = (available * eta_ess_dis) / dt
+   ```
+Charge/discharge requests exceeding these bounds are automatically clipped to the maximum physically allowable rate.
+
 ### ESS Reference Parameters & Sizing
 
 When configuring `EnergyStorageSystem` integrated with a PV and Heat Pump (`ASHPB_PV_ESS`), consider the following typical values for modern Lithium-ion battery systems (e.g., Zakeri & Syri, 2015 \cite{zakeri2015}):

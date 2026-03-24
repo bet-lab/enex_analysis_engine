@@ -4,39 +4,26 @@
 
 ## Overview
 
-Collection of `@dataclass`-based steady-state energy system models. Each class
-computes energy, entropy, and exergy balances for a single operating point via
-the `system_update()` method. These are simpler, algebraic models compared to
-the dynamic simulation classes (`AirSourceHeatPumpBoiler`, `GasBoiler`, etc.).
+The `enex_analysis.enex_engine` module originally housed all steady-state and dynamic system models. After a significant refactoring (Phase 3), the major dynamic simulation classes (e.g., `AirSourceHeatPumpBoiler`, `GasBoiler`, `GroundSourceHeatPumpBoiler`, `ElectricBoiler`) have been extracted into their own dedicated Python files within the package to improve maintainability.
 
-## Available Classes
+Currently, `enex_engine.py` retains:
+1. **Steady-state heat pump cycle models** (cooling and heating mode classes for ASHP and GSHP).
+2. **Backward compatibility aliases** (e.g., `HeatPumpBoiler = AirSourceHeatPumpBoiler`).
 
-### Domestic Hot Water Systems
+For the physical and mathematical details of the dynamic boiler systems, see the respective documentation in `docs/guides/02_systems`.
 
-| Class | Description |
-|---|---|
-| `ElectricBoiler` | Electric resistance heater with tank |
-| `GasBoiler` | Gas-fired boiler (steady-state version in engine) |
-| `HeatPumpBoiler` | Air-source HP boiler (simplified, fan-curve based) |
-| `SolarAssistedGasBoiler` | Gas boiler with solar thermal preheat |
-| `GroundSourceHeatPumpBoiler` | Ground-source HP boiler (steady-state in engine) |
+## Available Classes in `enex_engine.py`
 
-### Heat Pump Systems (Space Conditioning)
+### Heat Pump Systems (Steady-State Operation)
+
+These are simpler, algebraic steady-state models. Each class computes energy, entropy, and exergy balances for a single operating point via the `system_update()` method.
 
 | Class | Description |
 |---|---|
-| `AirSourceHeatPump_cooling` | ASHP in cooling mode |
-| `AirSourceHeatPump_heating` | ASHP in heating mode |
-| `GroundSourceHeatPump_cooling` | GSHP in cooling mode |
-| `GroundSourceHeatPump_heating` | GSHP in heating mode |
-
-### Other
-
-| Class | Description |
-|---|---|
-| `ElectricHeater` | Radiant / convective electric heater with panel |
-| `Fan` | Fan performance model (curve-fitted) |
-| `Pump` | Pump performance model (curve-fitted) |
+| `AirSourceHeatPump_cooling` | Single-step ASHP refrigerant cycle model in cooling mode |
+| `AirSourceHeatPump_heating` | Single-step ASHP refrigerant cycle model in heating mode |
+| `GroundSourceHeatPump_cooling` | Single-step GSHP refrigerant cycle model in cooling mode |
+| `GroundSourceHeatPump_heating` | Single-step GSHP refrigerant cycle model in heating mode |
 
 ## Common Interface
 
