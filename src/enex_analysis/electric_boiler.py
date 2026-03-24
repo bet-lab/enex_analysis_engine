@@ -11,15 +11,19 @@ from tqdm import tqdm
 from . import calc_util as cu
 from .calc_util import s2h
 from .constants import c_w, rho_w
-from .dynamic_context import ControlState, StepContext
-from .enex_functions import (
-    build_dhw_usage_ratio,
-    calc_exergy_flow,
-    calc_mixing_valve,
+from .dynamic_context import (
+    ControlState,
+    StepContext,
     determine_heat_source_on_off,
     determine_tank_refill_flow,
     tank_mass_energy_residual,
 )
+from .enex_functions import (
+    build_dhw_usage_ratio,
+    calc_exergy_flow,
+    calc_mixing_valve,
+)
+from .dynamic_context import Subsystem
 from .dynamic_context import Subsystem
 
 
