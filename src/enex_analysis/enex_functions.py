@@ -65,6 +65,11 @@ from .dhw import (
     calc_total_water_use_from_schedule,
     make_dhw_schedule_from_Annex_42_profile,
 )
+from .dynamic_context import (
+    determine_heat_source_on_off,
+    determine_tank_refill_flow,
+    tank_mass_energy_residual,
+)
 from .g_function import (
     G_FLS as G_FLS,
 )

@@ -20,7 +20,7 @@ from .enex_functions import (
     determine_tank_refill_flow,
     tank_mass_energy_residual,
 )
-from .subsystems import Subsystem
+from .dynamic_context import Subsystem
 
 
 class ElectricBoiler:
