@@ -114,8 +114,6 @@ from .electric_boiler import (
 from .enex_engine import (
     AirSourceHeatPump_cooling,
     AirSourceHeatPump_heating,
-    GroundSourceHeatPump_cooling,
-    GroundSourceHeatPump_heating,
 )
 from .enex_functions import (
     G_FLS,
@@ -153,6 +151,7 @@ from .gas_boiler_tank import (
 from .ground_source_heat_pump_boiler import (
     GroundSourceHeatPumpBoiler,
 )
+from .ground_source_heat_pump import GroundSourceHeatPump
 from .ground_source_heat_pump_ref_cycle import (
     GroundSourceHeatPump_cooling_RefCycle,
     GroundSourceHeatPump_heating_RefCycle,
