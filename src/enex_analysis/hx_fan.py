@@ -36,13 +36,14 @@ def calc_UA_from_dV_fan(
     Notes
     -----
     Instead of the Dittus-Boelter tube-side exponent (0.8), this uses 
-    a simplified lumped exponent of 0.65. This derivation is based on 
-    the Colburn j-factor proportionality to Re^-0.35 from the plain 
-    fin-and-tube correlation by Wang et al. (2000, DOI: 10.1016/S0017-9310(99)00333-6).
+    a simplified lumped exponent of 0.71. This derivation assumes a 1-row 
+    plain fin-and-tube configuration (N=1) where the Colburn j-factor 
+    is proportional to Re^-0.29, leading to h ∝ V^0.71.
+    Reference: Wang et al. (2000), DOI: 10.1016/S0017-9310(99)00333-6
     """
     v = dV_fan / A_cross if A_cross > 0 else 0
     v_design = dV_fan_design / A_cross if A_cross > 0 else 0
-    return UA * (v / v_design) ** 0.65
+    return UA * (v / v_design) ** 0.71
 
 
 def calc_fan_power_from_dV_fan(
