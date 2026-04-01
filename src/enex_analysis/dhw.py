@@ -123,6 +123,12 @@ def calc_cold_water_temp(df: pd.DataFrame, target_date_str: str) -> float:
     Uses monthly average outdoor air temperature to estimate the water mains
     temperature based on the algorithm from Hendron et al. (2004).
 
+    References
+    ----------
+    Hendron, R., Anderson, R., Judkoff, R., Christensen, C., Eastment, M., & Norton, P. (2004).
+    Building America Performance Analysis Procedures for Energy-Efficient Residential Buildings.
+    National Renewable Energy Laboratory (NREL). https://doi.org/10.2172/15011400
+
     Parameters
     ----------
     df : pd.DataFrame
