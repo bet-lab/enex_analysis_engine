@@ -10,7 +10,7 @@ import pygfunction as gt
 
 from . import calc_util as cu
 from .components.fan import Fan
-from .constants import c_a, c_w, k_w, rho_a, rho_w
+from .constants import c_a, c_w as c_f, rho_a, rho_w as rho_f
 from .enex_functions import calc_GSHP_COP
 
 
@@ -23,14 +23,14 @@ class GroundSourceHeatPump:
     superposition of dynamic building loads. Call ``system_update()``
     each time step to advance the ground temperature history.
     """
-
+    
     def __post_init__(self):
         # Time and Simulation Control
         self.time = 0.0  # [h] Will be updated continuously
 
         # Borehole parameters
         self.D_b = 2.0  # Borehole burial depth [m] 
-        self.H_b = 400  # Borehole height [m]
+        self.H_b = 200  # Borehole height [m]
         self.r_b = 0.07  # Borehole radius [m]
         self.R_b = 0.108  # Effective borehole thermal resistance [mK/W]
 
@@ -57,7 +57,7 @@ class GroundSourceHeatPump:
         # ---------------------------------------------------------------------
         # Temporal Superposition & pygfunction Initialization
         # ---------------------------------------------------------------------
-        self.Q_bh_history = [0.0]  # Store historical loads
+        self.q_b_history = [0.0]  # Store historical loads
         
         # Determine simulation length and timestep (Default: 8760 hours, 1 hour step)
         self.sim_hours = 8760
@@ -87,29 +87,29 @@ class GroundSourceHeatPump:
         # Determine mode based on load sign
         if self.Q_r_iu > 0:
             mode = "cooling"
-            self.T_a_room = 24  # Room air temperature [°C]
-            self.dT_r_rwhx = 5  # RWHX refrigerant - GHX outlet water [K]
-            # self.T_r_rwhx = 25 # Guess removed, will be calculated in loop # RWHX refrigerant [°C]
-            self.T_r_iu = 9 # Indoor unit refrigerant [°C]
-            T_a_iu_out_delta = -10 # Indoor unit outlet air - Room air [K]
+            self.T_a_room = 27  # Room air temperature [°C]
+            self.dT_r_ghx = 5  # GHX refrigerant - GHX outlet water [K]
+            self.dT_r_iu = -15 # Indoor unit refrigerant - Indoor unit inlet air [K]
+            self.T_r_iu = self.T_a_room + self.dT_r_iu # Indoor unit refrigerant [°C]
+            dT_a_iu = -10 # Indoor unit outlet air - Room air [K]
             dV_f_m3s_active = dV_f_m3s
             E_pmp_active = self.E_pmp # Pump power input [W]
         elif self.Q_r_iu < 0:
             mode = "heating"
-            self.T_a_room = 21  # Room air temperature [°C]
-            self.dT_r_rwhx = -5 # RWHX refrigerant - GHX outlet water [K] 
-            # self.T_r_rwhx = 5 # Guess removed, will be calculated in loop # RWHX refrigerant [°C]
-            self.T_r_iu = 36 # Indoor unit refrigerant [°C]
-            T_a_iu_out_delta = 10 # Indoor unit outlet air - Room air [K]
+            self.T_a_room = 19  # Room air temperature [°C]
+            self.dT_r_ghx = -5 # GHX refrigerant - GHX outlet water [K] 
+            self.dT_r_iu = 15 # Indoor unit refrigerant - Indoor unit inlet air [K]
+            self.T_r_iu = self.T_a_room + self.dT_r_iu # Indoor unit refrigerant [°C]
+            dT_a_iu = 10 # Indoor unit outlet air - Room air [K]
             dV_f_m3s_active = dV_f_m3s
             E_pmp_active = self.E_pmp # Pump power input [W]
         else:
             mode = "off"
             self.T_a_room = 22  # Room air temperature [°C]
-            self.dT_r_rwhx = 0 
-            self.T_r_rwhx = self.T0
+            self.dT_r_ghx = 0 
+            self.T_r_ghx = self.T0
             self.T_r_iu = self.T0
-            T_a_iu_out_delta = 0
+            dT_a_iu = 0
             dV_f_m3s_active = 0.0
             E_pmp_active = 0.0
 
@@ -118,7 +118,7 @@ class GroundSourceHeatPump:
         T_a_room_K = cu.C2K(self.T_a_room)
         
         if not hasattr(self, 'T_a_iu_out') or self.Q_r_iu == 0:
-             T_a_iu_out_K = T_a_room_K + T_a_iu_out_delta
+             T_a_iu_out_K = T_a_room_K + dT_a_iu
         else:
              T_a_iu_out_K = cu.C2K(self.T_a_iu_out)
              
@@ -130,9 +130,9 @@ class GroundSourceHeatPump:
         # ---------------------------------------------------------------------
         T_b_history_effect = 0.0
         
-        for i in range(1, len(self.Q_bh_history)):
-            delta_Q = self.Q_bh_history[i] - self.Q_bh_history[i-1]
-            elapsed_steps = len(self.Q_bh_history) - i
+        for i in range(1, len(self.q_b_history)):
+            delta_Q = self.q_b_history[i] - self.q_b_history[i-1]
+            elapsed_steps = len(self.q_b_history) - i
             
             idx = elapsed_steps
             if idx < len(self.g_func_list):
@@ -146,7 +146,7 @@ class GroundSourceHeatPump:
         max_iter = 20
         tol = 1e-2
         # ------------------------------------------------------------------
-        # Pre-calculate dV_iu (indoor air volume flow rate) and air flow ratio
+        # Pre-calculate dV_a (indoor unit air volume flow rate) and air flow ratio
         # Must be computed BEFORE the COP iteration loop.
         # ------------------------------------------------------------------
         # Rated airflow: V_a_ref = Q_rated / (rho_a * c_a * dT_rated=10K)
@@ -161,13 +161,13 @@ class GroundSourceHeatPump:
         V_a_ref = _Q_rated / (rho_a * c_a * _dT_rated)  # [m³/s]
 
         if self.Q_r_iu == 0:
-            dV_iu = 0.0
+            self.dV_a = 0.0
         else:
-            dV_iu = abs(self.Q_r_iu) / (
+            self.dV_a = abs(self.Q_r_iu) / (
                 c_a * rho_a * abs(T_a_iu_out_K - T_a_room_K)
             )
 
-        dV_a_ratio = dV_iu / V_a_ref if V_a_ref > 0 else 1.0
+        dV_a_ratio = self.dV_a / V_a_ref if V_a_ref > 0 else 1.0
         # --------------------------------------------------------------------------
 
         self.T_f = T_g_K  # 초기값
@@ -197,8 +197,8 @@ class GroundSourceHeatPump:
                 self.COP = 0.0
                 self.E_cmp = 0.0
 
-            self.Q_r_rwhx = self.Q_r_iu + self.E_cmp
-            self.Q_bh = (self.Q_r_rwhx + E_pmp_active) / self.H_b
+            self.Q_r_ghx = self.Q_r_iu + self.E_cmp
+            self.q_b = (self.Q_r_ghx + E_pmp_active) / self.H_b
             
             # -----------------------------------------------------------------
             # B. Core Calculation: Borehole Wall Temp with Superposition 
@@ -208,13 +208,13 @@ class GroundSourceHeatPump:
             self.T_b = (
                 T_g_K 
                 + T_b_history_effect 
-                + ((self.Q_bh - self.Q_bh_history[-1]) / (2 * math.pi * self.k_g)) * self.g_i
+                + ((self.q_b - self.q_b_history[-1]) / (2 * math.pi * self.k_g)) * self.g_i
             )
             # -----------------------------------------------------------------
             
-            self.T_f = self.T_b + self.Q_bh * self.R_b
+            self.T_f = self.T_b + self.q_b * self.R_b
             if dV_f_m3s_active > 0:
-                delta_T_fluid = self.Q_bh * self.H_b / (2 * c_w * rho_w * dV_f_m3s_active)
+                delta_T_fluid = self.q_b * self.H_b / (2 * c_f * rho_f * dV_f_m3s_active)
             else:
                 delta_T_fluid = 0.0
                 
@@ -225,12 +225,12 @@ class GroundSourceHeatPump:
                 break
                 
         # Finalize refrigerant temperature based on converged fluid temperature
-        T_r_rwhx_K = self.T_f_out + self.dT_r_rwhx
+        T_r_ghx_K = self.T_f_out + self.dT_r_ghx
 
         # ---------------------------------------------------------------------
         # C. Store the finalized load to history for the next timestep
         # ---------------------------------------------------------------------
-        self.Q_bh_history.append(self.Q_bh)
+        self.q_b_history.append(self.q_b)
         self.time += self.dt_hours
         # ---------------------------------------------------------------------
 
@@ -238,8 +238,8 @@ class GroundSourceHeatPump:
         T_a_iu_in_K = T_a_room_K
 
         # Fan power
-        if dV_iu > 0:
-            self.E_fan_iu = Fan().get_power(self.fan_iu, dV_iu)
+        if self.dV_a > 0:
+            self.E_fan_iu = Fan().get_power(self.fan_iu, self.dV_a)
         else:
             self.E_fan_iu = 0.0
 
@@ -261,8 +261,8 @@ class GroundSourceHeatPump:
         # -------------------------------------------------------------
         # Exergy of air streams
         # -------------------------------------------------------------
-        self.X_a_iu_in = get_thermal_exergy(c_a, rho_a, dV_iu, T_a_iu_in_K, T0_K)
-        self.X_a_iu_out = get_thermal_exergy(c_a, rho_a, dV_iu, T_a_iu_out_K, T0_K)
+        self.X_a_iu_in = get_thermal_exergy(c_a, rho_a, self.dV_a, T_a_iu_in_K, T0_K)
+        self.X_a_iu_out = get_thermal_exergy(c_a, rho_a, self.dV_a, T_a_iu_out_K, T0_K)
 
         # -------------------------------------------------------------
         # Exergy of refrigerant streams
@@ -271,21 +271,21 @@ class GroundSourceHeatPump:
             self.X_g = 0.0
             self.X_b = 0.0
             self.X_r_iu = 0.0
-            self.X_r_rwhx = 0.0
+            self.X_r_ghx = 0.0
         else:
-            self.X_g = (1 - T0_K / T_g_K) * (-self.Q_bh * self.H_b)
-            self.X_b = (1 - T0_K / self.T_b) * (-self.Q_bh * self.H_b)
+            self.X_g = (1 - T0_K / T_g_K) * (-self.q_b * self.H_b)
+            self.X_b = (1 - T0_K / self.T_b) * (-self.q_b * self.H_b)
             self.X_r_iu = -self.Q_r_iu * (1 - T0_K / T_r_iu_K)
-            self.X_r_rwhx = -self.Q_r_rwhx * (1 - T0_K / T_r_rwhx_K)
+            self.X_r_ghx = -self.Q_r_ghx * (1 - T0_K / T_r_ghx_K)
 
-        self.T_r_rwhx = cu.K2C(T_r_rwhx_K)
-        self.T_r_rwhx_K = T_r_rwhx_K
+        self.T_r_ghx = cu.K2C(T_r_ghx_K)
+        self.T_r_ghx_K = T_r_ghx_K
 
         # -------------------------------------------------------------
         # Exergy of water streams
         # -------------------------------------------------------------
-        self.X_f_in = get_thermal_exergy(c_w, rho_w, dV_f_m3s_active, self.T_f_in, T0_K)
-        self.X_f_out = get_thermal_exergy(c_w, rho_w, dV_f_m3s_active, self.T_f_out, T0_K)
+        self.X_f_in = get_thermal_exergy(c_f, rho_f, dV_f_m3s_active, self.T_f_in, T0_K)
+        self.X_f_out = get_thermal_exergy(c_f, rho_f, dV_f_m3s_active, self.T_f_out, T0_K)
 
         # -------------------------------------------------------------
         # Component exergy balance
@@ -293,7 +293,6 @@ class GroundSourceHeatPump:
         if mode == "off":
             self.X_in_g = self.X_out_g = self.X_c_g = 0.0
             self.X_in_ghx = self.X_out_ghx = self.X_c_ghx = 0.0
-            self.X_in_rwhx = self.X_out_rwhx = self.X_c_rwhx = 0.0
             self.X_in_r = self.X_out_r = self.X_c_r = 0.0
             self.X_in_iu = self.X_out_iu = self.X_c_iu = 0.0
         else:
@@ -303,23 +302,18 @@ class GroundSourceHeatPump:
             self.X_c_g = self.X_in_g - self.X_out_g
 
             # Ground heat exchanger
-            self.X_in_ghx = E_pmp_active + self.X_b + self.X_f_in
-            self.X_out_ghx = self.X_f_out
+            self.X_in_ghx = self.X_b + E_pmp_active
+            self.X_out_ghx = self.X_r_ghx
             self.X_c_ghx = self.X_in_ghx - self.X_out_ghx
 
-            # Refrigerant-to-water heat exchanger
-            self.X_in_rwhx = self.X_f_out
-            self.X_out_rwhx = self.X_r_rwhx + self.X_f_in
-            self.X_c_rwhx = self.X_in_rwhx - self.X_out_rwhx
-
             # Refrigerant loop
-            self.X_in_r = self.X_r_rwhx + self.E_cmp
+            self.X_in_r = self.X_r_ghx + self.E_cmp
             self.X_out_r = self.X_r_iu
             self.X_c_r = self.X_in_r - self.X_out_r
 
             # Indoor unit
-            self.X_in_iu = self.E_fan_iu + self.X_r_iu + self.X_a_iu_in
-            self.X_out_iu = self.X_a_iu_out
+            self.X_in_iu = self.E_fan_iu + self.X_r_iu
+            self.X_out_iu = self.X_a_iu_out - self.X_a_iu_in
             self.X_c_iu = self.X_in_iu - self.X_out_iu
 
         # -------------------------------------------------------------
@@ -338,35 +332,29 @@ class GroundSourceHeatPump:
         self.exergy_bal = {
             "indoor unit": {
                 "in": {
-                    "X_a_iu_in": self.X_a_iu_in,
                     "X_r_iu": self.X_r_iu,
                     "E_fan_iu": self.E_fan_iu,
                 },
-                "out": {"X_a_iu_out": self.X_a_iu_out},
+                "out": {
+                    "X_a_iu_out": self.X_a_iu_out,
+                    "X_a_iu_in": self.X_a_iu_in,
+                },
                 "consumption": {"X_c_iu": self.X_c_iu},
-            },
+             },
             "refrigerant loop": {
                 "in": {
-                    "X_r_rwhx": self.X_r_rwhx,
+                    "X_r_ghx": self.X_r_ghx,
                     "E_cmp": self.E_cmp,
                 },
                 "out": {"X_r_iu": self.X_r_iu},
                 "consumption": {"X_c_r": self.X_c_r},
             },
-            "refrigerant-to-water heat exchanger": {
-                "in": {"X_f_out": self.X_f_out},
-                "out": {
-                    "X_r_rwhx": self.X_r_rwhx,
-                    "X_f_in": self.X_f_in},
-                "consumption": {"X_c_rwhx": self.X_c_rwhx},
-            },
             "ground heat exchanger": {
                 "in": {
                     "X_b": self.X_b,
-                    "X_f_in": self.X_f_in,
                     "E_pmp": E_pmp_active,
                 },
-                "out": {"X_f_out": self.X_f_out},
+                "out": {"X_r_ghx": self.X_r_ghx},
                 "consumption": {"X_c_ghx": self.X_c_ghx},
             },
             "ground": {
