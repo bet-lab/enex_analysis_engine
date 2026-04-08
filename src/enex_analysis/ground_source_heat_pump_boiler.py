@@ -92,10 +92,6 @@ class GroundSourceHeatPumpBoiler:
         c_s: float = 800,
         rho_s: float = 2000,
         E_pmp: float = 200,
-        # 5. UV lamp
-        lamp_power_watts: float = 0,
-        uv_lamp_exposure_duration_min: float = 0,
-        num_switching_per_3hour: int = 1,
         # 6. Superheat / subcool
         dT_superheat: float = 3.0,
         dT_subcool: float = 3.0,
@@ -109,6 +105,8 @@ class GroundSourceHeatPumpBoiler:
         hp_on_schedule: list[tuple[float, float]] | None = None,
         # 9. Subsystems
         stc: SolarThermalCollector | None = None,
+        pv=None,
+        uv=None,
         # 10. Simulation scope (for precomputing g-functions)
         t_max_s: float = 8760 * 3600,
         dt_s: float = 3600,
@@ -151,13 +149,6 @@ class GroundSourceHeatPumpBoiler:
         self.tank_level_upper_bound = tank_level_upper_bound
         self.dV_tank_w_in_refill = dV_tank_w_in_refill
 
-        # UV lamp parameters
-        self.lamp_power_watts = lamp_power_watts
-        self.uv_lamp_exposure_duration_min = uv_lamp_exposure_duration_min
-        self.num_switching_per_3hour = num_switching_per_3hour
-        self.period_3hour_sec = 3 * cu.h2s
-        self.uv_lamp_exposure_duration_sec = uv_lamp_exposure_duration_min * cu.m2s
-
         self.dT_superheat = dT_superheat
         self.dT_subcool = dT_subcool
 
@@ -178,9 +169,14 @@ class GroundSourceHeatPumpBoiler:
         
         # Subsystems
         self.stc = stc
+        self.pv = pv
         self._subsystems: dict[str, Any] = {}
         if stc is not None:
             self._subsystems["stc"] = stc
+        if pv is not None:
+            self._subsystems["pv"] = pv
+        if uv is not None:
+            self._subsystems["uv"] = uv
 
         self.Q_cond_LOAD_OFF_TOL: float = 50.0  # W
 
@@ -510,22 +506,21 @@ class GroundSourceHeatPumpBoiler:
         tank_level: float,
         sub_states: dict,
     ):
-        T_prev_K = ctx.T_tank_w_K
-        C_tank = self.C_tank
-
         def residual(T_cand_K: float) -> float:
-            Q_tank_loss = self.UA_tank * (T_cand_K - ctx.T0_K)
-            mix = calc_mixing_valve(T_cand_K, T_tank_w_in_K_n, self.T_mix_w_out_K)
-            alp = mix["alp"]
-            dV_tank_w_out = alp * ctx.dV_mix_w_out
-            dV_tank_w_in = ctrl.dV_tank_w_in_ctrl if ctrl.dV_tank_w_in_ctrl is not None else dV_tank_w_out
-            
-            Q_out_use = c_w * rho_w * dV_tank_w_in * (T_cand_K - T_tank_w_in_K_n)
-            
-            Q_in = ctrl.Q_heat_source
-            Q_out = Q_tank_loss + Q_out_use
-            
-            return (C_tank * tank_level) * (T_cand_K - T_prev_K) - (Q_in - Q_out) * dt_s
+            return tank_mass_energy_residual(
+                [T_cand_K, tank_level],
+                ctx,
+                ctrl,
+                dt_s,
+                T_tank_w_in_K_n,
+                T_sup_w_K_n,
+                self.T_mix_w_out_K,
+                self.C_tank,
+                self.UA_tank,
+                self.V_tank_full,
+                self._subsystems,
+                sub_states,
+            )[0]
 
         return residual
 
@@ -564,7 +559,15 @@ class GroundSourceHeatPumpBoiler:
     def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         return self.postprocess_exergy(df)
 
-    def _assemble_core_results(self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, perf: dict, flow_state: dict) -> dict:
+    def _assemble_core_results(
+        self,
+        ctx: StepContext,
+        ctrl: ControlState,
+        T_solved_K: float,
+        level_solved: float,
+        perf: dict, 
+        flow_state: dict
+    ) -> dict:
         r = perf.copy()
         r["T_tank_w [°C]"] = cu.K2C(T_solved_K)
         r["T0 [°C]"] = cu.K2C(ctx.T0_K)
@@ -581,21 +584,64 @@ class GroundSourceHeatPumpBoiler:
         r["dV_mix_sup_w_in [m3/s]"] = flow_state["dV_mix_sup_w_in"]
         r["tank_level [-]"] = 1.0  # lumped capacitance
 
-        if self.lamp_power_watts > 0:
-            E_uv = calc_uv_lamp_power(
-                ctx.current_time_s,
-                self.period_3hour_sec,
-                self.num_switching_per_3hour,
-                self.uv_lamp_exposure_duration_sec,
-                self.lamp_power_watts,
-            )
-            r["E_uv [W]"] = E_uv
-        else:
-            r["E_uv [W]"] = 0.0
+        if not self.tank_always_full or (
+            self.tank_always_full and self.prevent_simultaneous_flow
+        ):
+            r["tank_level [-]"] = level_solved
 
         r.pop("_penalty", None)
 
         return r
+
+    def _compute_bhe_superposition(
+        self,
+        n: int,
+        time_arr: np.ndarray,
+        Q_bhe_unit_pulse: np.ndarray,
+        Q_bhe_unit_old: float,
+        hp_result: dict,
+        hp_is_on: bool,
+        is_transitioning_off_to_on: bool,
+    ) -> float:
+        if is_transitioning_off_to_on:
+            Q_bhe_unit = 0.0
+            Q_bhe_unit_old = 0.0
+        else:
+            Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
+
+        if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
+            Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
+            Q_bhe_unit_old = Q_bhe_unit
+
+        if not is_transitioning_off_to_on:
+            pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[: n + 1])
+            dQ = Q_bhe_unit_pulse[pulses_idx]
+            tau = time_arr[n] - time_arr[pulses_idx]
+            
+            g_n_array = self._gfunc_interp(tau)
+            dT_bhe = float(np.dot(dQ, g_n_array))
+
+            self.T_bhe = self.Ts - dT_bhe
+            T_bhe_K = cu.C2K(self.T_bhe)
+            T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
+            self.T_bhe_f = cu.K2C(T_bhe_f_K)
+            self.Q_bhe = Q_bhe_unit * self.H_b
+            m_cp_b = c_w * rho_w * self.dV_b_f_m3s
+            
+            # Assume symmetrical temperature approach around average BHE fluid temperature
+            dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2)
+            self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
+            self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
+            T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
+            self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+            
+            # Apply BHE state to hp_result (so it is visible correctly)
+            hp_result["T_bhe [°C]"] = self.T_bhe
+            hp_result["T_bhe_f [°C]"] = self.T_bhe_f
+            hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
+            hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
+            
+        return Q_bhe_unit_old
 
     # =============================================================
     # Orchestration
@@ -721,20 +767,36 @@ class GroundSourceHeatPumpBoiler:
             # --- Phase B: Implicit Solving ---
             sub_states = self._run_subsystems(ctx, ctrl, dt_s, T_sup_w_K_n)
             
+            alp_prev: float = min(1.0, max(0.0, (self.T_mix_w_out_K - T_sup_w_K_n) / max(1e-6, ctx.T_tank_w_K - T_sup_w_K_n)))
+            dV_tank_w_out_prev = alp_prev * ctx.dV_mix_w_out
+            dV_tank_w_in_prev = dV_tank_w_out_prev if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
+            tank_vol_change_prev = (dV_tank_w_in_prev - dV_tank_w_out_prev) * dt_s
+            level_next_approx = min(1.0, max(0.0, ctx.tank_level + tank_vol_change_prev / self.V_tank_full))
+            tank_level_solve = max(0.001, level_next_approx)
+            
             res_fn = self._build_residual_fn(
                 ctx=ctx,
                 ctrl=ctrl,
                 dt_s=dt_s,
                 T_tank_w_in_K_n=T_sup_w_K_n,
                 T_sup_w_K_n=T_sup_w_K_n,
-                tank_level=ctx.tank_level,
+                tank_level=tank_level_solve,
                 sub_states=sub_states,
             )
 
             from typing import cast
             T_guess_K = ctx.T_tank_w_K
-            T_solved_K_arr = cast(np.ndarray, fsolve(res_fn, x0=[T_guess_K]))
-            T_solved_K = float(T_solved_K_arr[0])
+            try:
+                T_solved_K_arr = cast(np.ndarray, fsolve(res_fn, x0=[T_guess_K]))
+                T_solved_K = float(T_solved_K_arr[0])
+            except Exception:
+                # explicit Euler fallback
+                Q_hp_val = ctrl.Q_heat_source
+                Q_flow_curr = c_w * rho_w * dV_tank_w_out_prev * (T_sup_w_K_n - ctx.T_tank_w_K)
+                Q_loss_curr = self.UA_tank * (ctx.T_tank_w_K - ctx.T0_K)
+                Q_tot = Q_hp_val + Q_flow_curr - Q_loss_curr
+                T_solved_K = ctx.T_tank_w_K + dt_s * Q_tot / (self.C_tank * tank_level_solve)
+
             if T_solved_K <= T_sup_w_K_n:
                 T_solved_K = T_sup_w_K_n
 
@@ -747,51 +809,22 @@ class GroundSourceHeatPumpBoiler:
                 dV_tank_w_in_override=ctrl.dV_tank_w_in_ctrl,
             )
             
-            tank_vol_change = (flow_state_final["dV_tank_w_in"] - flow_state_final["dV_tank_w_out"]) * dt_s
-            level_next = min(1.0, max(0.0, ctx.tank_level + tank_vol_change / self.V_tank_full))
+            tank_vol_change_final = (flow_state_final["dV_tank_w_in"] - flow_state_final["dV_tank_w_out"]) * dt_s
+            level_next = min(1.0, max(0.0, ctx.tank_level + tank_vol_change_final / self.V_tank_full))
 
             # --- Phase C: BHE Temporal Superposition ---
-            if is_transitioning_off_to_on:
-                Q_bhe_unit = 0.0
-                Q_bhe_unit_old = 0.0
-            else:
-                Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
-
-            if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
-                Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
-                Q_bhe_unit_old = Q_bhe_unit
-
-            if not is_transitioning_off_to_on:
-                pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[: n + 1])
-                dQ = Q_bhe_unit_pulse[pulses_idx]
-                tau = time[n] - time[pulses_idx]
-                
-                g_n_array = self._gfunc_interp(tau)
-                dT_bhe = np.dot(dQ, g_n_array)
-
-                self.T_bhe = self.Ts - dT_bhe
-                T_bhe_K = cu.C2K(self.T_bhe)
-                T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
-                self.T_bhe_f = cu.K2C(T_bhe_f_K)
-                self.Q_bhe = Q_bhe_unit * self.H_b
-                m_cp_b = c_w * rho_w * self.dV_b_f_m3s
-                
-                # Assume symmetrical temperature approach around average BHE fluid temperature
-                dT_bhe_f_half = (self.Q_bhe / m_cp_b) / 2
-                self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
-                self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
-                T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
-                self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
-                
-                # Apply BHE state to hp_result (so it is visible correctly)
-                hp_result["T_bhe [°C]"] = self.T_bhe
-                hp_result["T_bhe_f [°C]"] = self.T_bhe_f
-                hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
-                hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
+            Q_bhe_unit_old = self._compute_bhe_superposition(
+                n=n,
+                time_arr=time,
+                Q_bhe_unit_pulse=Q_bhe_unit_pulse,
+                Q_bhe_unit_old=Q_bhe_unit_old,
+                hp_result=hp_result,
+                hp_is_on=hp_is_on,
+                is_transitioning_off_to_on=is_transitioning_off_to_on,
+            )
 
             # Assemble step results
-            step_record = self._assemble_core_results(ctx, ctrl, T_solved_K, hp_result, flow_state_final)
-            step_record["tank_level [-]"] = level_next
+            step_record = self._assemble_core_results(ctx, ctrl, T_solved_K, level_next, hp_result, flow_state_final)
             self._augment_results(step_record, ctx, ctrl, sub_states, T_solved_K)
             results_data.append(step_record)
             
@@ -872,10 +905,11 @@ class GroundSourceHeatPumpBoiler:
         df["Xst_tank [W]"] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / self.dt
         df.loc[df.index[0], "Xst_tank [W]"] = 0.0
 
+        import typing
         # Subsystems exergy
-        X_sub_tot_add = 0.0
-        X_sub_in_tank_add = 0.0
-        X_sub_out_tank_add = 0.0
+        X_sub_tot_add = typing.cast(typing.Any, 0.0)
+        X_sub_in_tank_add = typing.cast(typing.Any, 0.0)
+        X_sub_out_tank_add = typing.cast(typing.Any, 0.0)
 
         for _name, sub in self._subsystems.items():
             if hasattr(sub, "calc_exergy"):

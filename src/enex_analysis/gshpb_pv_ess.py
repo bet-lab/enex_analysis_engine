@@ -78,9 +78,9 @@ class GSHPB_PV_ESS(GroundSourceHeatPumpBoiler):
         dt,
         T_tank_w_in_K,
     ) -> dict[str, dict]:
-        # Intentionally empty: PV is called after HP load is known.
+        # Let base class run STC/UV. PV is called after HP load is known.
         self._current_dt = dt
-        return {}
+        return super()._run_subsystems(ctx, ctrl, dt, T_tank_w_in_K)
 
     def _augment_results(
         self,
