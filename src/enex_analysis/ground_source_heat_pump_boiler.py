@@ -601,46 +601,44 @@ class GroundSourceHeatPumpBoiler:
         Q_bhe_unit_old: float,
         hp_result: dict,
         hp_is_on: bool,
-        is_transitioning_off_to_on: bool,
     ) -> float:
-        if is_transitioning_off_to_on:
-            Q_bhe_unit = 0.0
-            Q_bhe_unit_old = 0.0
-        else:
-            Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
+        Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
 
         if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
             Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
             Q_bhe_unit_old = Q_bhe_unit
 
-        if not is_transitioning_off_to_on:
-            pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[: n + 1])
+        pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[: n + 1])
+        if len(pulses_idx) > 0:
             dQ = Q_bhe_unit_pulse[pulses_idx]
             tau = time_arr[n] - time_arr[pulses_idx]
+            tau = np.maximum(tau, 1e-6)
             
             g_n_array = self._gfunc_interp(tau)
             dT_bhe = float(np.dot(dQ, g_n_array))
+        else:
+            dT_bhe = 0.0
 
-            self.T_bhe = self.Ts - dT_bhe
-            T_bhe_K = cu.C2K(self.T_bhe)
-            T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
-            self.T_bhe_f = cu.K2C(T_bhe_f_K)
-            self.Q_bhe = Q_bhe_unit * self.H_b
-            m_cp_b = c_w * rho_w * self.dV_b_f_m3s
-            
-            # Assume symmetrical temperature approach around average BHE fluid temperature
-            dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2)
-            self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
-            self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
-            T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
-            self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
-            
-            # Apply BHE state to hp_result (so it is visible correctly)
-            hp_result["T_bhe [°C]"] = self.T_bhe
-            hp_result["T_bhe_f [°C]"] = self.T_bhe_f
-            hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
-            hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
-            
+        self.T_bhe = self.Ts - dT_bhe
+        T_bhe_K = cu.C2K(self.T_bhe)
+        T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
+        self.T_bhe_f = cu.K2C(T_bhe_f_K)
+        self.Q_bhe = Q_bhe_unit * self.H_b
+        m_cp_b = c_w * rho_w * self.dV_b_f_m3s
+        
+        # Assume symmetrical temperature approach around average BHE fluid temperature
+        dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2) if m_cp_b > 0 else 0.0
+        self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
+        self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
+        T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
+        self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+        
+        # Apply BHE state to hp_result (so it is visible correctly)
+        hp_result["T_bhe [°C]"] = self.T_bhe
+        hp_result["T_bhe_f [°C]"] = self.T_bhe_f
+        hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
+        hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
+        
         return Q_bhe_unit_old
 
     # =============================================================
@@ -820,7 +818,6 @@ class GroundSourceHeatPumpBoiler:
                 Q_bhe_unit_old=Q_bhe_unit_old,
                 hp_result=hp_result,
                 hp_is_on=hp_is_on,
-                is_transitioning_off_to_on=is_transitioning_off_to_on,
             )
 
             # Assemble step results

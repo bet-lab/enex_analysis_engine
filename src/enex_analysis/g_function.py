@@ -177,31 +177,30 @@ def precompute_gfunction(
     scipy.interpolate.interp1d
         Interpolator function mapping `time [s]` to `g-function [mK/W]`.
     """
+    from .g_function import G_FLS
     if not HAS_PYGFUNCTION:
         raise ImportError(
             "pygfunction is not installed. Run `uv pip install pygfunction` to use multi-borehole features."
         )
 
-    # Generate log-spaced times starting from very short time to slightly beyond t_max
-    # Include dt_s to ensure the initial steps are well-covered.
-    t_min = min(dt_s / 2.0, 3600.0)
+    # Evaluate from 1 hour to bypass the short-term numerical noise (Fo < 0.1) 
+    # of the finite line source BEM discretization. 
+    # The first point is safely evaluated at 3600s where the numerical noise floor is cleared.
+    t_min = max(dt_s, 3600.0)
     times = np.geomspace(t_min, t_max_s * 1.5, num=100)
-    
-    # We also need to map 0.0 -> 0.0 for t=0 pulse calculations
-    times = np.concatenate(([0.0], times))
 
     boreField = gt.boreholes.rectangle_field(
         N_1=N_1, N_2=N_2, B_1=B, B_2=B, H=H_b, D=D_b, r_b=r_b
     )
 
-    gfunc_obj = gt.gfunction.gFunction(boreField, alpha_s, time=times[1:])
-    g_vals = gfunc_obj.gFunc
-
-    # pygfunction returns dimensionless g-function 
-    # GSHPB expects dimensioned g-function [mK/W] -> g_dim = g_n / (2 * pi * k_s)
-    g_vals_dim = g_vals / (2 * np.pi * k_s)
+    # Use uniform_heat_flux to ensure stability and compatibility with fundamental FLS assumptions
+    options = {'method': 'uniform_heat_flux'}
+    gfunc_obj = gt.gfunction.gFunction(boreField, alpha_s, time=times, options=options)
+    g_vals_dim = gfunc_obj.gFunc / (2 * np.pi * k_s)
     
-    # Prepend 0.0 for t=0
+    # Prepend 0.0 for t=0. 
+    # This automatically provides a noise-free linear interpolation for any dt < 3600s !
+    times = np.concatenate(([0.0], times))
     g_vals_dim = np.concatenate(([0.0], g_vals_dim))
 
     # Create interpolator
