@@ -140,3 +140,84 @@ Exergy columns are automatically appended after `analyze_dynamic()`.
 
 - Shares `dynamic_context` infrastructure with all tank-based models
 - See also: [dynamic_context guide](dynamic_context.md), [subsystems guide](subsystems.md)
+
+
+## Usage Guide & Examples
+
+# Jupyter Notebook Implementation Guide (For Cursor)
+
+This document provides instructions and specifications for generating the `example.ipynb` notebook for this model. Since the actual notebook generation is deferred to Cursor, please follow these guidelines when constructing the `.ipynb` file.
+
+## 1. Objective
+Create an interactive Jupyter Notebook (`example.ipynb`) that demonstrates how to initialize, run, and visualize the simulation for this specific system/model using the `enex_analysis_engine`.
+
+## 2. Notebook Structure Requirements
+
+The `.ipynb` file should contain the following sequential sections (as Markdown and Code cells):
+
+### 2.1. Introduction
+- **Markdown Cell**: Add a title and a brief description of the model being simulated. 
+- Mention the key components and inputs required.
+
+### 2.2. Setup & Imports
+- **Code Cell**: Import necessary modules from `src.enex_analysis`.
+  - `DynamicContext` from `enex_analysis.dynamic_context`
+  - The model class (e.g., `<ModelName>`)
+  - Any utility or visualization modules (e.g., `enex_analysis.visualization` or `matplotlib.pyplot`)
+  - Boundary conditions (if needed, e.g., `weather.py`, `dhw.py`)
+
+### 2.3. Context Initialization
+- **Code Cell**: Initialize the `DynamicContext`.
+  - Set the simulation `time_step` (e.g., 60 seconds).
+  - Load boundary conditions (Weather, DHW profiles).
+
+### 2.4. Model Instantiation & Parameter Configuration
+- **Markdown Cell**: Briefly explain the chosen parameters.
+- **Code Cell**: Instantiate the model. Set typical or default parameters based on the corresponding `theory.md` document.
+
+### 2.5. Simulation Loop
+- **Code Cell**: Write a loop to run the simulation over a defined duration (e.g., 1 day or 1 week).
+  - Example logic:
+    ```python
+    results = []
+    for _ in range(simulation_steps):
+        # Update context
+        # Run model step
+        # Store results
+    ```
+- Convert the stored results into a `pandas.DataFrame` for easy plotting.
+
+### 2.6. Results & Visualization
+- **Markdown Cell**: Explain what the plots will show (e.g., Temperatures over time, Power consumption, COP).
+- **Code Cell**: Use `dartwork-mpl` (or standard `matplotlib`) to generate clear, high-quality plots of the simulation results. Ensure axes are labeled correctly with units.
+
+## 3. Cursor Implementation Command
+To generate the notebook, you can provide Cursor with this command:
+*"Cursor, please read this `example_guide_for_cursor.md` file and the adjacent `theory.md` file. Use them to generate a complete, working `example.ipynb` in this directory based on the guidelines provided."*
+
+
+## Web Examples
+
+# Gas Boiler with Storage Tank
+
+The `GasBoilerTank` model allows simulating a conventional gas boiler connected to a stratified thermal storage tank. This is commonly used for Domestic Hot Water (DHW) systems or space heating buffering where the boiler does not operate instantaneously to match the load, but rather cycles to maintain the tank temperature.
+
+## Implementation Example
+
+```python
+from enex_analysis.gas_boiler_tank import GasBoilerTank
+
+# Define the boiler parameters and tank properties
+system = GasBoilerTank(
+    LHV_gas=35.8e6,  # J/m3
+    boiler_eta=0.9,  # 90% efficiency
+    tank_volume=0.3, # 300 Liters
+    V_dot_max=15.0 / 60000, # Flow rate
+    # Additional required parameters...
+)
+
+# In a simulation loop:
+# results = system.simulate_step(context, control_params...)
+```
+
+The tank physics relies on the `StratifiedTankTDMA` mathematical model to calculate internal temperature nodes dynamically.

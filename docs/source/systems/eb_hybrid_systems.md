@@ -1,3 +1,5 @@
+## Usage Guide & Examples
+
 # Jupyter Notebook Implementation Guide (For Cursor)
 
 This document provides instructions and specifications for generating the `example.ipynb` notebook for this model. Since the actual notebook generation is deferred to Cursor, please follow these guidelines when constructing the `.ipynb` file.
