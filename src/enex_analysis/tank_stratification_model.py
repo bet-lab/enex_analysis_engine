@@ -151,18 +151,14 @@ class StratifiedTankTDMA:
       of heat transfer in stratified tanks.
     """
 
-    def __init__(
-        self, H, N, r0, x_shell, x_ins, k_shell, k_ins, h_w, h_o, C_d_mix
-    ):
+    def __init__(self, H, N, r0, x_shell, x_ins, k_shell, k_ins, h_w, h_o, C_d_mix):
         self.H = H
         self.D = 2 * r0
         self.N = N
         self.A = np.pi * (self.D**2) / 4.0
         self.dh = H / N
         self.V = self.A * self.dh
-        self.UA = calc_UA_tank_arr(
-            r0, x_shell, x_ins, k_shell, k_ins, H, N, h_w, h_o
-        )
+        self.UA = calc_UA_tank_arr(r0, x_shell, x_ins, k_shell, k_ins, H, N, h_w, h_o)
         self.K = k_w * self.A / self.dh
         self.C = c_w * rho_w
         self.C_d_mix = C_d_mix
@@ -324,13 +320,7 @@ class StratifiedTankTDMA:
             K_eff_lower = K_eff[i]  # Conduction to node below
 
             a[i] = -K_eff_upper
-            b[i] = (
-                self.C * self.V / dt
-                + G_use
-                + K_eff_upper
-                + K_eff_lower
-                + UA[i]
-            )
+            b[i] = self.C * self.V / dt + G_use + K_eff_upper + K_eff_lower + UA[i]
             c[i] = -(K_eff_lower + G_use)
             d[i] = self.C * self.V * T[i] / dt + UA[i] * T_amb + S[i]
 
@@ -338,12 +328,7 @@ class StratifiedTankTDMA:
         a[N - 1] = -K_eff[N - 2]
         b[N - 1] = self.C * self.V / dt + G_use + K_eff[N - 2] + UA[N - 1]
         c[N - 1] = 0
-        d[N - 1] = (
-            self.C * self.V * T[N - 1] / dt
-            + UA[N - 1] * T_amb
-            + S[N - 1]
-            + G_use * T_in
-        )
+        d[N - 1] = self.C * self.V * T[N - 1] / dt + UA[N - 1] * T_amb + S[N - 1] + G_use * T_in
 
         # ---- Cache flow variables on instance --------------------------------------
         self.G_use = G_use
@@ -352,11 +337,7 @@ class StratifiedTankTDMA:
         self.K_eff = K_eff  # Effective conduction coefficient array [W/K]
 
         # ---- External loop (forced advection across node range) ---------------------
-        if (
-            (G_loop > 0.0)
-            and (loop_outlet_node is not None)
-            and (loop_inlet_node is not None)
-        ):
+        if (G_loop > 0.0) and (loop_outlet_node is not None) and (loop_inlet_node is not None):
             out_idx = int(loop_outlet_node) - 1
             in_idx = int(loop_inlet_node) - 1
             if 0 <= out_idx < N and 0 <= in_idx < N and out_idx != in_idx:
@@ -364,9 +345,7 @@ class StratifiedTankTDMA:
                 T_stream_out = T[out_idx]  # Use explicit (time n) value
                 T_loop_in = T_stream_out + Q_loop / max(G_loop, eps)
 
-                _add_loop_advection_terms(
-                    a, b, c, d, in_idx, out_idx, G_loop, T_loop_in
-                )
+                _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in)
 
         # ---- Solve tri-diagonal system ---------------------------------------------
         T_next = TDMA(a, b, c, d)
@@ -436,20 +415,11 @@ class StratifiedTankTDMA:
         lines.append("[Geometry]")
         lines.append(f"  H = {fmt(H)} m,  D = {fmt(D)} m,  A = {fmt(A)} m²")
         lines.append(f"  N = {N} layers,  dz = {fmt(dz)} m")
-        lines.append(
-            f"  V_node = {fmt(V_node)} m³,  V_total = {fmt(V_tot)} m³"
-        )
+        lines.append(f"  V_node = {fmt(V_node)} m³,  V_total = {fmt(V_tot)} m³")
         lines.append("[Thermal]")
-        lines.append(
-            f"  C_node = {fmt(C_node)} J/K,  C_total = {fmt(C_tot)} J/K"
-        )
+        lines.append(f"  C_node = {fmt(C_node)} J/K,  C_total = {fmt(C_tot)} J/K")
         lines.append(f"  K_axial (conduction) = {fmt(K_ax)} W/K")
-        lines.append(
-            f"  UA_sum = {fmt(UA_sum)} W/K  "
-            f"(min {fmt(UA_min)}, max {fmt(UA_max)})"
-        )
+        lines.append(f"  UA_sum = {fmt(UA_sum)} W/K  (min {fmt(UA_min)}, max {fmt(UA_max)})")
         lines.append("[Mixing]")
         lines.append(f"  C_d_mix = {fmt(getattr(self, 'C_d_mix', None))}")
         print("\n".join(lines))
-
-

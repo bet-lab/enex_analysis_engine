@@ -48,8 +48,7 @@ from .constants import c_a, c_w, k_w, rho_a, rho_w
 # ---------------------------------------------------------------------------
 # Helper: refrigerant flow exergy [W]
 # ---------------------------------------------------------------------------
-def _ref_flow_exergy(m_r: float, h: float, s: float,
-                     h0: float, s0: float, T0_K: float) -> float:
+def _ref_flow_exergy(m_r: float, h: float, s: float, h0: float, s0: float, T0_K: float) -> float:
     """Thermodynamic flow exergy of a refrigerant stream.
     X = m_r * [(h - h0) - T0 * (s - s0)]  [W]
     """
@@ -63,8 +62,7 @@ def _ref_flow_exergy(m_r: float, h: float, s: float,
 #   Q = C_a * (1 - exp(-UA/C_a)) * |T_air_in - T_ref|
 #   → solve for NTU = UA/C_a, then C_a = UA/NTU
 # ---------------------------------------------------------------------------
-def _solve_Ca_from_NTU(UA: float, Q: float, T_air_in_K: float,
-                       T_ref_K: float) -> float:
+def _solve_Ca_from_NTU(UA: float, Q: float, T_air_in_K: float, T_ref_K: float) -> float:
     """Return C_a [W/K] = m_a*c_a for the indoor coil.
 
     Parameters
@@ -82,7 +80,7 @@ def _solve_Ca_from_NTU(UA: float, Q: float, T_air_in_K: float,
     if dT < 1e-6:
         raise ValueError("T_air_in == T_ref: zero driving force in indoor coil.")
 
-    capacity_limit = UA * dT   # maximum Q achievable as C_a → ∞ (NTU → 0)
+    capacity_limit = UA * dT  # maximum Q achievable as C_a → ∞ (NTU → 0)
     if Q >= capacity_limit:
         raise ValueError(
             f"Q ({Q:.1f} W) ≥ UA·ΔT ({capacity_limit:.1f} W): "
@@ -94,13 +92,13 @@ def _solve_Ca_from_NTU(UA: float, Q: float, T_air_in_K: float,
 
     def _f(ntu):
         if ntu < 1e-10:
-            return 1.0 - rhs          # lim_{NTU→0} = 1
+            return 1.0 - rhs  # lim_{NTU→0} = 1
         return (1.0 - math.exp(-ntu)) / ntu - rhs
 
     # (1-exp(-NTU))/NTU is monotonically decreasing from 1 to 0
     # so there is exactly one root in (0, ∞)
     ntu_sol = brentq(_f, 1e-8, 500.0, xtol=1e-8, maxiter=200)
-    return UA / ntu_sol   # C_a = UA / NTU
+    return UA / ntu_sol  # C_a = UA / NTU
 
 
 # ---------------------------------------------------------------------------
@@ -128,28 +126,28 @@ class GroundSourceHeatPump_cooling_RefCycle:
         # Refrigerant
         # ------------------------------------------------------------------
         self.ref = "R32"
-        self.SH = 5.0            # superheat at compressor inlet [K]
-        self.SC = 5.0            # subcooling at expansion valve inlet [K]
-        self.eta_is = 0.70       # compressor isentropic efficiency [-]
-        self.eta_el = 0.95       # electro-mechanical efficiency [-]
+        self.SH = 5.0  # superheat at compressor inlet [K]
+        self.SC = 5.0  # subcooling at expansion valve inlet [K]
+        self.eta_is = 0.70  # compressor isentropic efficiency [-]
+        self.eta_el = 0.95  # electro-mechanical efficiency [-]
 
         # ------------------------------------------------------------------
         # Operating conditions
         # ------------------------------------------------------------------
-        self.T0 = 35.0           # dead-state temperature [°C]
-        self.T_a_room = 22.0     # room air temperature [°C]
-        self.T_g = 16.0          # undisturbed ground temperature [°C]
+        self.T0 = 35.0  # dead-state temperature [°C]
+        self.T_a_room = 22.0  # room air temperature [°C]
+        self.T_g = 16.0  # undisturbed ground temperature [°C]
 
         # ------------------------------------------------------------------
         # Load
         # ------------------------------------------------------------------
-        self.Q_r_iu = 6000.0     # cooling capacity target [W]
+        self.Q_r_iu = 6000.0  # cooling capacity target [W]
 
         # ------------------------------------------------------------------
         # Indoor unit heat exchanger
         # ------------------------------------------------------------------
-        self.UA_iu = 2000.0      # indoor-unit coil conductance [W/K]
-        self.T_evap_min = 0.0    # lower bound for T_evap to avoid icing [°C]
+        self.UA_iu = 2000.0  # indoor-unit coil conductance [W/K]
+        self.T_evap_min = 0.0  # lower bound for T_evap to avoid icing [°C]
         self.fan_iu = Fan().fan1
 
         # ------------------------------------------------------------------
@@ -163,7 +161,7 @@ class GroundSourceHeatPump_cooling_RefCycle:
         # ------------------------------------------------------------------
         # Ground loop fluid
         # ------------------------------------------------------------------
-        self.dV_f = 24.0         # [L/min]
+        self.dV_f = 24.0  # [L/min]
 
         # ------------------------------------------------------------------
         # Ground thermal properties
@@ -180,7 +178,7 @@ class GroundSourceHeatPump_cooling_RefCycle:
         # ------------------------------------------------------------------
         # RWHX (refrigerant-to-water heat exchanger) heat-transfer
         # ------------------------------------------------------------------
-        self.UA_rwhx = 3000.0    # overall conductance [W/K]
+        self.UA_rwhx = 3000.0  # overall conductance [W/K]
 
         # ------------------------------------------------------------------
         # Temporal superposition (pygfunction)
@@ -190,15 +188,11 @@ class GroundSourceHeatPump_cooling_RefCycle:
         self.dt_hours = 1
         self.dt_sec = self.dt_hours * 3600.0
 
-        borehole = gt.boreholes.Borehole(
-            H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0
-        )
+        borehole = gt.boreholes.Borehole(H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0)
         n_steps = int(self.sim_hours / self.dt_hours)
         time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g)
-        self.g_func_list = gt.gfunction.gFunction(
-            [borehole], alpha, time=time_array
-        ).gFunc
+        self.g_func_list = gt.gfunction.gFunction([borehole], alpha, time=time_array).gFunc
 
     # -----------------------------------------------------------------------
     def system_update(self):
@@ -227,8 +221,8 @@ class GroundSourceHeatPump_cooling_RefCycle:
         # ------------------------------------------------------------------
         dV_f_m3s = self.dV_f * cu.s2m * cu.L2m3
 
-        T0_K     = cu.C2K(self.T0)
-        T_g_K    = cu.C2K(self.T_g)
+        T0_K = cu.C2K(self.T0)
+        T_g_K = cu.C2K(self.T_g)
         T_room_K = cu.C2K(self.T_a_room)
         T_a_iu_in_K = T_room_K
 
@@ -244,9 +238,7 @@ class GroundSourceHeatPump_cooling_RefCycle:
             delta_Q = self.Q_bh_history[i] - self.Q_bh_history[i - 1]
             elapsed_steps = len(self.Q_bh_history) - i
             idx = elapsed_steps
-            g_val = (self.g_func_list[idx]
-                     if idx < len(self.g_func_list)
-                     else self.g_func_list[-1])
+            g_val = self.g_func_list[idx] if idx < len(self.g_func_list) else self.g_func_list[-1]
             T_b_history_effect += delta_Q * g_val
 
         # ------------------------------------------------------------------
@@ -274,9 +266,9 @@ class GroundSourceHeatPump_cooling_RefCycle:
                     s1_ = PropsSI("S", "T", T_evap_K + self.SH, "P", p1_, self.ref)
                     p2_ = PropsSI("P", "T", T_c, "Q", 1, self.ref)
                     h2s_ = PropsSI("H", "P", p2_, "S", s1_, self.ref)
-                    h2_  = h1_ + (h2s_ - h1_) / self.eta_is
-                    h3_  = PropsSI("H", "T", T_c - self.SC, "P", p2_, self.ref)
-                    dh   = h1_ - h3_
+                    h2_ = h1_ + (h2s_ - h1_) / self.eta_is
+                    h3_ = PropsSI("H", "T", T_c - self.SC, "P", p2_, self.ref)
+                    dh = h1_ - h3_
                     if dh < 1.0:
                         return 1e6
                     Q_rwhx = (self.Q_r_iu / dh) * (h2_ - h3_)
@@ -287,12 +279,10 @@ class GroundSourceHeatPump_cooling_RefCycle:
             T_c_lb = max(T_f_out_K + 0.1, T_evap_K + 1.0)
             T_c_ub = 353.15  # 80 °C
             try:
-                T_cond_K = brentq(_rwhx_resid, T_c_lb, T_c_ub,
-                                   xtol=0.01, maxiter=60)
+                T_cond_K = brentq(_rwhx_resid, T_c_lb, T_c_ub, xtol=0.01, maxiter=60)
             except ValueError:
                 raise ValueError(
-                    f"RWHX cooling: no T_cond solution at "
-                    f"T_evap={T_evap_C:.1f}°C, T_f_out={T_f_out_K-273.15:.1f}°C"
+                    f"RWHX cooling: no T_cond solution at T_evap={T_evap_C:.1f}°C, T_f_out={T_f_out_K - 273.15:.1f}°C"
                 )
 
             if T_cond_K <= T_evap_K + 1.0:
@@ -323,21 +313,37 @@ class GroundSourceHeatPump_cooling_RefCycle:
             dh_evap = h1 - h4
             if dh_evap < 1.0:
                 raise ValueError("h1 - h4 too small.")
-            m_r   = self.Q_r_iu / dh_evap
+            m_r = self.Q_r_iu / dh_evap
             E_cmp = m_r * (h2 - h1) / self.eta_el
 
-            C_a   = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu,
-                                        T_a_iu_in_K, T_evap_K)
-            m_a   = C_a / c_a
+            C_a = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu, T_a_iu_in_K, T_evap_K)
+            m_a = C_a / c_a
             dV_iu = m_a / rho_a
             E_fan = Fan().get_power(self.fan_iu, dV_iu)
 
-            return (E_cmp, E_fan, m_r, dV_iu,
-                    p1, h1, s1, T1_K,
-                    p2, h2, s2, T2_K,
-                    p3, h3, s3, T3_K,
-                    p4, h4, s4, T4_K,
-                    T_cond_K)
+            return (
+                E_cmp,
+                E_fan,
+                m_r,
+                dV_iu,
+                p1,
+                h1,
+                s1,
+                T1_K,
+                p2,
+                h2,
+                s2,
+                T2_K,
+                p3,
+                h3,
+                s3,
+                T3_K,
+                p4,
+                h4,
+                s4,
+                T4_K,
+                T_cond_K,
+            )
 
         # ------------------------------------------------------------------
         # C. Outer loop: T_f_in convergence
@@ -345,8 +351,8 @@ class GroundSourceHeatPump_cooling_RefCycle:
         _LARGE = 1e12
         max_outer = 30
         tol_outer = 1e-3
-        T_f_in_K  = T_g_K
-        T_f_out_K = T_g_K   # initial guess; updated each outer iteration
+        T_f_in_K = T_g_K
+        T_f_out_K = T_g_K  # initial guess; updated each outer iteration
 
         # variables set inside loop, needed after
         T_evap_opt_C = None
@@ -354,7 +360,6 @@ class GroundSourceHeatPump_cooling_RefCycle:
         T_cond_K = T_g_K + 5.0  # fallback init (overwritten by _cycle)
 
         for _outer in range(max_outer):
-
             # C1 removed: T_cond is now determined inside _cycle from
             # the RWHX ε-NTU constraint (no fixed approach temperature).
 
@@ -366,13 +371,13 @@ class GroundSourceHeatPump_cooling_RefCycle:
             #     Q_r_iu < UA_iu * (T_room - T_evap)
             #     → T_evap < T_room - Q_r_iu/UA_iu − 0.5 K
             # --------------------------------------------------------------
-            T_evap_ub_C = (T_a_iu_in_K - self.Q_r_iu / self.UA_iu
-                           - 0.5) - 273.15
+            T_evap_ub_C = (T_a_iu_in_K - self.Q_r_iu / self.UA_iu - 0.5) - 273.15
             T_evap_lb_C = self.T_evap_min
 
             if T_evap_lb_C >= T_evap_ub_C:
                 T_evap_opt_C = 0.5 * (T_evap_lb_C + T_evap_ub_C)
             else:
+
                 def _objective(T_evap_C: float) -> float:
                     try:
                         E_cmp, E_fan, *_ = _cycle(T_evap_C, T_f_out_K)
@@ -394,38 +399,53 @@ class GroundSourceHeatPump_cooling_RefCycle:
                 T_evap_opt_C = T_evap_lb_C + 0.1
                 _cycle_result = _cycle(T_evap_opt_C, T_f_out_K)
 
-            (E_cmp, E_fan_iu, m_r, dV_iu,
-             p1, h1, s1, T1_K,
-             p2, h2, s2, T2_K,
-             p3, h3, s3, T3_K,
-             p4, h4, s4, T4_K,
-             T_cond_K) = _cycle_result
+            (
+                E_cmp,
+                E_fan_iu,
+                m_r,
+                dV_iu,
+                p1,
+                h1,
+                s1,
+                T1_K,
+                p2,
+                h2,
+                s2,
+                T2_K,
+                p3,
+                h3,
+                s3,
+                T3_K,
+                p4,
+                h4,
+                s4,
+                T4_K,
+                T_cond_K,
+            ) = _cycle_result
 
             # --------------------------------------------------------------
             # C3. Ground-loop heat balance
             # --------------------------------------------------------------
-            Q_r_rwhx = m_r * (h2 - h3)                    # heat rejected to water
-            Q_bh = (Q_r_rwhx + self.E_pmp) / self.H_b     # [W/m] > 0 in cooling
+            Q_r_rwhx = m_r * (h2 - h3)  # heat rejected to water
+            Q_bh = (Q_r_rwhx + self.E_pmp) / self.H_b  # [W/m] > 0 in cooling
 
             g_i = self.g_func_list[0]
-            T_b_K = (T_g_K
-                     + T_b_history_effect
-                     + (Q_bh - self.Q_bh_history[-1]) * g_i)
+            T_b_K = T_g_K + T_b_history_effect + (Q_bh - self.Q_bh_history[-1]) * g_i
 
             T_f_K = T_b_K + Q_bh * self.R_b
 
             dT_f = Q_bh * self.H_b / (2.0 * c_w * rho_w * dV_f_m3s)
-            T_f_in_new_K  = T_f_K + dT_f   # hot end  (entering borehole)
-            T_f_out_new_K = T_f_K - dT_f   # cool end (leaving borehole)
+            T_f_in_new_K = T_f_K + dT_f  # hot end  (entering borehole)
+            T_f_out_new_K = T_f_K - dT_f  # cool end (leaving borehole)
 
             # --------------------------------------------------------------
             # C4. Convergence on T_f_in
             # --------------------------------------------------------------
             if abs(T_f_in_new_K - T_f_in_K) < tol_outer:
-                T_f_in_K  = T_f_in_new_K
+                T_f_in_K = T_f_in_new_K
                 T_f_out_K = T_f_out_new_K
                 break
-            T_f_in_K  = T_f_in_new_K
+            T_f_in_K = T_f_in_new_K
             T_f_out_K = T_f_out_new_K
 
         # ------------------------------------------------------------------
@@ -436,7 +456,7 @@ class GroundSourceHeatPump_cooling_RefCycle:
 
         # Convenience attributes
         self.T_evap_opt_C = T_evap_opt_C
-        self.T_cond_K = T_cond_K        # solved from RWHX ε-NTU constraint
+        self.T_cond_K = T_cond_K  # solved from RWHX ε-NTU constraint
         self.m_r = m_r
         self.E_cmp = E_cmp
         self.E_fan_iu = E_fan_iu
@@ -450,9 +470,9 @@ class GroundSourceHeatPump_cooling_RefCycle:
         self.p3, self.T3_K, self.h3, self.s3 = p3, T3_K, h3, s3
         self.p4, self.T4_K, self.h4, self.s4 = p4, T4_K, h4, s4
 
-        self.T_b_K    = T_b_K
-        self.T_f_K    = T_f_K
-        self.T_f_in_K  = T_f_in_K
+        self.T_b_K = T_b_K
+        self.T_f_K = T_f_K
+        self.T_f_in_K = T_f_in_K
         self.T_f_out_K = T_f_out_K
 
         # ------------------------------------------------------------------
@@ -469,18 +489,16 @@ class GroundSourceHeatPump_cooling_RefCycle:
         T_a_iu_out_K = T_a_iu_in_K - self.Q_r_iu / (c_a * rho_a * dV_iu)
 
         def _air_exergy(T_K):
-            return (c_a * rho_a * dV_iu *
-                    ((T_K - T0_K) - T0_K * math.log(T_K / T0_K)))
+            return c_a * rho_a * dV_iu * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
 
-        X_a_iu_in  = _air_exergy(T_a_iu_in_K)
+        X_a_iu_in = _air_exergy(T_a_iu_in_K)
         X_a_iu_out = _air_exergy(T_a_iu_out_K)
 
         # E3. Ground-loop fluid exergies
         def _fluid_exergy(T_K):
-            return (c_w * rho_w * dV_f_m3s *
-                    ((T_K - T0_K) - T0_K * math.log(T_K / T0_K)))
+            return c_w * rho_w * dV_f_m3s * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
 
-        X_f_in  = _fluid_exergy(T_f_in_K)   # entering borehole (from RWHX, hot)
+        X_f_in = _fluid_exergy(T_f_in_K)  # entering borehole (from RWHX, hot)
         X_f_out = _fluid_exergy(T_f_out_K)  # leaving borehole  (to RWHX, cool)
 
         # E4. Ground / borehole
@@ -489,35 +507,35 @@ class GroundSourceHeatPump_cooling_RefCycle:
 
         # E5. Sub-system balances
         # (1) Indoor unit – cooling: ref evaporates (State 4→1)
-        X_in_iu  = self.E_fan_iu + X4 + X_a_iu_in
+        X_in_iu = self.E_fan_iu + X4 + X_a_iu_in
         X_out_iu = X1 + X_a_iu_out
-        X_c_iu   = X_in_iu - X_out_iu
+        X_c_iu = X_in_iu - X_out_iu
 
         # (2) Compressor – State 1→2
-        X_in_cmp  = E_cmp + X1
+        X_in_cmp = E_cmp + X1
         X_out_cmp = X2
-        X_c_cmp   = X_in_cmp - X_out_cmp
+        X_c_cmp = X_in_cmp - X_out_cmp
 
         # (3) Expansion valve – State 3→4 (isenthalpic)
-        X_in_exp  = X3
+        X_in_exp = X3
         X_out_exp = X4
-        X_c_exp   = X_in_exp - X_out_exp
+        X_c_exp = X_in_exp - X_out_exp
 
         # (4) RWHX – cooling: condenser (State 2→3)
         #   cool fluid from borehole (f_out) → heated fluid to borehole (f_in)
-        X_in_rwhx  = X2 + X_f_out
+        X_in_rwhx = X2 + X_f_out
         X_out_rwhx = X3 + X_f_in
-        X_c_rwhx   = X_in_rwhx - X_out_rwhx
+        X_c_rwhx = X_in_rwhx - X_out_rwhx
 
         # (5) GHX – borehole wall exergy X_b as thermal boundary input
-        X_in_ghx  = self.E_pmp + X_f_in + X_b
+        X_in_ghx = self.E_pmp + X_f_in + X_b
         X_out_ghx = X_f_out
-        X_c_ghx   = X_in_ghx - X_out_ghx
+        X_c_ghx = X_in_ghx - X_out_ghx
 
         # (6) Ground
-        X_in_g  = X_g
+        X_in_g = X_g
         X_out_g = X_b
-        X_c_g   = X_in_g - X_out_g
+        X_c_g = X_in_g - X_out_g
 
         # E6. System exergy efficiency
         self.X_eff = (X_a_iu_in - X_a_iu_out) / (E_cmp + self.E_fan_iu + self.E_pmp)
@@ -530,32 +548,32 @@ class GroundSourceHeatPump_cooling_RefCycle:
 
         self.exergy_bal = {
             "indoor unit": {
-                "in":  {"E_fan_iu": self.E_fan_iu, "X4": X4, "X_a_iu_in": X_a_iu_in},
+                "in": {"E_fan_iu": self.E_fan_iu, "X4": X4, "X_a_iu_in": X_a_iu_in},
                 "out": {"X1": X1, "X_a_iu_out": X_a_iu_out},
                 "con": {"X_c_iu": X_c_iu},
             },
             "compressor": {
-                "in":  {"E_cmp": E_cmp, "X1": X1},
+                "in": {"E_cmp": E_cmp, "X1": X1},
                 "out": {"X2": X2},
                 "con": {"X_c_cmp": X_c_cmp},
             },
             "expansion valve": {
-                "in":  {"X3": X3},
+                "in": {"X3": X3},
                 "out": {"X4": X4},
                 "con": {"X_c_exp": X_c_exp},
             },
             "refrigerant-to-water heat exchanger": {
-                "in":  {"X2": X2, "X_f_out": X_f_out},
+                "in": {"X2": X2, "X_f_out": X_f_out},
                 "out": {"X3": X3, "X_f_in": X_f_in},
                 "con": {"X_c_rwhx": X_c_rwhx},
             },
             "ground heat exchanger": {
-                "in":  {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
+                "in": {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
                 "out": {"X_f_out": X_f_out},
                 "con": {"X_c_ghx": X_c_ghx},
             },
             "ground": {
-                "in":  {"X_in_g": X_in_g},
+                "in": {"X_in_g": X_in_g},
                 "out": {"X_out_g": X_out_g},
                 "con": {"X_c_g": X_c_g},
             },
@@ -598,11 +616,11 @@ class GroundSourceHeatPump_heating_RefCycle:
         self.T_g = 15.0
 
         # Load
-        self.Q_r_iu = 8000.0     # heating capacity [W]
+        self.Q_r_iu = 8000.0  # heating capacity [W]
 
         # Indoor unit
-        self.UA_iu = 2000.0      # indoor-unit coil conductance [W/K]
-        self.T_cond_max = 65.0   # upper bound for T_cond [°C]
+        self.UA_iu = 2000.0  # indoor-unit coil conductance [W/K]
+        self.T_cond_max = 65.0  # upper bound for T_cond [°C]
         self.fan_iu = Fan().fan1
 
         # Borehole
@@ -625,7 +643,7 @@ class GroundSourceHeatPump_heating_RefCycle:
         # ------------------------------------------------------------------
         # RWHX (refrigerant-to-water heat exchanger) heat-transfer
         # ------------------------------------------------------------------
-        self.UA_rwhx = 3000.0    # overall conductance [W/K]
+        self.UA_rwhx = 3000.0  # overall conductance [W/K]
 
         # Temporal superposition
         self.Q_bh_history = [0.0]
@@ -633,15 +651,11 @@ class GroundSourceHeatPump_heating_RefCycle:
         self.dt_hours = 1
         self.dt_sec = self.dt_hours * 3600.0
 
-        borehole = gt.boreholes.Borehole(
-            H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0
-        )
+        borehole = gt.boreholes.Borehole(H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0)
         n_steps = int(self.sim_hours / self.dt_hours)
         time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g)
-        self.g_func_list = gt.gfunction.gFunction(
-            [borehole], alpha, time=time_array
-        ).gFunc
+        self.g_func_list = gt.gfunction.gFunction([borehole], alpha, time=time_array).gFunc
 
     # -----------------------------------------------------------------------
     def system_update(self):
@@ -669,11 +683,11 @@ class GroundSourceHeatPump_heating_RefCycle:
         # A. Unit conversions & dead-state
         # ------------------------------------------------------------------
         dV_f_m3s = self.dV_f * cu.s2m * cu.L2m3
-        C_w      = c_w * rho_w * dV_f_m3s          # water-side capacity rate [W/K]
+        C_w = c_w * rho_w * dV_f_m3s  # water-side capacity rate [W/K]
         eps_rwhx = 1.0 - math.exp(-self.UA_rwhx / C_w)  # ε-NTU (Cr=0 limit)
 
-        T0_K     = cu.C2K(self.T0)
-        T_g_K    = cu.C2K(self.T_g)
+        T0_K = cu.C2K(self.T0)
+        T_g_K = cu.C2K(self.T_g)
         T_room_K = cu.C2K(self.T_a_room)
         T_a_iu_in_K = T_room_K
 
@@ -689,9 +703,7 @@ class GroundSourceHeatPump_heating_RefCycle:
             delta_Q = self.Q_bh_history[i] - self.Q_bh_history[i - 1]
             elapsed_steps = len(self.Q_bh_history) - i
             idx = elapsed_steps
-            g_val = (self.g_func_list[idx]
-                     if idx < len(self.g_func_list)
-                     else self.g_func_list[-1])
+            g_val = self.g_func_list[idx] if idx < len(self.g_func_list) else self.g_func_list[-1]
             T_b_history_effect += delta_Q * g_val
 
         # ------------------------------------------------------------------
@@ -710,27 +722,27 @@ class GroundSourceHeatPump_heating_RefCycle:
             T_cond_K = cu.C2K(T_cond_C)
 
             # Pre-compute condenser-side properties (depend only on T_cond)
-            p2   = PropsSI("P", "T", T_cond_K, "Q", 1, self.ref)
+            p2 = PropsSI("P", "T", T_cond_K, "Q", 1, self.ref)
             T3_K = T_cond_K - self.SC
-            h3   = PropsSI("H", "T", T3_K, "P", p2, self.ref)
-            s3   = PropsSI("S", "T", T3_K, "P", p2, self.ref)
+            h3 = PropsSI("H", "T", T3_K, "P", p2, self.ref)
+            s3 = PropsSI("S", "T", T3_K, "P", p2, self.ref)
 
             # ── Solve T_evap from RWHX ε-NTU constraint ──────────────────
             def _rwhx_resid(T_e: float) -> float:
                 if T_e >= T_cond_K - 0.5 or T_e >= T_f_out_K - 0.05:
                     return 1e6
                 try:
-                    p1_  = PropsSI("P", "T", T_e, "Q", 1, self.ref)
-                    T1_  = T_e + self.SH
-                    h1_  = PropsSI("H", "T", T1_, "P", p1_, self.ref)
-                    s1_  = PropsSI("S", "T", T1_, "P", p1_, self.ref)
+                    p1_ = PropsSI("P", "T", T_e, "Q", 1, self.ref)
+                    T1_ = T_e + self.SH
+                    h1_ = PropsSI("H", "T", T1_, "P", p1_, self.ref)
+                    s1_ = PropsSI("S", "T", T1_, "P", p1_, self.ref)
                     h2s_ = PropsSI("H", "P", p2, "S", s1_, self.ref)
-                    h2_  = h1_ + (h2s_ - h1_) / self.eta_is
+                    h2_ = h1_ + (h2s_ - h1_) / self.eta_is
                     dh_c = h2_ - h3
                     if dh_c < 1.0:
                         return 1e6
-                    m_r_  = self.Q_r_iu / dh_c
-                    Q_ref = m_r_ * (h1_ - h3)   # evaporator heat absorption
+                    m_r_ = self.Q_r_iu / dh_c
+                    Q_ref = m_r_ * (h1_ - h3)  # evaporator heat absorption
                     Q_wat = eps_rwhx * C_w * (T_f_out_K - T_e)
                     return Q_ref - Q_wat
                 except Exception:
@@ -739,49 +751,63 @@ class GroundSourceHeatPump_heating_RefCycle:
             T_e_ub = min(T_cond_K - 1.0, T_f_out_K - 0.1)
             T_e_lb = 233.15  # -40 °C hard lower bound
             try:
-                T_evap_K = brentq(_rwhx_resid, T_e_lb, T_e_ub,
-                                   xtol=0.01, maxiter=60)
+                T_evap_K = brentq(_rwhx_resid, T_e_lb, T_e_ub, xtol=0.01, maxiter=60)
             except ValueError:
                 raise ValueError(
-                    f"RWHX heating: no T_evap solution at "
-                    f"T_cond={T_cond_C:.1f}°C, T_f_out={T_f_out_K-273.15:.1f}°C"
+                    f"RWHX heating: no T_evap solution at T_cond={T_cond_C:.1f}°C, T_f_out={T_f_out_K - 273.15:.1f}°C"
                 )
 
             # ── Full refrigerant cycle at solved (T_evap_K, T_cond_K) ───────
-            p1   = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
+            p1 = PropsSI("P", "T", T_evap_K, "Q", 1, self.ref)
             T1_K = T_evap_K + self.SH
-            h1   = PropsSI("H", "T", T1_K, "P", p1, self.ref)
-            s1   = PropsSI("S", "T", T1_K, "P", p1, self.ref)
+            h1 = PropsSI("H", "T", T1_K, "P", p1, self.ref)
+            s1 = PropsSI("S", "T", T1_K, "P", p1, self.ref)
 
             h2s = PropsSI("H", "P", p2, "S", s1, self.ref)
-            h2  = h1 + (h2s - h1) / self.eta_is
+            h2 = h1 + (h2s - h1) / self.eta_is
             T2_K = PropsSI("T", "P", p2, "H", h2, self.ref)
-            s2   = PropsSI("S", "P", p2, "H", h2, self.ref)
+            s2 = PropsSI("S", "P", p2, "H", h2, self.ref)
 
             p3 = p2
             p4 = p1
-            h4   = h3
+            h4 = h3
             T4_K = PropsSI("T", "P", p4, "H", h4, self.ref)
-            s4   = PropsSI("S", "P", p4, "H", h4, self.ref)
+            s4 = PropsSI("S", "P", p4, "H", h4, self.ref)
 
             dh_cond = h2 - h3
             if dh_cond < 1.0:
                 raise ValueError("h2 - h3 too small.")
-            m_r   = self.Q_r_iu / dh_cond
+            m_r = self.Q_r_iu / dh_cond
             E_cmp = m_r * (h2 - h1) / self.eta_el
 
-            C_a   = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu,
-                                        T_a_iu_in_K, T_cond_K)
-            m_a   = C_a / c_a
+            C_a = _solve_Ca_from_NTU(self.UA_iu, self.Q_r_iu, T_a_iu_in_K, T_cond_K)
+            m_a = C_a / c_a
             dV_iu = m_a / rho_a
             E_fan = Fan().get_power(self.fan_iu, dV_iu)
 
-            return (E_cmp, E_fan, m_r, dV_iu,
-                    p1, h1, s1, T1_K,
-                    p2, h2, s2, T2_K,
-                    p3, h3, s3, T3_K,
-                    p4, h4, s4, T4_K,
-                    T_evap_K)
+            return (
+                E_cmp,
+                E_fan,
+                m_r,
+                dV_iu,
+                p1,
+                h1,
+                s1,
+                T1_K,
+                p2,
+                h2,
+                s2,
+                T2_K,
+                p3,
+                h3,
+                s3,
+                T3_K,
+                p4,
+                h4,
+                s4,
+                T4_K,
+                T_evap_K,
+            )
 
         # ------------------------------------------------------------------
         # C. Outer loop: T_f_out convergence
@@ -789,13 +815,12 @@ class GroundSourceHeatPump_heating_RefCycle:
         _LARGE = 1e12
         max_outer = 30
         tol_outer = 1e-3
-        T_f_out_K = T_g_K   # initial guess (borehole outlet to RWHX)
+        T_f_out_K = T_g_K  # initial guess (borehole outlet to RWHX)
 
         T_cond_opt_C = None
         _cycle_result = None
 
         for _outer in range(max_outer):
-
             # C1 removed: T_evap is now determined inside _cycle from
             # the RWHX ε-NTU constraint (no fixed approach temperature).
 
@@ -807,13 +832,13 @@ class GroundSourceHeatPump_heating_RefCycle:
             #     Q_r_iu < UA_iu * (T_cond - T_room)
             #     → T_cond > T_room + Q_r_iu/UA_iu + 0.5 K
             # ---------------------------------------------------------------
-            T_cond_lb_C = (T_a_iu_in_K + self.Q_r_iu / self.UA_iu
-                           + 0.5) - 273.15
+            T_cond_lb_C = (T_a_iu_in_K + self.Q_r_iu / self.UA_iu + 0.5) - 273.15
             T_cond_ub_C = self.T_cond_max
 
             if T_cond_lb_C >= T_cond_ub_C:
                 T_cond_opt_C = 0.5 * (T_cond_lb_C + T_cond_ub_C)
             else:
+
                 def _objective(T_cond_C: float) -> float:
                     try:
                         E_cmp, E_fan, *_ = _cycle(T_cond_C, T_f_out_K)
@@ -835,29 +860,44 @@ class GroundSourceHeatPump_heating_RefCycle:
                 T_cond_opt_C = T_cond_lb_C + 0.1
                 _cycle_result = _cycle(T_cond_opt_C, T_f_out_K)
 
-            (E_cmp, E_fan_iu, m_r, dV_iu,
-             p1, h1, s1, T1_K,
-             p2, h2, s2, T2_K,
-             p3, h3, s3, T3_K,
-             p4, h4, s4, T4_K,
-             T_evap_K) = _cycle_result
+            (
+                E_cmp,
+                E_fan_iu,
+                m_r,
+                dV_iu,
+                p1,
+                h1,
+                s1,
+                T1_K,
+                p2,
+                h2,
+                s2,
+                T2_K,
+                p3,
+                h3,
+                s3,
+                T3_K,
+                p4,
+                h4,
+                s4,
+                T4_K,
+                T_evap_K,
+            ) = _cycle_result
 
             # ---------------------------------------------------------------
             # C3. Ground-loop heat balance (heating: extraction → Q_bh < 0)
             # ---------------------------------------------------------------
-            Q_r_rwhx = m_r * (h1 - h4)                        # absorbed by ref [W]
-            Q_bh = -(Q_r_rwhx - self.E_pmp) / self.H_b       # [W/m] < 0 extraction
+            Q_r_rwhx = m_r * (h1 - h4)  # absorbed by ref [W]
+            Q_bh = -(Q_r_rwhx - self.E_pmp) / self.H_b  # [W/m] < 0 extraction
 
             g_i = self.g_func_list[0]
-            T_b_K = (T_g_K
-                     + T_b_history_effect
-                     + (Q_bh - self.Q_bh_history[-1]) * g_i)
+            T_b_K = T_g_K + T_b_history_effect + (Q_bh - self.Q_bh_history[-1]) * g_i
 
             T_f_K = T_b_K + Q_bh * self.R_b
 
             dT_f = Q_bh * self.H_b / (2.0 * c_w * rho_w * dV_f_m3s)
-            T_f_out_new_K = T_f_K - dT_f   # warm end (leaving borehole to RWHX)
-            T_f_in_K      = T_f_K + dT_f   # cool end (entering borehole from RWHX)
+            T_f_out_new_K = T_f_K - dT_f  # warm end (leaving borehole to RWHX)
+            T_f_in_K = T_f_K + dT_f  # cool end (entering borehole from RWHX)
 
             # ---------------------------------------------------------------
             # C4. Convergence on T_f_out
@@ -874,7 +914,7 @@ class GroundSourceHeatPump_heating_RefCycle:
         self.time += self.dt_hours
 
         self.T_cond_opt_C = T_cond_opt_C
-        self.T_evap_K     = T_evap_K
+        self.T_evap_K = T_evap_K
         self.m_r = m_r
         self.E_cmp = E_cmp
         self.E_fan_iu = E_fan_iu
@@ -888,10 +928,10 @@ class GroundSourceHeatPump_heating_RefCycle:
         self.p3, self.T3_K, self.h3, self.s3 = p3, T3_K, h3, s3
         self.p4, self.T4_K, self.h4, self.s4 = p4, T4_K, h4, s4
 
-        self.T_b_K    = T_b_K
-        self.T_f_K    = T_f_K
-        self.T_f_in_K  = T_f_in_K    # entering borehole (from RWHX, cool)
-        self.T_f_out_K = T_f_out_K   # leaving borehole  (to RWHX, warm)
+        self.T_b_K = T_b_K
+        self.T_f_K = T_f_K
+        self.T_f_in_K = T_f_in_K  # entering borehole (from RWHX, cool)
+        self.T_f_out_K = T_f_out_K  # leaving borehole  (to RWHX, warm)
 
         # ------------------------------------------------------------------
         # E. Exergy calculations
@@ -907,19 +947,17 @@ class GroundSourceHeatPump_heating_RefCycle:
         T_a_iu_out_K = T_a_iu_in_K + self.Q_r_iu / (c_a * rho_a * dV_iu)
 
         def _air_exergy(T_K):
-            return (c_a * rho_a * dV_iu *
-                    ((T_K - T0_K) - T0_K * math.log(T_K / T0_K)))
+            return c_a * rho_a * dV_iu * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
 
-        X_a_iu_in  = _air_exergy(T_a_iu_in_K)
+        X_a_iu_in = _air_exergy(T_a_iu_in_K)
         X_a_iu_out = _air_exergy(T_a_iu_out_K)
 
         # E3. Ground-loop fluid
         def _fluid_exergy(T_K):
-            return (c_w * rho_w * dV_f_m3s *
-                    ((T_K - T0_K) - T0_K * math.log(T_K / T0_K)))
+            return c_w * rho_w * dV_f_m3s * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
 
-        X_f_in  = _fluid_exergy(T_f_in_K)    # entering borehole (cool, from RWHX)
-        X_f_out = _fluid_exergy(T_f_out_K)   # leaving borehole  (warm, to RWHX)
+        X_f_in = _fluid_exergy(T_f_in_K)  # entering borehole (cool, from RWHX)
+        X_f_out = _fluid_exergy(T_f_out_K)  # leaving borehole  (warm, to RWHX)
 
         # E4. Ground / borehole
         X_g = (1.0 - T0_K / T_g_K) * (Q_bh * self.H_b)
@@ -927,35 +965,35 @@ class GroundSourceHeatPump_heating_RefCycle:
 
         # E5. Sub-system balances
         # (1) Indoor unit – heating: condenser (State 2→3)
-        X_in_iu  = self.E_fan_iu + X2 + X_a_iu_in
+        X_in_iu = self.E_fan_iu + X2 + X_a_iu_in
         X_out_iu = X3 + X_a_iu_out
-        X_c_iu   = X_in_iu - X_out_iu
+        X_c_iu = X_in_iu - X_out_iu
 
         # (2) Compressor
-        X_in_cmp  = E_cmp + X1
+        X_in_cmp = E_cmp + X1
         X_out_cmp = X2
-        X_c_cmp   = X_in_cmp - X_out_cmp
+        X_c_cmp = X_in_cmp - X_out_cmp
 
         # (3) Expansion valve
-        X_in_exp  = X3
+        X_in_exp = X3
         X_out_exp = X4
-        X_c_exp   = X_in_exp - X_out_exp
+        X_c_exp = X_in_exp - X_out_exp
 
         # (4) RWHX – heating: evaporator (State 4→1)
         #   warm fluid from borehole (f_out) enters; cooled fluid (f_in) leaves
-        X_in_rwhx  = X4 + X_f_out
+        X_in_rwhx = X4 + X_f_out
         X_out_rwhx = X1 + X_f_in
-        X_c_rwhx   = X_in_rwhx - X_out_rwhx
+        X_c_rwhx = X_in_rwhx - X_out_rwhx
 
         # (5) GHX
-        X_in_ghx  = self.E_pmp + X_f_in + X_b
+        X_in_ghx = self.E_pmp + X_f_in + X_b
         X_out_ghx = X_f_out
-        X_c_ghx   = X_in_ghx - X_out_ghx
+        X_c_ghx = X_in_ghx - X_out_ghx
 
         # (6) Ground
-        X_in_g  = X_g
+        X_in_g = X_g
         X_out_g = X_b
-        X_c_g   = X_in_g - X_out_g
+        X_c_g = X_in_g - X_out_g
 
         # E6. System exergy efficiency
         self.X_eff = (X_a_iu_out - X_a_iu_in) / (E_cmp + self.E_fan_iu + self.E_pmp)
@@ -967,32 +1005,32 @@ class GroundSourceHeatPump_heating_RefCycle:
 
         self.exergy_bal = {
             "indoor unit": {
-                "in":  {"E_fan_iu": self.E_fan_iu, "X2": X2, "X_a_iu_in": X_a_iu_in},
+                "in": {"E_fan_iu": self.E_fan_iu, "X2": X2, "X_a_iu_in": X_a_iu_in},
                 "out": {"X3": X3, "X_a_iu_out": X_a_iu_out},
                 "con": {"X_c_iu": X_c_iu},
             },
             "compressor": {
-                "in":  {"E_cmp": E_cmp, "X1": X1},
+                "in": {"E_cmp": E_cmp, "X1": X1},
                 "out": {"X2": X2},
                 "con": {"X_c_cmp": X_c_cmp},
             },
             "expansion valve": {
-                "in":  {"X3": X3},
+                "in": {"X3": X3},
                 "out": {"X4": X4},
                 "con": {"X_c_exp": X_c_exp},
             },
             "refrigerant-to-water heat exchanger": {
-                "in":  {"X4": X4, "X_f_out": X_f_out},
+                "in": {"X4": X4, "X_f_out": X_f_out},
                 "out": {"X1": X1, "X_f_in": X_f_in},
                 "con": {"X_c_rwhx": X_c_rwhx},
             },
             "ground heat exchanger": {
-                "in":  {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
+                "in": {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
                 "out": {"X_f_out": X_f_out},
                 "con": {"X_c_ghx": X_c_ghx},
             },
             "ground": {
-                "in":  {"X_in_g": X_in_g},
+                "in": {"X_in_g": X_in_g},
                 "out": {"X_out_g": X_out_g},
                 "con": {"X_c_g": X_c_g},
             },

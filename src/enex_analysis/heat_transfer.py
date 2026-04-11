@@ -7,9 +7,7 @@ import math
 import numpy as np
 
 
-def darcy_friction_factor(
-    Re: float, e: float, d: float, is_active: bool = True
-) -> float:
+def darcy_friction_factor(Re: float, e: float, d: float, is_active: bool = True) -> float:
     """Calculate the Darcy friction factor.
 
     Uses Haaland equation.
@@ -75,12 +73,8 @@ def calc_h_vertical_plate(
     P = 101325
 
     # Calculate properties at film temperature
-    beta = CP.PropsSI(
-        "isobaric_expansion_coefficient", "T", T_f, "P", P, fluid
-    )
-    nu = CP.PropsSI("V", "T", T_f, "P", P, fluid) / CP.PropsSI(
-        "D", "T", T_f, "P", P, fluid
-    )
+    beta = CP.PropsSI("isobaric_expansion_coefficient", "T", T_f, "P", P, fluid)
+    nu = CP.PropsSI("V", "T", T_f, "P", P, fluid) / CP.PropsSI("D", "T", T_f, "P", P, fluid)
     CP.PropsSI("PRANDTL", "T", T_f, "P", P, fluid)
     k = CP.PropsSI("L", "T", T_f, "P", P, fluid)
 
@@ -90,19 +84,10 @@ def calc_h_vertical_plate(
         * beta
         * abs(T_s - T_inf)
         * L**3
-        / (
-            nu
-            * (
-                k
-                / (
-                    CP.PropsSI("D", "T", T_f, "P", P, fluid)
-                    * CP.PropsSI("C", "T", T_f, "P", P, fluid)
-                )
-            )
-        )
+        / (nu * (k / (CP.PropsSI("D", "T", T_f, "P", P, fluid) * CP.PropsSI("C", "T", T_f, "P", P, fluid))))
     )
 
-    Nu = 0.59 * Ra ** 0.25 if Ra < 1000000000.0 else 0.1 * Ra ** (1 / 3)
+    Nu = 0.59 * Ra**0.25 if Ra < 1000000000.0 else 0.1 * Ra ** (1 / 3)
 
     return float(Nu * k / L)
 
@@ -142,9 +127,7 @@ def calc_UA_tank_arr(
 
     R_cond = 0.0
     for i in range(len(arr_D_in)):
-        R_cond += math.log(arr_D_out[i] / arr_D_in[i]) / (
-            2 * math.pi * max(arr_k[i], 1e-10) * arr_L[i]
-        )
+        R_cond += math.log(arr_D_out[i] / arr_D_in[i]) / (2 * math.pi * max(arr_k[i], 1e-10) * arr_L[i])
 
     return 1 / (R_in + R_cond + R_out)
 
@@ -189,9 +172,9 @@ def calc_simple_tank_UA(
     A_side = 2 * math.pi * r2 * H
     A_base = math.pi * r0**2
     R_base_unit = x_shell / k_shell + x_ins / k_ins  # [m2K/W]
-    R_side_unit = math.log(r1 / r0) / (2 * math.pi * max(k_shell, 1e-10)) + math.log(
-        r2 / r1
-    ) / (2 * math.pi * max(k_ins, 1e-10))  # [mK/W]
+    R_side_unit = math.log(r1 / r0) / (2 * math.pi * max(k_shell, 1e-10)) + math.log(r2 / r1) / (
+        2 * math.pi * max(k_ins, 1e-10)
+    )  # [mK/W]
 
     # Thermal resistances [K/W]
     R_base = R_base_unit / max(A_base, 1e-10)  # [K/W]
@@ -211,9 +194,7 @@ def calc_simple_tank_UA(
     return float(UA_tank)
 
 
-def calc_LMTD_counter_flow(
-    Th_in: float, Th_out: float, Tc_in: float, Tc_out: float
-) -> float:
+def calc_LMTD_counter_flow(Th_in: float, Th_out: float, Tc_in: float, Tc_out: float) -> float:
     """Calculate Log-Mean Temperature Difference for counter-flow heat exchanger.
 
     Parameters
@@ -244,9 +225,7 @@ def calc_LMTD_counter_flow(
     return (dT1 - dT2) / math.log(dT1 / dT2)
 
 
-def calc_LMTD_parallel_flow(
-    Th_in: float, Th_out: float, Tc_in: float, Tc_out: float
-) -> float:
+def calc_LMTD_parallel_flow(Th_in: float, Th_out: float, Tc_in: float, Tc_out: float) -> float:
     """Calculate Log-Mean Temperature Difference for parallel-flow heat exchanger.
 
     Parameters
@@ -317,9 +296,7 @@ def TRIDIAG_MATRIX_ALGORITHM(
         c_star[i] = a_E[i] * inv_denom
         d_star[i] = (b_P[i] + a_W[i] * d_star[i - 1]) * inv_denom
 
-    d_star[n - 1] = (b_P[n - 1] + a_W[n - 1] * d_star[n - 2]) / (
-        a_M[n - 1] - a_W[n - 1] * c_star[n - 2]
-    )
+    d_star[n - 1] = (b_P[n - 1] + a_W[n - 1] * d_star[n - 2]) / (a_M[n - 1] - a_W[n - 1] * c_star[n - 2])
 
     phi[n - 1] = d_star[n - 1]
     for i in range(n - 2, -1, -1):

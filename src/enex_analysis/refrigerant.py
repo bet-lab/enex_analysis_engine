@@ -103,15 +103,9 @@ def calc_ref_state(
         s_ref_cmp_in = s_ref_evap_sat
         rho_ref_cmp_in = CP.PropsSI("D", "T", T_ref_evap_sat_K, "Q", 1, refrigerant)
     else:
-        h_ref_cmp_in = CP.PropsSI(
-            "H", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant
-        )
-        s_ref_cmp_in = CP.PropsSI(
-            "S", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant
-        )
-        rho_ref_cmp_in = CP.PropsSI(
-            "D", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant
-        )
+        h_ref_cmp_in = CP.PropsSI("H", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant)
+        s_ref_cmp_in = CP.PropsSI("S", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant)
+        rho_ref_cmp_in = CP.PropsSI("D", "T", T_ref_cmp_in_K, "P", P_evap, refrigerant)
 
     # 3단계: State 2 (압축기 출구 - 고압 과열 증기) 계산
     h2_isen = CP.PropsSI("H", "P", P_cond, "S", s_ref_cmp_in, refrigerant)
@@ -122,13 +116,9 @@ def calc_ref_state(
         val_eta_cmp_isen = eta_cmp_isen
 
     h_ref_cmp_out = h_ref_cmp_in + (h2_isen - h_ref_cmp_in) / val_eta_cmp_isen
-    T_ref_cmp_out_K = CP.PropsSI(
-        "T", "P", P_cond, "H", h_ref_cmp_out, refrigerant
-    )
+    T_ref_cmp_out_K = CP.PropsSI("T", "P", P_cond, "H", h_ref_cmp_out, refrigerant)
     P_ref_cmp_out = P_cond
-    s_ref_cmp_out = CP.PropsSI(
-        "S", "P", P_cond, "H", h_ref_cmp_out, refrigerant
-    )
+    s_ref_cmp_out = CP.PropsSI("S", "P", P_cond, "H", h_ref_cmp_out, refrigerant)
 
     # 3.5단계: State 2* (응축기 포화 증기 도달 지점) 계산
     T_ref_cond_sat_v_K = T_ref_cond_sat_l_K
@@ -143,22 +133,14 @@ def calc_ref_state(
         h_ref_exp_in = h_ref_cond_sat_l
         s_ref_exp_in = s_ref_cond_sat_l
     else:
-        h_ref_exp_in = CP.PropsSI(
-            "H", "T", T_ref_exp_in_K, "P", P_cond, refrigerant
-        )
-        s_ref_exp_in = CP.PropsSI(
-            "S", "T", T_ref_exp_in_K, "P", P_cond, refrigerant
-        )
+        h_ref_exp_in = CP.PropsSI("H", "T", T_ref_exp_in_K, "P", P_cond, refrigerant)
+        s_ref_exp_in = CP.PropsSI("S", "T", T_ref_exp_in_K, "P", P_cond, refrigerant)
 
     # 5단계: State 4 (팽창밸브 출구) 계산
     h_ref_exp_out = h_ref_exp_in
     P_ref_exp_out = P_evap
-    T_ref_exp_out_K = CP.PropsSI(
-        "T", "P", P_evap, "H", h_ref_exp_out, refrigerant
-    )
-    s_ref_exp_out = CP.PropsSI(
-        "S", "P", P_evap, "H", h_ref_exp_out, refrigerant
-    )
+    T_ref_exp_out_K = CP.PropsSI("T", "P", P_evap, "H", h_ref_exp_out, refrigerant)
+    s_ref_exp_out = CP.PropsSI("S", "P", P_evap, "H", h_ref_exp_out, refrigerant)
 
     if mode == "cooling":
         result = {

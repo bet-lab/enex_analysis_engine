@@ -55,19 +55,11 @@ class AirSourceHeatPump_cooling:
         self.T0 = 32  # environmental temperature [°C]
         self.T_a_room = 20  # room air temperature [°C]
 
-        self.T_r_int = (
-            self.T_a_room - 15
-        )  # internal unit refrigerant temperature [°C]
-        self.T_a_int_out = (
-            self.T_a_room - 10
-        )  # internal unit air outlet temperature [°C]
+        self.T_r_int = self.T_a_room - 15  # internal unit refrigerant temperature [°C]
+        self.T_a_int_out = self.T_a_room - 10  # internal unit air outlet temperature [°C]
 
-        self.T_a_ext_out = (
-            self.T0 + 10
-        )  # external unit air outlet temperature [°C]
-        self.T_r_ext = (
-            self.T0 + 15
-        )  # external unit refrigerant temperature [°C]
+        self.T_a_ext_out = self.T0 + 10  # external unit air outlet temperature [°C]
+        self.T_r_ext = self.T0 + 15  # external unit refrigerant temperature [°C]
 
         # load
         self.Q_r_int = 6000  # [W]
@@ -85,9 +77,7 @@ class AirSourceHeatPump_cooling:
         self.T_r_ext = cu.C2K(self.T_r_ext)
 
         # temperature
-        self.T_a_int_in = (
-            self.T_a_room
-        )  # internal unit air inlet temperature [K]
+        self.T_a_int_in = self.T_a_room  # internal unit air inlet temperature [K]
         self.T_a_ext_in = self.T0  # external unit air inlet temperature [K]
 
         # others
@@ -99,9 +89,7 @@ class AirSourceHeatPump_cooling:
             self.COP_ref,
         )  # COP [-]
         self.E_cmp = self.Q_r_int / self.COP  # compressor power input [W]
-        self.Q_r_ext = (
-            self.Q_r_int + self.E_cmp
-        )  # heat transfer from external unit to refrigerant [W]
+        self.Q_r_ext = self.Q_r_int + self.E_cmp  # heat transfer from external unit to refrigerant [W]
 
         # internal, external unit
         self.dV_int = self.Q_r_int / (
@@ -112,54 +100,24 @@ class AirSourceHeatPump_cooling:
         )  # volumetric flow rate of external unit [m3/s]
 
         # fan power
-        self.E_fan_int = Fan().get_power(
-            self.fan_int, self.dV_int
-        )  # power input of internal unit fan [W]
-        self.E_fan_ext = Fan().get_power(
-            self.fan_ext, self.dV_ext
-        )  # power input of external unit fan [W]
+        self.E_fan_int = Fan().get_power(self.fan_int, self.dV_int)  # power input of internal unit fan [W]
+        self.E_fan_ext = Fan().get_power(self.fan_ext, self.dV_ext)  # power input of external unit fan [W]
 
         # System COP
-        self.COP_sys = self.Q_r_int / (
-            self.E_fan_int + self.E_fan_ext + self.E_cmp
-        )
+        self.COP_sys = self.Q_r_int / (self.E_fan_int + self.E_fan_ext + self.E_cmp)
 
         # exergy result
         self.X_a_int_in = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_in - self.T0)
-                - self.T0 * math.log(self.T_a_int_in / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_in - self.T0) - self.T0 * math.log(self.T_a_int_in / self.T0))
         )
         self.X_a_int_out = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_out - self.T0)
-                - self.T0 * math.log(self.T_a_int_out / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_out - self.T0) - self.T0 * math.log(self.T_a_int_out / self.T0))
         )
         self.X_a_ext_in = (
-            c_a
-            * rho_a
-            * self.dV_ext
-            * (
-                (self.T_a_ext_in - self.T0)
-                - self.T0 * math.log(self.T_a_ext_in / self.T0)
-            )
+            c_a * rho_a * self.dV_ext * ((self.T_a_ext_in - self.T0) - self.T0 * math.log(self.T_a_ext_in / self.T0))
         )
         self.X_a_ext_out = (
-            c_a
-            * rho_a
-            * self.dV_ext
-            * (
-                (self.T_a_ext_out - self.T0)
-                - self.T0 * math.log(self.T_a_ext_out / self.T0)
-            )
+            c_a * rho_a * self.dV_ext * ((self.T_a_ext_out - self.T0) - self.T0 * math.log(self.T_a_ext_out / self.T0))
         )
 
         self.X_r_int = -self.Q_r_int * (1 - self.T0 / self.T_r_int)
@@ -256,19 +214,11 @@ class AirSourceHeatPump_heating:
         self.T0 = 0  # environmental temperature [°C]
         self.T_a_room = 20  # room air temperature [°C]
 
-        self.T_r_int = (
-            self.T_a_room + 15
-        )  # internal unit refrigerant temperature [°C]
-        self.T_a_int_out = (
-            self.T_a_room + 10
-        )  # internal unit air outlet temperature [°C]
+        self.T_r_int = self.T_a_room + 15  # internal unit refrigerant temperature [°C]
+        self.T_a_int_out = self.T_a_room + 10  # internal unit air outlet temperature [°C]
 
-        self.T_a_ext_out = (
-            self.T0 - 10
-        )  # external unit air outlet temperature [°C]
-        self.T_r_ext = (
-            self.T0 - 15
-        )  # external unit refrigerant temperature [°C]
+        self.T_a_ext_out = self.T0 - 10  # external unit air outlet temperature [°C]
+        self.T_r_ext = self.T0 - 15  # external unit refrigerant temperature [°C]
 
         # load
         self.Q_r_int = 6000  # [W]
@@ -288,13 +238,9 @@ class AirSourceHeatPump_heating:
         self.T_a_ext_in = self.T0  # external unit air inlet temperature [K]
 
         # others
-        self.COP = calc_ASHP_heating_COP(
-            T0=self.T0, Q_r_int=self.Q_r_int, Q_r_max=self.Q_r_max
-        )  # COP [-]
+        self.COP = calc_ASHP_heating_COP(T0=self.T0, Q_r_int=self.Q_r_int, Q_r_max=self.Q_r_max)  # COP [-]
         self.E_cmp = self.Q_r_int / self.COP  # compressor power input [W]
-        self.Q_r_ext = (
-            self.Q_r_int - self.E_cmp
-        )  # heat transfer from external unit to refrigerant [W]
+        self.Q_r_ext = self.Q_r_int - self.E_cmp  # heat transfer from external unit to refrigerant [W]
 
         # internal, external unit
         self.dV_int = self.Q_r_int / (
@@ -305,54 +251,24 @@ class AirSourceHeatPump_heating:
         )  # volumetric flow rate of external unit [m3/s]
 
         # fan power
-        self.E_fan_int = Fan().get_power(
-            self.fan_int, self.dV_int
-        )  # power input of internal unit fan [W]
-        self.E_fan_ext = Fan().get_power(
-            self.fan_ext, self.dV_ext
-        )  # power input of external unit fan [W]
+        self.E_fan_int = Fan().get_power(self.fan_int, self.dV_int)  # power input of internal unit fan [W]
+        self.E_fan_ext = Fan().get_power(self.fan_ext, self.dV_ext)  # power input of external unit fan [W]
 
         # System COP
-        self.COP_sys = self.Q_r_int / (
-            self.E_fan_int + self.E_fan_ext + self.E_cmp
-        )
+        self.COP_sys = self.Q_r_int / (self.E_fan_int + self.E_fan_ext + self.E_cmp)
 
         # exergy result
         self.X_a_int_in = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_in - self.T0)
-                - self.T0 * math.log(self.T_a_int_in / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_in - self.T0) - self.T0 * math.log(self.T_a_int_in / self.T0))
         )
         self.X_a_int_out = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_out - self.T0)
-                - self.T0 * math.log(self.T_a_int_out / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_out - self.T0) - self.T0 * math.log(self.T_a_int_out / self.T0))
         )
         self.X_a_ext_in = (
-            c_a
-            * rho_a
-            * self.dV_ext
-            * (
-                (self.T_a_ext_in - self.T0)
-                - self.T0 * math.log(self.T_a_ext_in / self.T0)
-            )
+            c_a * rho_a * self.dV_ext * ((self.T_a_ext_in - self.T0) - self.T0 * math.log(self.T_a_ext_in / self.T0))
         )
         self.X_a_ext_out = (
-            c_a
-            * rho_a
-            * self.dV_ext
-            * (
-                (self.T_a_ext_out - self.T0)
-                - self.T0 * math.log(self.T_a_ext_out / self.T0)
-            )
+            c_a * rho_a * self.dV_ext * ((self.T_a_ext_out - self.T0) - self.T0 * math.log(self.T_a_ext_out / self.T0))
         )
 
         self.X_r_int = self.Q_r_int * (1 - self.T0 / self.T_r_int)
@@ -361,11 +277,7 @@ class AirSourceHeatPump_heating:
         # Internal unit of ASHP
         self.X_in_int = self.E_fan_int + self.X_r_int
         self.X_out_int = self.X_a_int_out - self.X_a_int_in
-        self.X_c_int = (
-            self.E_fan_int
-            + self.X_r_int
-            - (self.X_a_int_out - self.X_a_int_in)
-        )
+        self.X_c_int = self.E_fan_int + self.X_r_int - (self.X_a_int_out - self.X_a_int_in)
 
         # Refrigerant loop of ASHP
         self.X_in_r = self.E_cmp
@@ -375,11 +287,7 @@ class AirSourceHeatPump_heating:
         # External unit of ASHP
         self.X_in_ext = self.E_fan_ext + self.X_r_ext
         self.X_out_ext = self.X_a_ext_out - self.X_a_ext_in
-        self.X_c_ext = (
-            self.E_fan_ext
-            + self.X_r_ext
-            - (self.X_a_ext_out - self.X_a_ext_in)
-        )
+        self.X_c_ext = self.E_fan_ext + self.X_r_ext - (self.X_a_ext_out - self.X_a_ext_in)
 
         # Total exergy of ASHP
         self.X_in = self.E_fan_int + self.E_cmp + self.E_fan_ext
@@ -471,20 +379,14 @@ class GroundSourceHeatPump_cooling:
         self.fan_int = Fan().fan1
 
         # Temperature
-        self.dT_r_exch = (
-            5  # 예시: 열교환기의 온도 - 열교환후 지중순환수 온도 [K]
-        )
+        self.dT_r_exch = 5  # 예시: 열교환기의 온도 - 열교환후 지중순환수 온도 [K]
         self.T0 = 32  # environmental temperature [°C]
         self.T_g = 15  # initial ground temperature [°C]
         self.T_a_room = 20  # room air temperature [°C]
         self.T_r_exch = 25  # heat exchanger side refrigerant temperature [°C]
 
-        self.T_r_int = (
-            self.T_a_room - 10
-        )  # internal unit refrigerant temperature [°C]
-        self.T_a_int_out = (
-            self.T_a_room - 5
-        )  # internal unit air outlet temperature [°C]
+        self.T_r_int = self.T_a_room - 10  # internal unit refrigerant temperature [°C]
+        self.T_a_int_out = self.T_a_room - 5  # internal unit air outlet temperature [°C]
         # Load
         self.Q_r_int = 6000  # W
 
@@ -502,9 +404,7 @@ class GroundSourceHeatPump_cooling:
         self.T_g = cu.C2K(self.T_g)
 
         # Others
-        self.alpha = self.k_g / (
-            self.c_g * self.rho_g
-        )  # thermal diffusivity of ground [m²/s]
+        self.alpha = self.k_g / (self.c_g * self.rho_g)  # thermal diffusivity of ground [m²/s]
         self.Lx = 2 * self.dV_f / (math.pi * self.alpha)
         self.x0 = self.H_b / self.Lx  # dimensionless borehole depth
         self.k_sb = self.k_g / k_w  # ratio of ground thermal conductivity
@@ -519,9 +419,7 @@ class GroundSourceHeatPump_cooling:
         max_iter = 20
         tol = 1e-3
         self.T_f = self.T_g  # 초기값
-        self.T_f_in = (
-            self.T_f + self.dT_r_exch
-        )  # 초기값, 열교환기에서의 순환수 유입 온도
+        self.T_f_in = self.T_f + self.dT_r_exch  # 초기값, 열교환기에서의 순환수 유입 온도
 
         for _ in range(max_iter):
             self.T_r_exch = self.T_f_in + self.dT_r_exch  # 5 K 높게 설정
@@ -542,13 +440,9 @@ class GroundSourceHeatPump_cooling:
                 rb=self.r_b,
                 H=self.H_b,
             )  # g-function [mK/W]
-            self.T_b = (
-                self.T_g + self.Q_bh * self.g_i
-            )  # borehole wall temperature [K]
+            self.T_b = self.T_g + self.Q_bh * self.g_i  # borehole wall temperature [K]
             self.T_f = self.T_b + self.Q_bh * self.R_b
-            self.T_f_in = self.T_f + self.Q_bh * self.H_b / (
-                2 * c_w * rho_w * self.dV_f
-            )  # fluid inlet temperature [K]
+            self.T_f_in = self.T_f + self.Q_bh * self.H_b / (2 * c_w * rho_w * self.dV_f)  # fluid inlet temperature [K]
             self.T_f_out = self.T_f - self.Q_bh * self.H_b / (
                 2 * c_w * rho_w * self.dV_f
             )  # fluid outlet temperature [K]
@@ -556,9 +450,7 @@ class GroundSourceHeatPump_cooling:
                 break
 
         # Temperature
-        self.T_a_int_in = (
-            self.T_a_room
-        )  # internal unit air inlet temperature [K]
+        self.T_a_int_in = self.T_a_room  # internal unit air inlet temperature [K]
 
         # Internal unit
         self.dV_int = self.Q_r_int / (
@@ -566,51 +458,21 @@ class GroundSourceHeatPump_cooling:
         )  # volumetric flow rate of internal unit [m3/s]
 
         # Fan power
-        self.E_fan_int = Fan().get_power(
-            self.fan_int, self.dV_int
-        )  # power input of internal unit fan [W]
+        self.E_fan_int = Fan().get_power(self.fan_int, self.dV_int)  # power input of internal unit fan [W]
 
         # Exergy result
         self.X_a_int_in = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_in - self.T0)
-                - self.T0 * math.log(self.T_a_int_in / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_in - self.T0) - self.T0 * math.log(self.T_a_int_in / self.T0))
         )
         self.X_a_int_out = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_out - self.T0)
-                - self.T0 * math.log(self.T_a_int_out / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_out - self.T0) - self.T0 * math.log(self.T_a_int_out / self.T0))
         )
 
         self.X_r_int = -self.Q_r_int * (1 - self.T0 / self.T_r_int)
         self.X_r_exch = -self.Q_r_exch * (1 - self.T0 / self.T_r_exch)
 
-        self.X_f_in = (
-            c_w
-            * rho_w
-            * self.dV_f
-            * (
-                (self.T_f_in - self.T0)
-                - self.T0 * math.log(self.T_f_in / self.T0)
-            )
-        )
-        self.X_f_out = (
-            c_w
-            * rho_w
-            * self.dV_f
-            * (
-                (self.T_f_out - self.T0)
-                - self.T0 * math.log(self.T_f_out / self.T0)
-            )
-        )
+        self.X_f_in = c_w * rho_w * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
+        self.X_f_out = c_w * rho_w * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
 
         self.X_g = (1 - self.T0 / self.T_g) * (-self.Q_bh * self.H_b)
         self.X_b = (1 - self.T0 / self.T_b) * (-self.Q_bh * self.H_b)
@@ -641,9 +503,7 @@ class GroundSourceHeatPump_cooling:
         self.X_c_int = self.X_in_int - self.X_out_int
 
         # Exergy efficiency
-        self.X_eff = (self.X_a_int_out - self.X_a_int_in) / (
-            self.E_fan_int + self.E_cmp + self.E_pmp
-        )
+        self.X_eff = (self.X_a_int_out - self.X_a_int_in) / (self.E_fan_int + self.E_cmp + self.E_pmp)
 
         ## Exergy Balance ========================================
         self.exergy_balance = {}
@@ -754,20 +614,14 @@ class GroundSourceHeatPump_heating:
         self.fan_int = Fan().fan1
 
         # Temperature
-        self.dT_r_exch = (
-            -5
-        )  # 예시: 열교환기 측 냉매 온도 - 열교환후 지중순환수 온도 [K]
+        self.dT_r_exch = -5  # 예시: 열교환기 측 냉매 온도 - 열교환후 지중순환수 온도 [K]
         self.T0 = 0  # environmental temperature [°C]
         self.T_g = 15  # initial ground temperature [°C]
         self.T_a_room = 20  # room air temperature [°C]
         self.T_r_exch = 5  # heat exchanger side refrigerant temperature [°C]
 
-        self.T_r_int = (
-            self.T_a_room + 15
-        )  # internal unit refrigerant temperature [°C]
-        self.T_a_int_out = (
-            self.T_a_room + 10
-        )  # internal unit air outlet temperature [°C]
+        self.T_r_int = self.T_a_room + 15  # internal unit refrigerant temperature [°C]
+        self.T_a_int_out = self.T_a_room + 10  # internal unit air outlet temperature [°C]
 
         # Load
         self.Q_r_int = 6000  # W
@@ -785,9 +639,7 @@ class GroundSourceHeatPump_heating:
         self.T_g = cu.C2K(self.T_g)
 
         # Others
-        self.alpha = self.k_g / (
-            self.c_g * self.rho_g
-        )  # thermal diffusivity of ground [m²/s]
+        self.alpha = self.k_g / (self.c_g * self.rho_g)  # thermal diffusivity of ground [m²/s]
 
         # 반복 수치해법 적용
         """
@@ -799,9 +651,7 @@ class GroundSourceHeatPump_heating:
         max_iter = 20
         tol = 1e-3
         self.T_f = self.T_g  # 초기값
-        self.T_f_in = (
-            self.T_f + self.dT_r_exch
-        )  # 초기값, 열교환기에서의 순환수 유입 온도
+        self.T_f_in = self.T_f + self.dT_r_exch  # 초기값, 열교환기에서의 순환수 유입 온도
 
         for _ in range(max_iter):
             self.T_r_exch = self.T_f_in + self.dT_r_exch  # 5 K 높게 설정
@@ -813,13 +663,11 @@ class GroundSourceHeatPump_heating:
             )
             # Others
             self.E_cmp = self.Q_r_int / self.COP  # compressor power input [W]
-            self.Q_r_exch = (
-                self.Q_r_int - self.E_cmp
-            )  # changed from Q_r_ext to Q_r_exch
+            self.Q_r_exch = self.Q_r_int - self.E_cmp  # changed from Q_r_ext to Q_r_exch
             # Borehole
             self.Q_bh = (
-                (self.Q_r_exch - self.E_pmp) / self.H_b
-            )  # heat flow rate from borehole to ground per unit length [W/m]
+                self.Q_r_exch - self.E_pmp
+            ) / self.H_b  # heat flow rate from borehole to ground per unit length [W/m]
             self.g_i = G_FLS(
                 t=self.time,
                 ks=self.k_g,
@@ -829,15 +677,9 @@ class GroundSourceHeatPump_heating:
             )  # g-function [mK/W]
             # fluid temperature & borehole wall temperature [K]
             T_f_in_old = self.T_f_in  # 이전 유체 입구 온도 저장
-            self.T_b = (
-                self.T_g - self.Q_bh * self.g_i
-            )  # borehole wall temperature [K]
-            self.T_f = (
-                self.T_b - self.Q_bh * self.R_b
-            )  # fluid temperature in borehole [K]
-            self.T_f_in = self.T_f - self.Q_bh * self.H_b / (
-                2 * c_w * rho_w * self.dV_f
-            )  # fluid inlet temperature [K]
+            self.T_b = self.T_g - self.Q_bh * self.g_i  # borehole wall temperature [K]
+            self.T_f = self.T_b - self.Q_bh * self.R_b  # fluid temperature in borehole [K]
+            self.T_f_in = self.T_f - self.Q_bh * self.H_b / (2 * c_w * rho_w * self.dV_f)  # fluid inlet temperature [K]
             self.T_f_out = self.T_f + self.Q_bh * self.H_b / (
                 2 * c_w * rho_w * self.dV_f
             )  # fluid outlet temperature [K]
@@ -845,9 +687,7 @@ class GroundSourceHeatPump_heating:
                 break
 
         # Temperature
-        self.T_a_int_in = (
-            self.T_a_room
-        )  # internal unit air inlet temperature [K]
+        self.T_a_int_in = self.T_a_room  # internal unit air inlet temperature [K]
 
         # Internal unit
         self.dV_int = self.Q_r_int / (
@@ -855,51 +695,21 @@ class GroundSourceHeatPump_heating:
         )  # volumetric flow rate of internal unit [m3/s]
 
         # Fan power
-        self.E_fan_int = Fan().get_power(
-            self.fan_int, self.dV_int
-        )  # power input of internal unit fan [W]
+        self.E_fan_int = Fan().get_power(self.fan_int, self.dV_int)  # power input of internal unit fan [W]
 
         # Exergy result
         self.X_a_int_in = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_in - self.T0)
-                - self.T0 * math.log(self.T_a_int_in / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_in - self.T0) - self.T0 * math.log(self.T_a_int_in / self.T0))
         )
         self.X_a_int_out = (
-            c_a
-            * rho_a
-            * self.dV_int
-            * (
-                (self.T_a_int_out - self.T0)
-                - self.T0 * math.log(self.T_a_int_out / self.T0)
-            )
+            c_a * rho_a * self.dV_int * ((self.T_a_int_out - self.T0) - self.T0 * math.log(self.T_a_int_out / self.T0))
         )
 
         self.X_r_int = self.Q_r_int * (1 - self.T0 / self.T_r_int)
         self.X_r_exch = self.Q_r_exch * (1 - self.T0 / self.T_r_exch)
 
-        self.X_f_in = (
-            c_w
-            * rho_w
-            * self.dV_f
-            * (
-                (self.T_f_in - self.T0)
-                - self.T0 * math.log(self.T_f_in / self.T0)
-            )
-        )
-        self.X_f_out = (
-            c_w
-            * rho_w
-            * self.dV_f
-            * (
-                (self.T_f_out - self.T0)
-                - self.T0 * math.log(self.T_f_out / self.T0)
-            )
-        )
+        self.X_f_in = c_w * rho_w * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
+        self.X_f_out = c_w * rho_w * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
 
         self.X_g = (1 - self.T0 / self.T_g) * (self.Q_bh * self.H_b)
         self.X_b = (1 - self.T0 / self.T_b) * (self.Q_bh * self.H_b)
@@ -930,9 +740,7 @@ class GroundSourceHeatPump_heating:
         self.X_c_g = self.X_in_g - self.X_out_g
 
         # Exergy efficiency
-        self.X_eff = (self.X_a_int_out - self.X_a_int_in) / (
-            self.E_fan_int + self.E_cmp + self.E_pmp
-        )
+        self.X_eff = (self.X_a_int_out - self.X_a_int_in) / (self.E_fan_int + self.E_cmp + self.E_pmp)
 
         ## Exergy Balance ========================================
         self.exergy_balance = {}

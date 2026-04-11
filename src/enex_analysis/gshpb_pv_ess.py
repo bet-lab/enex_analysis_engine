@@ -97,14 +97,13 @@ class GSHPB_PV_ESS(GroundSourceHeatPumpBoiler):
         # 2. HP AC load this step [W] (NaN-safe)
         e_cmp = float(hp_res.get("E_cmp [W]", 0.0))
         e_pmp = float(hp_res.get("E_pmp [W]", 0.0))
-        E_hp_load = (0.0 if np.isnan(e_cmp) else e_cmp) + \
-                    (0.0 if np.isnan(e_pmp) else e_pmp)
+        E_hp_load = (0.0 if np.isnan(e_cmp) else e_cmp) + (0.0 if np.isnan(e_pmp) else e_pmp)
 
         # 3. PV generation (pure physics)
         dt = getattr(self, "_current_dt", 3600.0)
         T0_K = ctx.T0_K
         pv_r = self._pv.calc_performance(ctx.I_DN, ctx.I_dH, T0_K)
-        E_ctrl_out: float = pv_r["E_ctrl_out"]   # DC from charge controller
+        E_ctrl_out: float = pv_r["E_ctrl_out"]  # DC from charge controller
 
         # 4. DC required at inverter input to satisfy HP AC load
         E_dc_req: float = E_hp_load / self._eta_inv if self._eta_inv > 0 else 0.0
@@ -191,14 +190,9 @@ class GSHPB_PV_ESS(GroundSourceHeatPumpBoiler):
         df["Xc_sys_tot [W]"] = df.filter(regex=r"^Xc_").sum(axis=1)
 
         # Grid COP: useful heat / grid electricity drawn
-        df["cop_grid [-]"] = (
-            df["Q_tank_w_out [W]"] / df["E_grid_import [W]"].replace(0, np.nan)
-        )
+        df["cop_grid [-]"] = df["Q_tank_w_out [W]"] / df["E_grid_import [W]"].replace(0, np.nan)
 
         # System exergy efficiency
-        df["ex_eff_sys [-]"] = (
-            (df["Xst_tank [W]"] + df["X_tank_w_out [W]"])
-            / df["X_tot_sys [W]"].replace(0, np.nan)
-        )
+        df["ex_eff_sys [-]"] = (df["Xst_tank [W]"] + df["X_tank_w_out [W]"]) / df["X_tot_sys [W]"].replace(0, np.nan)
 
         return df

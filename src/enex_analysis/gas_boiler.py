@@ -69,7 +69,7 @@ class GasBoiler:
         dV_w_sup_mix = (1 - alp) * dV_w_serv
 
         T_serv_w_actual_K = alp * T_comb_setpoint_K + (1 - alp) * T_sup_w_K
-        
+
         return {
             "alp": alp,
             "dV_w_serv": dV_w_serv,
@@ -107,9 +107,7 @@ class GasBoiler:
 
         # --- Combustion chamber ---
         E_NG = Q_comb_load / self.eta_comb if self.eta_comb > 0 else 0.0
-        Q_w_comb_out = (
-            c_w * rho_w * dV_w_sup_comb * (self.T_comb_setpoint_K - T0_K)
-        )
+        Q_w_comb_out = c_w * rho_w * dV_w_sup_comb * (self.T_comb_setpoint_K - T0_K)
         Q_exh = (1 - self.eta_comb) * E_NG
         Q_w_sup = c_w * rho_w * dV_w_sup_comb * (self.T_sup_w_K - T0_K)
 
@@ -122,62 +120,28 @@ class GasBoiler:
 
         S_NG = (1 / T_NG) * E_NG
         S_w_sup = c_w * rho_w * dV_w_sup_comb * math.log(self.T_sup_w_K / T0_K)
-        S_w_comb_out = (
-            c_w
-            * rho_w
-            * dV_w_sup_comb
-            * math.log(self.T_comb_setpoint_K / T0_K)
-        )
+        S_w_comb_out = c_w * rho_w * dV_w_sup_comb * math.log(self.T_comb_setpoint_K / T0_K)
         S_exh = (1 / self.T_exh_K) * Q_exh
         S_g_comb = (S_w_comb_out + S_exh) - (S_NG + S_w_sup)
 
-        S_w_sup_mix = (
-            c_w * rho_w * dV_w_sup_mix * math.log(self.T_sup_w_K / T0_K)
-        )
+        S_w_sup_mix = c_w * rho_w * dV_w_sup_mix * math.log(self.T_sup_w_K / T0_K)
         S_w_serv = c_w * rho_w * dV_w_serv * math.log(T_serv_w_actual_K / T0_K)
         S_g_mix = S_w_serv - (S_w_comb_out + S_w_sup_mix)
 
         # --- Exergy balance ---
         X_NG = ex_eff_NG * E_NG
-        X_w_sup = (
-            c_w
-            * rho_w
-            * dV_w_sup_comb
-            * (
-                (self.T_sup_w_K - T0_K)
-                - T0_K * math.log(self.T_sup_w_K / T0_K)
-            )
-        )
+        X_w_sup = c_w * rho_w * dV_w_sup_comb * ((self.T_sup_w_K - T0_K) - T0_K * math.log(self.T_sup_w_K / T0_K))
         X_w_comb_out = (
             c_w
             * rho_w
             * dV_w_sup_comb
-            * (
-                (self.T_comb_setpoint_K - T0_K)
-                - T0_K * math.log(self.T_comb_setpoint_K / T0_K)
-            )
+            * ((self.T_comb_setpoint_K - T0_K) - T0_K * math.log(self.T_comb_setpoint_K / T0_K))
         )
         X_exh = (1 - T0_K / self.T_exh_K) * Q_exh
         X_c_comb = S_g_comb * T0_K
 
-        X_w_sup_mix = (
-            c_w
-            * rho_w
-            * dV_w_sup_mix
-            * (
-                (self.T_sup_w_K - T0_K)
-                - T0_K * math.log(self.T_sup_w_K / T0_K)
-            )
-        )
-        X_w_serv = (
-            c_w
-            * rho_w
-            * dV_w_serv
-            * (
-                (T_serv_w_actual_K - T0_K)
-                - T0_K * math.log(T_serv_w_actual_K / T0_K)
-            )
-        )
+        X_w_sup_mix = c_w * rho_w * dV_w_sup_mix * ((self.T_sup_w_K - T0_K) - T0_K * math.log(self.T_sup_w_K / T0_K))
+        X_w_serv = c_w * rho_w * dV_w_serv * ((T_serv_w_actual_K - T0_K) - T0_K * math.log(T_serv_w_actual_K / T0_K))
         X_c_mix = S_g_mix * T0_K
 
         # Total exergy consumption
@@ -298,11 +262,7 @@ class GasBoiler:
 
         # Zero out all numeric values except temperatures and mixing ratio
         for key, value in result.items():
-            if (
-                isinstance(value, (int, float))
-                and "T_" not in key
-                and "alp" not in key
-            ):
+            if isinstance(value, (int, float)) and "T_" not in key and "alp" not in key:
                 result[key] = 0.0
 
         result["is_on"] = False
@@ -349,21 +309,14 @@ class GasBoiler:
         )
 
         dV_w_sup_comb = flow_state["dV_w_sup_comb"]
-        Q_comb_load = (
-            c_w
-            * rho_w
-            * dV_w_sup_comb
-            * (self.T_comb_setpoint_K - self.T_sup_w_K)
-        )
+        Q_comb_load = c_w * rho_w * dV_w_sup_comb * (self.T_comb_setpoint_K - self.T_sup_w_K)
 
         is_on = Q_comb_load > self.Q_comb_load_threshold
 
         if abs(Q_comb_load) <= self.Q_comb_load_threshold or not is_on:
             result = self._calc_off_state(T0=T0)
         else:
-            result = self._calc_on_state(
-                Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state
-            )
+            result = self._calc_on_state(Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state)
 
         if return_dict:
             return result
@@ -415,9 +368,7 @@ class GasBoiler:
         tN = len(time)
         T0_schedule = np.array(T0_schedule)
         if len(T0_schedule) != tN:
-            raise ValueError(
-                f"T0_schedule length ({len(T0_schedule)}) must match time array length ({tN})"
-            )
+            raise ValueError(f"T0_schedule length ({len(T0_schedule)}) must match time array length ({tN})")
 
         results_data = []
         self.time = time
@@ -442,18 +393,11 @@ class GasBoiler:
             dV_w_sup_comb = flow_state["dV_w_sup_comb"]
 
             # Required combustion load
-            Q_comb_load = (
-                c_w
-                * rho_w
-                * dV_w_sup_comb
-                * (self.T_comb_setpoint_K - self.T_sup_w_K)
-            )
+            Q_comb_load = c_w * rho_w * dV_w_sup_comb * (self.T_comb_setpoint_K - self.T_sup_w_K)
 
             is_on = (self.T_serv_w > self.T_sup_w) and (dV_w_sup_comb > 0)
 
-            result = self._calc_on_state(
-                Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state
-            )
+            result = self._calc_on_state(Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state)
 
             step_results.update(result)
             step_results["is_on"] = is_on

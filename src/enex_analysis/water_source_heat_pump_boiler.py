@@ -12,14 +12,13 @@ g-functions, enabling robust long-term ground temperature drift modeling.
 """
 
 from __future__ import annotations
+
 import math
-import warnings
 from typing import TYPE_CHECKING, Any
 
 import CoolProp.CoolProp as CP
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
 from tqdm import tqdm
 
 from . import calc_util as cu
@@ -32,20 +31,19 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
+    calc_exergy_flow,
     calc_mixing_valve,
     calc_ref_state,
     calc_simple_tank_UA,
-    calc_uv_lamp_power,
-    calc_exergy_flow,
 )
-from .g_function import precompute_gfunction
+from .g_function import precompute_gfunction_mls
 
 if TYPE_CHECKING:
     from .subsystems import SolarThermalCollector
 
 
-class GroundSourceHeatPumpBoiler:
-    """Ground source heat pump boiler with BHE and lumped-tank model.
+class WaterSourceHeatPumpBoiler:
+    """Water source heat pump boiler with BHE and lumped-tank model.
 
     The refrigerant cycle is resolved via CoolProp with user-specified
     superheat / subcool margins. An optimizer minimises total cycle
@@ -80,6 +78,8 @@ class GroundSourceHeatPumpBoiler:
         k_ins: float = 0.03,
         h_o: float = 15,
         # 4. Borehole heat exchanger (Field + Params)
+        v_gw_m_s: float = 1e-6,
+        theta_gw_rad: float = 0.0,
         N_1: int = 1,
         N_2: int = 1,
         B: float = 6.0,
@@ -187,8 +187,23 @@ class GroundSourceHeatPumpBoiler:
 
         # Precompute g-function
         self.dt_s: float = dt_s
-        self._gfunc_interp = precompute_gfunction(
-            N_1=N_1, N_2=N_2, B=B, H_b=H_b, D_b=D_b, r_b=r_b, alpha_s=self.alp_s, k_s=k_s, t_max_s=t_max_s, dt_s=dt_s
+        self._gfunc_interp = precompute_gfunction_mls(
+            N_1=N_1,
+            N_2=N_2,
+            B=B,
+            H_b=H_b,
+            D_b=D_b,
+            r_b=r_b,
+            alpha_s=self.alp_s,
+            k_s=k_s,
+            rho_s=rho_s,
+            c_s=c_s,
+            v_gw=v_gw_m_s,
+            theta_gw=theta_gw_rad,
+            rho_w=rho_w,
+            c_w=c_w,  # Added flow parameters
+            t_max_s=t_max_s,
+            dt_s=dt_s,
         )
 
         # Simulation state tracking (dynamically updated in analyze_dynamic)
@@ -294,8 +309,6 @@ class GroundSourceHeatPumpBoiler:
             "E_cmp [W]": 0.0,
             "E_pmp [W]": 0.0,
             "E_tot [W]": 0.0,
-            "cop_ref [-]": np.nan,
-            "cop_sys [-]": np.nan,
             "m_dot_ref [kg/s]": 0.0,
             "cmp_rpm [rpm]": 0.0,
         }
@@ -419,8 +432,6 @@ class GroundSourceHeatPumpBoiler:
                 "E_cmp [W]": E_cmp,
                 "E_pmp [W]": self.E_pmp,
                 "E_tot [W]": E_cmp + self.E_pmp,
-                "cop_ref [-]": (Q_ref_cond / E_cmp) if E_cmp > 0 else np.nan,
-                "cop_sys [-]": (Q_ref_cond / (E_cmp + self.E_pmp)) if (E_cmp + self.E_pmp) > 0 else np.nan,
             }
         )
         return result
@@ -746,7 +757,6 @@ class GroundSourceHeatPumpBoiler:
 
             # --- Phase A: Control Decisions ---
             hp_is_on, hp_result, Q_ref_cond = self._determine_hp_state(ctx, is_on_prev)
-            is_transitioning_off_to_on = (not is_on_prev) and hp_is_on
             is_on_prev = hp_is_on
 
             # Refill logic
@@ -871,7 +881,7 @@ class GroundSourceHeatPumpBoiler:
 
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute GSHPB-specific exergy variables."""
-        from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy, calc_energy_flow
+        from .enex_functions import calc_energy_flow, calc_refrigerant_exergy, convert_electricity_to_exergy
 
         df = df.copy()
         T0_K = cu.C2K(df["T0 [°C]"])

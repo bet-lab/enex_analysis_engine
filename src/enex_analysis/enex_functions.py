@@ -365,7 +365,6 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
 # Re-exported above via ``from .tdma import …`` for backward compatibility.
 
 
-
 # calc_UA_from_dV_fan has been moved to hx_fan.py.
 # Re-exported above via ``from .hx_fan import …``
 
@@ -465,14 +464,10 @@ def calc_HX_perf_for_target_heat(
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
         # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = (
-            T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon
-        )  # Heating assumption (Q_ref_target > 0)
+        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon  # Heating assumption (Q_ref_target > 0)
 
         # [MODIFIED] LMTD 제거하고 공기 측 Q_air로 직접 계산
-        Q_ou_air = (
-            c_a * rho_a * dV_fan * (T_ou_a_in_K - T_ou_a_mid_K)
-        )  # 흡열이므로 (입구 - 출구) * C_min
+        Q_ou_air = c_a * rho_a * dV_fan * (T_ou_a_in_K - T_ou_a_mid_K)  # 흡열이므로 (입구 - 출구) * C_min
         # Heating 모드 기준: Refrigerant가 열 흡수, Air가 열 방출.
         # T_ou_a_in > T_ou_a_mid > T_ref_evap_sat_K
         # Q_ref_target > 0 (Refrigerant gains heat)
@@ -492,9 +487,7 @@ def calc_HX_perf_for_target_heat(
         # Pick the boundary closer to zero as fallback.
         dV_fallback = dV_min if abs(f_min) <= abs(f_max) else dV_max
 
-        UA_fb = calc_UA_from_dV_fan(
-            dV_fallback, dV_fan_design, A_cross, UA_design
-        )
+        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
         eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
         T_mid_fb = T_ref_evap_sat_K + eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
         Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
@@ -512,9 +505,7 @@ def calc_HX_perf_for_target_heat(
             )
 
         # Compute Q at both boundaries for diagnostics
-        Q_at_dV_min = (
-            Q_ref_target + f_min
-        )  # f = Q_air - Q_target → Q_air = f + Q_target
+        Q_at_dV_min = Q_ref_target + f_min  # f = Q_air - Q_target → Q_air = f + Q_target
         Q_at_dV_max = Q_ref_target + f_max
 
         return {
@@ -533,25 +524,19 @@ def calc_HX_perf_for_target_heat(
             "hint": hint,
         }
 
-    sol = root_scalar(
-        _error_function, bracket=[dV_min, dV_max], method="bisect"
-    )
+    sol = root_scalar(_error_function, bracket=[dV_min, dV_max], method="bisect")
 
     if sol.converged:
         # 수렴된 dV_fan 값을 사용하여 최종 값들 계산
         dV_fan_converged = sol.root
-        UA = calc_UA_from_dV_fan(
-            dV_fan_converged, dV_fan_design, A_cross, UA_design
-        )
+        UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
         # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
         T_ou_a_mid_K = T_ref_evap_sat_K + epsilon * (
             T_ou_a_in_K - T_ref_evap_sat_K
         )  # Heating assumption (Q_ref_target > 0)
 
-        Q_ou_air = (
-            c_a * rho_a * dV_fan_converged * (T_ou_a_in_K - T_ou_a_mid_K)
-        )
+        Q_ou_air = c_a * rho_a * dV_fan_converged * (T_ou_a_in_K - T_ou_a_mid_K)
 
         return {
             "converged": True,  # 명시적으로 converged 플래그 추가
@@ -616,9 +601,7 @@ def update_tank_temperature(T_tank_w_K, Q_gain, UA_tank, T0_K, C_tank, dt):
         Updated tank temperature [K].
     """
     a = C_tank / dt
-    T_tank_w_K_new = (
-        (a - UA_tank / 2) * T_tank_w_K + Q_gain + UA_tank * T0_K
-    ) / (a + UA_tank / 2)
+    T_tank_w_K_new = ((a - UA_tank / 2) * T_tank_w_K + Q_gain + UA_tank * T0_K) / (a + UA_tank / 2)
     return T_tank_w_K_new
 
 
@@ -757,16 +740,11 @@ def calc_stc_performance(
         / G_stc
     )
 
-    T_stc_w_out_denominator = 1 + (A_stc_pipe * U_stc) / (
-        (1 - ksi_stc) * G_stc
-    )
+    T_stc_w_out_denominator = 1 + (A_stc_pipe * U_stc) / ((1 - ksi_stc) * G_stc)
 
     T_stc_w_out_K = T_stc_w_out_numerator / T_stc_w_out_denominator
     T_stc_w_final_K = T_stc_w_out_K + E_pump / G_stc
-    T_stc_K = (
-        1 / (1 - ksi_stc) * T_stc_w_out_K
-        - ksi_stc / (1 - ksi_stc) * T_stc_w_in_K
-    )
+    T_stc_K = 1 / (1 - ksi_stc) * T_stc_w_out_K - ksi_stc / (1 - ksi_stc) * T_stc_w_in_K
 
     # STC 출수 열량 - calc_energy_flow 사용
     Q_stc_w_out = calc_energy_flow(G_stc, T_stc_w_out_K, T0_K)
@@ -786,5 +764,3 @@ def calc_stc_performance(
         "T_stc_K": T_stc_K,
         "Q_l_stc": Q_l_stc,
     }
-
-

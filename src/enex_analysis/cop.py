@@ -78,11 +78,7 @@ def calc_ASHP_heating_COP(T0, Q_r_int, Q_r_max):
         PLR = 0.2
     if PLR > 1.0:
         PLR = 1.0
-    COP = (
-        -7.46 * (PLR - 0.0047 * cu.K2C(T0) - 0.477) ** 2
-        + 0.0941 * cu.K2C(T0)
-        + 4.34
-    )
+    COP = -7.46 * (PLR - 0.0047 * cu.K2C(T0) - 0.477) ** 2 + 0.0941 * cu.K2C(T0) + 4.34
     return COP
 
 
@@ -141,34 +137,34 @@ def calc_GSHP_COP(T_a_iu_in_K, T_f_out_K, dV_a_ratio, mode):
     # T_ref = 283 K  (EnergyPlus Eng. Ref.)
     # ------------------------------------------------------------------
     _COEFFS = {
-        "CLG_CAPFT": [-4.34283983721389,  7.95908762160623, -2.81781371834254,  0.107825995086305, -9.96686960975482e-3],
-        "CLG_PWRFT": [-6.07162009581271,  0.751024641964602, 5.74078006772573,  0.248287540581677,  3.53588794377984e-3],
-        "HTG_CAPFT": [-4.71139387014587, -1.80505473458221,  7.61053388144077,  0.260726814057021, -2.22820319308267e-2],
-        "HTG_PWRFT": [-5.12615627602834,  4.59939579763495,  1.45764440263458, -4.61795048261089e-2, 4.3384414360512e-3],
+        "CLG_CAPFT": [-4.34283983721389, 7.95908762160623, -2.81781371834254, 0.107825995086305, -9.96686960975482e-3],
+        "CLG_PWRFT": [-6.07162009581271, 0.751024641964602, 5.74078006772573, 0.248287540581677, 3.53588794377984e-3],
+        "HTG_CAPFT": [-4.71139387014587, -1.80505473458221, 7.61053388144077, 0.260726814057021, -2.22820319308267e-2],
+        "HTG_PWRFT": [-5.12615627602834, 4.59939579763495, 1.45764440263458, -4.61795048261089e-2, 4.3384414360512e-3],
     }
-    _T_REF = 283          # [K] EnergyPlus fixed reference temperature
-    _COP_REF_CLG = 14.35 / 3.412   # EER 14.35 → COP ≈ 4.207
-    _COP_REF_HTG = 3.42             # Rated heating COP from IDF
-    _V_W_RATIO = 1.0                # Ground-loop water flow ratio (constant-speed pump)
+    _T_REF = 283  # [K] EnergyPlus fixed reference temperature
+    _COP_REF_CLG = 14.35 / 3.412  # EER 14.35 → COP ≈ 4.207
+    _COP_REF_HTG = 3.42  # Rated heating COP from IDF
+    _V_W_RATIO = 1.0  # Ground-loop water flow ratio (constant-speed pump)
 
     def _quad_linear(coeffs, x2, x3, x4, x5=1.0):
         c = coeffs
-        return c[0] + c[1]*x2 + c[2]*x3 + c[3]*x4 + c[4]*x5
+        return c[0] + c[1] * x2 + c[2] * x3 + c[3] * x4 + c[4] * x5
 
     if mode == "cooling":
         # T_a_iu_in_K (dry-bulb) → convert to wet-bulb for cooling curve (RH=50%)
-        T_wb_K = HAPropsSI('Twb', 'T', T_a_iu_in_K, 'RH', 0.5, 'P', 101325)
+        T_wb_K = HAPropsSI("Twb", "T", T_a_iu_in_K, "RH", 0.5, "P", 101325)
 
         cap_ratio = _quad_linear(
             _COEFFS["CLG_CAPFT"],
-            T_wb_K    / _T_REF,   # w = T_wb / T_ref
-            T_f_out_K / _T_REF,   # x = T_f_out (T_w,in) / T_ref
-            dV_a_ratio,           # y = V_a / V_a_ref
-            _V_W_RATIO,           # z = V_w / V_w_ref
+            T_wb_K / _T_REF,  # w = T_wb / T_ref
+            T_f_out_K / _T_REF,  # x = T_f_out (T_w,in) / T_ref
+            dV_a_ratio,  # y = V_a / V_a_ref
+            _V_W_RATIO,  # z = V_w / V_w_ref
         )
         pwr_ratio = _quad_linear(
             _COEFFS["CLG_PWRFT"],
-            T_wb_K    / _T_REF,
+            T_wb_K / _T_REF,
             T_f_out_K / _T_REF,
             dV_a_ratio,
             _V_W_RATIO,
@@ -179,15 +175,15 @@ def calc_GSHP_COP(T_a_iu_in_K, T_f_out_K, dV_a_ratio, mode):
         # T_a_iu_in_K (dry-bulb) used directly for heating curve
         cap_ratio = _quad_linear(
             _COEFFS["HTG_CAPFT"],
-            T_a_iu_in_K / _T_REF,   # w = T_a_iu_in / T_ref
-            T_f_out_K   / _T_REF,   # x = T_f_out (T_w,in) / T_ref
+            T_a_iu_in_K / _T_REF,  # w = T_a_iu_in / T_ref
+            T_f_out_K / _T_REF,  # x = T_f_out (T_w,in) / T_ref
             dV_a_ratio,
             _V_W_RATIO,
         )
         pwr_ratio = _quad_linear(
             _COEFFS["HTG_PWRFT"],
             T_a_iu_in_K / _T_REF,
-            T_f_out_K   / _T_REF,
+            T_f_out_K / _T_REF,
             dV_a_ratio,
             _V_W_RATIO,
         )

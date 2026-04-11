@@ -124,18 +124,14 @@ class Fan:
     def get_efficiency(self, fan, dV_fan):
         if "efficiency" not in fan:
             raise ValueError("Selected fan does not have efficiency data.")
-        self.efficiency_coeffs, _ = curve_fit(
-            cubic_function, fan["flow rate"], fan["efficiency"]
-        )
+        self.efficiency_coeffs, _ = curve_fit(cubic_function, fan["flow rate"], fan["efficiency"])
         eff = cubic_function(dV_fan, *self.efficiency_coeffs)
         return eff
 
     def get_pressure(self, fan, dV_fan):
         if "pressure" not in fan:
             raise ValueError("Selected fan does not have pressure data.")
-        self.pressure_coeffs, _ = curve_fit(
-            cubic_function, fan["flow rate"], fan["pressure"]
-        )
+        self.pressure_coeffs, _ = curve_fit(cubic_function, fan["flow rate"], fan["pressure"])
         pressure = cubic_function(dV_fan, *self.pressure_coeffs)
         return pressure
 
@@ -145,15 +141,10 @@ class Fan:
             pressure = self.get_pressure(fan, dV_fan)
             power = pressure * dV_fan / eff
         elif "power" in fan:
-            self.power_coeffs, _ = curve_fit(
-                quartic_function, fan["flow rate"], fan["power"]
-            )
+            self.power_coeffs, _ = curve_fit(quartic_function, fan["flow rate"], fan["power"])
             power = quartic_function(dV_fan, *self.power_coeffs)
         else:
-            raise ValueError(
-                "Fan must have either ('efficiency' + 'pressure') "
-                "or 'power' data to compute power."
-            )
+            raise ValueError("Fan must have either ('efficiency' + 'pressure') or 'power' data to compute power.")
         return power
 
     def show_graph(self):
@@ -167,10 +158,7 @@ class Fan:
             If ``dartwork_mpl`` is not installed.
         """
         if dm is None:
-            raise ImportError(
-                "dartwork_mpl is required for show_graph(). "
-                "Install it with: pip install dartwork-mpl"
-            )
+            raise ImportError("dartwork_mpl is required for show_graph(). Install it with: pip install dartwork-mpl")
         fig, axes = plt.subplots(1, 2, figsize=(dm.cm2in(15), dm.cm2in(5)))
 
         # 그래프 색상 설정
@@ -195,12 +183,8 @@ class Fan:
                 )
 
                 # 곡선 피팅 수행
-                coeffs, _ = curve_fit(
-                    cubic_function, fan["flow rate"], fan[key]
-                )
-                flow_range = np.linspace(
-                    min(fan["flow rate"]), max(fan["flow rate"]), 100
-                )
+                coeffs, _ = curve_fit(cubic_function, fan["flow rate"], fan[key])
+                flow_range = np.linspace(min(fan["flow rate"]), max(fan["flow rate"]), 100)
                 fitted_values = cubic_function(flow_range, *coeffs)
 
                 # 피팅된 곡선 (line 형태)
@@ -212,9 +196,7 @@ class Fan:
                     linestyle="-",
                 )
                 a, b, c, d = coeffs
-                print(
-                    f"fan {i + 1}: {a:.4f}x³ + {b:.4f}x² + {c:.4f}x + {d:.4f}"
-                )
+                print(f"fan {i + 1}: {a:.4f}x³ + {b:.4f}x² + {c:.4f}x + {d:.4f}")
 
             ax.set_xlabel("Flow Rate [m$^3$/s]", fontsize=dm.fs(0.5))
             ax.set_ylabel(ylabel, fontsize=dm.fs(0.5))

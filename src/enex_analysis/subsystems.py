@@ -210,7 +210,7 @@ class SolarThermalCollector:
 
         T_out_K = ksi * T_stc_w_in_K + (1 - ksi) * T0_K + (1 - ksi) * Q_sol_stc / A_U
         T_stc_K = T0_K + (Q_sol_stc - G_stc * (T_out_K - T_stc_w_in_K)) / A_U
-        
+
         return T_out_K, T_stc_K, ksi
 
     # ----------------------------------------------------------
@@ -279,9 +279,7 @@ class SolarThermalCollector:
             I_DN_stc,
             I_dH_stc,
         )
-        S_sol_stc = (
-            k_D * I_DN_stc**0.9 + k_d * I_dH_stc**0.9
-        ) * self.A_stc_pipe
+        S_sol_stc = (k_D * I_DN_stc**0.9 + k_d * I_dH_stc**0.9) * self.A_stc_pipe
         X_sol_stc = Q_sol_stc - S_sol_stc * T0_K
 
         G_stc = c_w * rho_w * dV_stc
@@ -416,7 +414,7 @@ class PhotovoltaicSystem:
         E_pv_out = self.A_pv * self.eta_pv * I_sol
         Q_l_pv = 2.0 * self.A_pv * self.h_o * (T_pv_K - T0)
 
-        s_sol = k_D * (I_DN ** 0.9) + k_d * (I_dH ** 0.9)
+        s_sol = k_D * (I_DN**0.9) + k_d * (I_dH**0.9)
         S_sol = self.A_pv * self.alp_pv * s_sol
         S_l_pv = (1.0 / T_pv_K) * Q_l_pv if T_pv_K > 0 else 0.0
         S_g_pv = S_l_pv - S_sol  # S_pv_out = 0 (electricity)
@@ -555,8 +553,6 @@ class EnergyStorageSystem:
             "SOC_ess": self.SOC_ess,
             **self._exergy(0.0, E_dis, T0_K),
         }
-
-
 
 
 # ------------------------------------------------------------------

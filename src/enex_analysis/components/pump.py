@@ -24,8 +24,7 @@ class Pump:
     def __post_init__(self):
         """Store flow-rate and efficiency data for two reference pumps."""
         self.pump1 = {
-            "flow rate": np.array([2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6])
-            / cu.h2s,  # m3/s
+            "flow rate": np.array([2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) / cu.h2s,  # m3/s
             "efficiency": [
                 0.255,
                 0.27,
@@ -39,10 +38,7 @@ class Pump:
             ],  # [-]
         }
         self.pump2 = {
-            "flow rate": np.array(
-                [1.8, 2.2, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8]
-            )
-            / cu.h2s,  # m3/s
+            "flow rate": np.array([1.8, 2.2, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8]) / cu.h2s,  # m3/s
             "efficiency": [
                 0.23,
                 0.26,
@@ -67,9 +63,7 @@ class Pump:
         dV_pmp : float
             Volume flow rate [m³/s].
         """
-        self.efficiency_coeffs, _ = curve_fit(
-            cubic_function, pump["flow rate"], pump["efficiency"]
-        )
+        self.efficiency_coeffs, _ = curve_fit(cubic_function, pump["flow rate"], pump["efficiency"])
         eff = cubic_function(dV_pmp, *self.efficiency_coeffs)
         return eff
 
@@ -105,10 +99,7 @@ class Pump:
             If ``dartwork_mpl`` is not installed.
         """
         if dm is None:
-            raise ImportError(
-                "dartwork_mpl is required for show_graph(). "
-                "Install it with: pip install dartwork-mpl"
-            )
+            raise ImportError("dartwork_mpl is required for show_graph(). Install it with: pip install dartwork-mpl")
         fig, ax = plt.subplots(figsize=(dm.cm2in(10), dm.cm2in(5)))
 
         # 그래프 색상 설정
@@ -126,15 +117,8 @@ class Pump:
             )
 
             # 곡선 피팅 수행
-            coeffs, _ = curve_fit(
-                cubic_function, pump["flow rate"] * cu.h2s, pump["efficiency"]
-            )
-            flow_range = (
-                np.linspace(
-                    min(pump["flow rate"]), max(pump["flow rate"]), 100
-                )
-                * cu.h2s
-            )
+            coeffs, _ = curve_fit(cubic_function, pump["flow rate"] * cu.h2s, pump["efficiency"])
+            flow_range = np.linspace(min(pump["flow rate"]), max(pump["flow rate"]), 100) * cu.h2s
             fitted_values = cubic_function(flow_range, *coeffs)
 
             # 피팅된 곡선 (line 형태)

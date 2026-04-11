@@ -138,7 +138,7 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
             stc_r = self._stc.calc_performance(
                 I_DN_stc=ctx.I_DN,
                 I_dH_stc=ctx.I_dH,
-                T_stc_w_in_K=T_cand_K,   # ← T_cand
+                T_stc_w_in_K=T_cand_K,  # ← T_cand
                 T0_K=ctx.T0_K,
                 is_active=stc_active,
             )
@@ -148,10 +148,7 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
             den: float = max(1e-6, T_cand_K - T_sup_w_K_n)
             alp: float = min(1.0, max(0.0, (self.T_mix_w_out_K - T_sup_w_K_n) / den))
             dV_out: float = alp * ctx.dV_mix_w_out
-            dV_in: float = (
-                dV_out if ctrl.dV_tank_w_in_ctrl is None
-                else ctrl.dV_tank_w_in_ctrl
-            )
+            dV_in: float = dV_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
 
             # Energy flows [W]
             Q_flow: float = c_w * rho_w * (dV_in * T_tank_w_in_K_n - dV_out * T_cand_K)
@@ -162,7 +159,8 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
 
             # Energy balance residual, scaled by C_tank to match base solver
             r: float = (
-                C_next * T_cand_K - C_curr * ctx.T_tank_w_K
+                C_next * T_cand_K
+                - C_curr * ctx.T_tank_w_K
                 - dt_s * (ctrl.Q_heat_source + E_pump + Q_stc_net + Q_flow - Q_loss)
             )
             return r / self.C_tank
@@ -201,15 +199,12 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         probe = self._stc.calc_performance(
             I_DN_stc=ctx.I_DN,
             I_dH_stc=ctx.I_dH,
-            T_stc_w_in_K=ctx.T_tank_w_K,   # inlet = tank temperature
+            T_stc_w_in_K=ctx.T_tank_w_K,  # inlet = tank temperature
             T0_K=ctx.T0_K,
             is_active=True,
         )
         # Activation criterion: net positive heat transfer to tank
-        stc_active: bool = (
-            ctx.activation_flags.get("stc", False)
-            and probe["T_stc_w_out_K"] > ctx.T_tank_w_K
-        )
+        stc_active: bool = ctx.activation_flags.get("stc", False) and probe["T_stc_w_out_K"] > ctx.T_tank_w_K
 
         if stc_active:
             stc_result = probe
@@ -276,9 +271,7 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         )
 
         T_stc_w_out_K: float = stc_result["T_stc_w_out_K"]
-        T_stc_pump_w_out_K: float = stc_result.get(
-            "T_stc_pump_w_out_K", T_stc_w_out_K
-        )
+        T_stc_pump_w_out_K: float = stc_result.get("T_stc_pump_w_out_K", T_stc_w_out_K)
 
         r.update(
             {
@@ -294,16 +287,8 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
                 "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
                 "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
                 "dV_stc [m3/s]": self._stc.dV_stc_w,
-                "T_stc_w_out [°C]": (
-                    cu.K2C(T_stc_w_out_K)
-                    if not np.isnan(T_stc_w_out_K)
-                    else np.nan
-                ),
-                "T_stc_pump_w_out [°C]": (
-                    cu.K2C(T_stc_pump_w_out_K)
-                    if not np.isnan(T_stc_pump_w_out_K)
-                    else np.nan
-                ),
+                "T_stc_w_out [°C]": (cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan),
+                "T_stc_pump_w_out [°C]": (cu.K2C(T_stc_pump_w_out_K) if not np.isnan(T_stc_pump_w_out_K) else np.nan),
                 "T_stc_w_in [°C]": cu.K2C(T_solved_K),
                 "T_stc [°C]": cu.K2C(stc_result.get("T_stc_K", np.nan)),
                 "E_stc_pump [W]": E_pump,
@@ -343,18 +328,13 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         df = super()._postprocess(df)
 
         # 2. Guard: STC columns must be present
-        if (
-            "T_stc_w_in [°C]" not in df.columns
-            or "T_stc_w_out [°C]" not in df.columns
-        ):
+        if "T_stc_w_in [°C]" not in df.columns or "T_stc_w_out [°C]" not in df.columns:
             return df
 
         T0_K = cu.C2K(df["T0 [°C]"])
         T_stc_w_in_K = cu.C2K(df["T_stc_w_in [°C]"])
         T_stc_w_out_K = cu.C2K(df["T_stc_w_out [°C]"])
-        T_stc_pump_w_out_K = cu.C2K(
-            df.get("T_stc_pump_w_out [°C]", df["T_stc_w_out [°C]"])
-        )
+        T_stc_pump_w_out_K = cu.C2K(df.get("T_stc_pump_w_out [°C]", df["T_stc_w_out [°C]"]))
         T_stc_K = cu.C2K(df["T_stc [°C]"])
 
         # Heat capacity rate [W/K] from explicit flow rate
@@ -363,18 +343,14 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         # 3. Water exergy flows
         df["X_stc_w_in [W]"] = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
         df["X_stc_w_out [W]"] = calc_exergy_flow(G_stc, T_stc_w_out_K, T0_K)
-        df["X_stc_pump_w_out [W]"] = calc_exergy_flow(
-            G_stc, T_stc_pump_w_out_K, T0_K
-        )
+        df["X_stc_pump_w_out [W]"] = calc_exergy_flow(G_stc, T_stc_pump_w_out_K, T0_K)
 
         # 4. Pump electricity = exergy
         E_pump = df["E_stc_pump [W]"].fillna(0)
         df["X_stc_pump [W]"] = E_pump
 
         # 5. Heat loss exergy
-        df["X_l_stc [W]"] = df["Q_l_stc [W]"].fillna(0) * (
-            1 - T0_K / T_stc_K.replace(0, np.nan)
-        )
+        df["X_l_stc [W]"] = df["Q_l_stc [W]"].fillna(0) * (1 - T0_K / T_stc_K.replace(0, np.nan))
 
         # 6. STC exergy destruction (2nd-law: Xc = ΣX_in - ΣX_out ≥ 0)
         is_stc_active = df.get("stc_active [-]", False)
@@ -395,8 +371,6 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
         X_out_tank_add = df["X_stc_w_in [W]"].fillna(0)
 
         df["X_tot [W]"] = df["X_tot [W]"].add(E_pump, fill_value=0)
-        df["Xc_tank [W]"] = df["Xc_tank [W]"].add(
-            X_in_tank_add - X_out_tank_add, fill_value=0
-        )
+        df["Xc_tank [W]"] = df["Xc_tank [W]"].add(X_in_tank_add - X_out_tank_add, fill_value=0)
 
         return df
