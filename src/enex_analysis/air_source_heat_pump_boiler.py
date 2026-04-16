@@ -318,10 +318,10 @@ class AirSourceHeatPumpBoiler:
         T_ou_a_out: float = T_ou_a_mid + E_ou_fan / (c_a * rho_a * dV_ou_a) if is_active else T0
 
         # --- Flow state (explicit parameter, no side-effect reads) ---
-        dV_tank_w_out: float = flow_state["dV_tank_w_out"]
-        dV_tank_w_in: float = flow_state["dV_tank_w_in"]
-        dV_mix_sup_w_in: float = flow_state["dV_mix_sup_w_in"]
-        dV_mix_w_out_val: float = flow_state["dV_mix_w_out"]
+        dV_tank_w_out: float = flow_state["dV_tank_w_out [m3/s]"]
+        dV_tank_w_in: float = flow_state["dV_tank_w_in [m3/s]"]
+        dV_mix_sup_w_in: float = flow_state["dV_mix_sup_w_in [m3/s]"]
+        dV_mix_w_out_val: float = flow_state["dV_mix_w_out [m3/s]"]
 
         if dV_mix_w_out_val == 0:
             T_mix_w_out_val: float = np.nan
@@ -670,10 +670,10 @@ class AirSourceHeatPumpBoiler:
         dV_tank_w_out: float = alp * dV_mix_w_out
         dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
-            "dV_mix_w_out": dV_mix_w_out,
-            "dV_tank_w_out": dV_tank_w_out,
-            "dV_tank_w_in": dV_tank_w_in,
-            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
+            "dV_mix_w_out [m3/s]": dV_mix_w_out,
+            "dV_tank_w_out [m3/s]": dV_tank_w_out,
+            "dV_tank_w_in [m3/s]": dV_tank_w_in,
+            "dV_mix_sup_w_in [m3/s]": (1.0 - alp) * dV_mix_w_out,
         }
 
     def _determine_hp_state(
@@ -798,6 +798,8 @@ class AirSourceHeatPumpBoiler:
                 "Q_tank_loss [W]": (self.UA_tank * (T_solved_K - ctx.T0_K)),
                 "T_tank_w [°C]": cu.K2C(T_solved_K),
                 "T_mix_w_out [°C]": T_mix_w_out_val,
+                "T_tank_w_in [°C]": cu.K2C(self.T_tank_w_in_K),
+                "T_sup_w [°C]": cu.K2C(self.T_sup_w_K),
             }
         )
 
@@ -1312,5 +1314,25 @@ class AirSourceHeatPumpBoiler:
         # ── 11. Exergetic efficiency metrics ───────────────
         df["X_eff_ref [-]"] = df["X_ref_cond [W]"] / df["X_cmp [W]"].replace(0, np.nan)
         df["X_eff_sys [-]"] = df["X_ref_cond [W]"] / df["X_tot [W]"].replace(0, np.nan)
+
+        df["X_eff_tank [-]"] = 1 - df["Xc_tank [W]"] / X_in_tank.replace(0, np.nan)
+        
+        X_in_mix = df["X_tank_w_out [W]"].fillna(0) + df["X_mix_sup_w_in [W]"].fillna(0)
+        df["X_eff_mix [-]"] = 1 - df["Xc_mix [W]"] / X_in_mix.replace(0, np.nan)
+        
+        X_in_cmp = df["X_cmp [W]"] + df["X_ref_cmp_in [W]"]
+        df["X_eff_cmp [-]"] = 1 - df["Xc_cmp [W]"] / X_in_cmp.replace(0, np.nan)
+        
+        df["X_eff_ref_cond [-]"] = 1 - df["Xc_ref_cond [W]"] / df["X_ref_cmp_out [W]"].replace(0, np.nan)
+        
+        df["X_eff_exp [-]"] = 1 - df["Xc_exp [W]"] / df["X_ref_exp_in [W]"].replace(0, np.nan)
+        
+        a_ou_in = df["X_a_ou_in [W]"].fillna(0) if "X_a_ou_in [W]" in df.columns else 0.0
+        X_in_ref_evap = df["X_ref_exp_out [W]"] + a_ou_in
+        df["X_eff_ref_evap [-]"] = 1 - df["Xc_ref_evap [W]"] / X_in_ref_evap.replace(0, np.nan)
+        
+        a_ou_mid = df["X_a_ou_mid [W]"].fillna(0) if "X_a_ou_mid [W]" in df.columns else 0.0
+        X_in_ou_fan = df["X_ou_fan [W]"] + a_ou_mid
+        df["X_eff_ou_fan [-]"] = 1 - df["Xc_ou_fan [W]"] / X_in_ou_fan.replace(0, np.nan)
 
         return df
