@@ -37,10 +37,20 @@ S.~Churchill, H.~Chu, Correlating equations for laminar and turbulent free
 P.~Eskilson, Thermal analysis of heat extraction boreholes, Doctoral Thesis,
   Lund University (1987).
 
+\bibitem{wang2000heat}
+C.-C. Wang, K.-Y. Chi, C.-J. Chang, Heat transfer and friction characteristics
+  of plain fin-and-tube heat exchangers, part ii: Correlation, International
+  Journal of Heat and Mass Transfer 43~(15) (2000) 2693--2700.
+
 \bibitem{tsatsaronis2007}
 G.~Tsatsaronis, Definitions and nomenclature in exergy analysis and
   exergoeconomics, Energy 32~(4) (2007) 249--253.
 \newblock \href {https://doi.org/10.1016/j.energy.2006.07.002}
   {\path{doi:10.1016/j.energy.2006.07.002}}.
+
+\bibitem{molina2011moving}
+N.~Molina-Giraldo, P.~Blum, K.~Zhu, P.~Bayer, Z.~Fang, A moving finite line
+  source model to simulate borehole heat exchangers with groundwater advection,
+  International Journal of Thermal Sciences 50~(12) (2011) 2506--2513.
 
 \end{thebibliography}

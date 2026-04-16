@@ -1,0 +1,39 @@
+% ═══════════════════════════════════════════════════════════════════
+% §8  수열원 히트펌프 급탕기 (동적 모델)
+% Source: water_source_heat_pump_boiler.py
+% ═══════════════════════════════════════════════════════════════════
+\section{수열원 히트펌프 급탕기}
+\label{sec:wshpb}
+
+본 절은 \texttt{water\_source\_heat\_pump\_boiler.py}의 동적 수열원 히트펌프 급탕기(WSHPB) 모델을 기술한다. 이 모델은 지열원 시스템(\ref{sec:gshpb}절)과 유사한 구조를 갖지만, 지하수 유동(Groundwater advection)의 영향을 통합하기 위해 이동 유한선원(Moving Finite Line Source, MFLS) 모델을 적용하였다.
+
+\subsection{이동 유한선원(MFLS) 기반 수열원 모델링}
+
+기존의 유한선원(FLS) 모델은 전도에 의한 열전달만을 고려하므로 지하수 유동이 활발한 수열원 환경에서는 장기적인 지중 온도 변화를 과대평가할 수 있다. 본 패키지는 지하수 유동의 이류(Advection) 효과를 동적으로 반영하기 위해 Molina-Giraldo 등(2011)이 제안한 MFLS 모델을 도입하였다~\cite{molina2011moving}.
+
+MFLS 모델에서 열원 주변의 $g$-함수는 지하수의 유효 열이송 속도(Effective heat transport velocity) $v_T$의 영향을 받으며, 이는 다음과 같이 정의된다:
+\begin{equation}\label{eq:mfls-vt}
+  v_T = v_{gw}\frac{\rho_w c_w}{\rho_s c_s}
+\end{equation}
+여기서 $v_{gw}$는 지하수의 다르시 유속(Darcy velocity), $\rho_w c_w$와 $\rho_s c_s$는 각각 물과 지중 유효 체적 열용량이다.
+
+이러한 지하수 유동 이류항은 공간 누적 온도 응답에 지수 감쇠(Exponential decay) 형태로 반영되며~\cite{molina2011moving}, 특정 시간 $t$에서의 단일 열원에 대한 온도 응답치 $\Delta T_{\text{MFLS}}$는 다음과 같은 적분식으로 표현된다:
+\begin{equation}\label{eq:mfls-integral}
+  \Delta T_{\text{MFLS}}(x, y, t) = \frac{q_L}{4 \pi k_s} \int_{1/\sqrt{4 \alpha_s t}}^{\infty} \chi_{\text{MFLS}}(s, r, H, x', v_T, \alpha_s) \, ds
+\end{equation}
+여기서 $q_L$은 보어홀 단위 길이당 방열량, $k_s$는 지중 열전도도, $\alpha_s$는 지중 열확산계수(Thermal diffusivity)이다. 적분 변수 $s=1/\sqrt{4 \alpha_s \tau}$이며, 중심으로부터의 반경거리 $r = \sqrt{x^2+y^2}$이다. 적분 인자 보정치인 $\chi_{\text{MFLS}}$는 기존의 FLS 해 $\chi_{\text{FLS}}$에 이류 효과를 결합하여 구성되며, 지하수 흐름 방향 $\theta_{gw}$를 기준으로 투영된 거리 $x' = x \cos(\theta_{gw}) + y \sin(\theta_{gw})$에 대한 감쇠를 포함한다:
+\begin{equation}\label{eq:chi-mfls}
+  \chi_{\text{MFLS}} = \chi_{\text{FLS}}(s, r, H) \exp\left( \frac{v_T x'}{2 \alpha_s} - \frac{v_T^2}{16 \alpha_s^2 s^2}\right)
+\end{equation}
+엔진 내부에서는 이 근본 해를 바탕으로 설정된 필드 배열에서 열원 간의 공간적 중첩(Spatial superposition)을 적용하여, 전체 시스템의 평균 유효 지중저항 $R_{g,\text{MFLS}}(t)$를 매 타임스텝 도출하게 된다. 이는 장기 운전 시 지중 열축적으로 인한 성능 저하를 방지하여 정상 상태(Steady-state) 영역에 빠르게 도달하도록 하는 동적 경계 조건으로 작동한다.
+
+\subsection{수열원 증발기 채열량}
+
+수열원 네트워크로부터의 채열량은 지열원 식과 동형을 유지하되 $R_g(t)$ 평가 시 MFLS 기반의 $g$-함수가 사용된다:
+\begin{equation}\label{eq:wshp-Qground}
+  Q_\text{source} = \frac{T_g - T_\text{source,in}}{R_b + R_{g,\text{MFLS}}(t)}
+\end{equation}
+\begin{equation}\label{eq:wshpb-Rg-mfls}
+  R_{g,\text{MFLS}}(t) = \frac{g_\text{MFLS}(t)}{2\pi k_s H}
+\end{equation}
+이 외 브라인 루프 수지, 엑서지 계산 및 증기압축 역학 모델은 기존 지열원 구조와 동일하게 평가된다.

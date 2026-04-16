@@ -1,11 +1,12 @@
 \documentclass[11pt,a4paper]{article}
 %DIF LATEXDIFF DIFFERENCE FILE
-%DIF DEL /home/habin/Codes/enex_engine/enex_analysis_engine/docs/guides/theory/_old_for_diff.tex   Thu Mar 12 22:32:25 2026
-%DIF ADD /home/habin/Codes/enex_engine/enex_analysis_engine/docs/guides/theory/_new_for_diff.tex   Thu Mar 12 22:32:25 2026
+%DIF DEL /home/habin/Codes/enex_engine/enex_analysis_engine/manuscripts/_old_for_diff.tex      Sun Apr 12 13:25:37 2026
+%DIF ADD /home/habin/Codes/enex_engine/enex_analysis_engine/manuscripts/theory_manual_KR.tex   Sun Apr 12 12:43:52 2026
 
 % --- Packages ---
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{kotex}
 \usepackage{amsmath,amssymb}
 \newcommand{\dd}{\mathrm{d}}       % upright differential operator
 \usepackage{booktabs}
@@ -16,8 +17,8 @@
 \usepackage{nomencl}
 
 % --- Metadata ---
-\title{\textbf{enex\_analysis\_engine}\\[4pt]Theory Manual}
-\author{Building Energy \& Exergy Analysis Laboratory}
+\title{\textbf{enex\_analysis\_engine}\\[4pt]이론 매뉴얼}
+\author{건물에너지·엑서지 분석 연구실}
 \date{\today}
 
 % --- Document ---
@@ -111,46 +112,51 @@
 \maketitle
 
 \begin{abstract}
-This document presents the mathematical formulations implemented in the \texttt{enex\_analysis\_engine} Python package.
-Each section covers one simulation module, specifying the governing equations, modelling assumptions, and literature references.
-Equations are numbered consistently with the source code variable names to facilitate cross-referencing.
+본 문서는 \texttt{enex\_analysis\_engine} Python 패키지에 구현된 수학적 정식화를 제시한다.
+각 절은 하나의 시뮬레이션 모듈을 다루며, 지배방정식, 모델링 가정, 참고문헌을 명시한다.
+수식 번호는 소스코드의 변수명과 일관되게 부여하여 상호 참조가 가능하도록 하였다.
 \end{abstract}
 
 \tableofcontents
 \newpage
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §2  PV-to-Converter
+%% §2  PV-to-Converter (PV 발전 변환 시스템)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/pv_converter}
+\input{sections/kr/pv_converter}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §3  Stratified Storage Tank
+%% §3  Stratified Storage Tank (성층형 저탕조)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/tank_stratification}
+\input{sections/kr/tank_stratification}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §4  Steady-State DHW Models
+%% §4  Steady-State DHW Models (정상상태 급탕 모델)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/enex_engine}
+\input{sections/kr/enex_engine}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §5  Thermodynamic Correlations
+%% §5  Thermodynamic Correlations (열역학 상관식)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/enex_functions}
+\input{sections/kr/enex_functions}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §6  Air Source Heat Pump Boiler
+%% §6  Air Source Heat Pump Boiler (공기열원 히트펌프 급탕기)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/air_source_hp_boiler}
+\input{sections/kr/air_source_hp_boiler}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% §7  Ground Source Heat Pump Boiler
+%% §7  Ground Source Heat Pump Boiler (지열원 히트펌프 급탕기)
 %% ═══════════════════════════════════════════════════════════════════
-\input{sections/en/ground_source_hp_boiler}
+\input{sections/kr/ground_source_hp_boiler}
 
 %% ═══════════════════════════════════════════════════════════════════
-%% Bibliography
+%DIF > % §8  Water Source Heat Pump Boiler (수열원 히트펌프 급탕기)
+%DIF > % ═══════════════════════════════════════════════════════════════════
+\DIFaddbegin \input{sections/kr/water_source_hp_boiler}
+
+%DIF > % ═══════════════════════════════════════════════════════════════════
+\DIFaddend %% Bibliography
 %% ═══════════════════════════════════════════════════════════════════
 \bibliographystyle{elsarticle-num}
 \bibliography{theory_manual}
