@@ -144,6 +144,7 @@ class ASHPB_PV_ESS(AirSourceHeatPumpBoiler):
         pv_cols = {
             "I_sol_pv [W/m2]": pv_r["I_sol_pv"],
             "T_pv [°C]": cu.K2C(pv_r["T_pv_K"]),
+            "eta_pv [-]": pv_r.get("eta_pv", np.nan),
             "E_pv_out [W]": pv_r["E_pv_out"],
             "E_ctrl_out [W]": E_ctrl_out,
             "X_sol [W]": pv_r["X_sol"],
