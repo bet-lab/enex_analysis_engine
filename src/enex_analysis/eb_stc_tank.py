@@ -15,6 +15,7 @@ from .subsystems import SolarThermalCollector
 if TYPE_CHECKING:
     from .dynamic_context import ControlState, StepContext
 
+
 class EB_STC_tank(ElectricBoiler):
     def __init__(
         self,
@@ -60,10 +61,7 @@ class EB_STC_tank(ElectricBoiler):
             den: float = max(1e-6, T_cand_K - T_sup_w_K_n)
             alp: float = min(1.0, max(0.0, (self.T_mix_w_out_K - T_sup_w_K_n) / den))
             dV_out: float = alp * ctx.dV_mix_w_out
-            dV_in: float = (
-                dV_out if ctrl.dV_tank_w_in_ctrl is None
-                else ctrl.dV_tank_w_in_ctrl
-            )
+            dV_in: float = dV_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
 
             Q_flow: float = c_w * rho_w * (dV_in * T_tank_w_in_K_n - dV_out * T_cand_K)
             Q_loss: float = self.UA_tank * (T_cand_K - ctx.T0_K)
@@ -72,7 +70,8 @@ class EB_STC_tank(ElectricBoiler):
             C_next: float = self.C_tank * max(0.001, tank_level)
 
             r: float = (
-                C_next * T_cand_K - C_curr * ctx.T_tank_w_K
+                C_next * T_cand_K
+                - C_curr * ctx.T_tank_w_K
                 - dt_s * (ctrl.Q_heat_source + E_pump + Q_stc_net + Q_flow - Q_loss)
             )
             return r / self.C_tank
@@ -93,10 +92,7 @@ class EB_STC_tank(ElectricBoiler):
             T0_K=ctx.T0_K,
             is_active=True,
         )
-        stc_active: bool = (
-            ctx.activation_flags.get("stc", False)
-            and probe["T_stc_w_out_K"] > ctx.T_tank_w_K
-        )
+        stc_active: bool = ctx.activation_flags.get("stc", False) and probe["T_stc_w_out_K"] > ctx.T_tank_w_K
 
         if stc_active:
             stc_result = probe
@@ -144,29 +140,32 @@ class EB_STC_tank(ElectricBoiler):
         T_stc_w_out_K: float = stc_result["T_stc_w_out_K"]
         T_stc_pump_w_out_K: float = stc_result.get("T_stc_pump_w_out_K", T_stc_w_out_K)
 
-        r.update({
-            "stc_active [-]": stc_active,
-            "I_DN_stc [W/m2]": ctx.I_DN,
-            "I_dH_stc [W/m2]": ctx.I_dH,
-            "I_sol_stc [W/m2]": stc_result.get("I_sol_stc", np.nan),
-            "Q_sol_stc [W]": stc_result.get("Q_sol_stc", np.nan),
-            "S_sol_stc [W/K]": stc_result.get("S_sol_stc", np.nan),
-            "X_sol_stc [W]": stc_result.get("X_sol_stc", np.nan),
-            "Q_stc_w_out [W]": stc_result.get("Q_stc_w_out", 0.0),
-            "Q_stc_pump_w_out [W]": stc_result.get("Q_stc_pump_w_out", 0.0),
-            "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
-            "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
-            "dV_stc [m3/s]": self._stc.dV_stc_w,
-            "T_stc_w_out [°C]": cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan,
-            "T_stc_pump_w_out [°C]": cu.K2C(T_stc_pump_w_out_K) if not np.isnan(T_stc_pump_w_out_K) else np.nan,
-            "T_stc_w_in [°C]": cu.K2C(T_solved_K),
-            "T_stc [°C]": cu.K2C(stc_result.get("T_stc_K", np.nan)),
-            "E_stc_pump [W]": E_pump,
-        })
+        r.update(
+            {
+                "stc_active [-]": stc_active,
+                "I_DN_stc [W/m2]": ctx.I_DN,
+                "I_dH_stc [W/m2]": ctx.I_dH,
+                "I_sol_stc [W/m2]": stc_result.get("I_sol_stc", np.nan),
+                "Q_sol_stc [W]": stc_result.get("Q_sol_stc", np.nan),
+                "S_sol_stc [W/K]": stc_result.get("S_sol_stc", np.nan),
+                "X_sol_stc [W]": stc_result.get("X_sol_stc", np.nan),
+                "Q_stc_w_out [W]": stc_result.get("Q_stc_w_out", 0.0),
+                "Q_stc_pump_w_out [W]": stc_result.get("Q_stc_pump_w_out", 0.0),
+                "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
+                "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
+                "dV_stc [m3/s]": self._stc.dV_stc_w,
+                "T_stc_w_out [°C]": cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan,
+                "T_stc_pump_w_out [°C]": cu.K2C(T_stc_pump_w_out_K) if not np.isnan(T_stc_pump_w_out_K) else np.nan,
+                "T_stc_w_in [°C]": cu.K2C(T_solved_K),
+                "T_stc [°C]": cu.K2C(stc_result.get("T_stc_K", np.nan)),
+                "E_stc_pump [W]": E_pump,
+            }
+        )
         return r
 
     def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         from .enex_functions import calc_exergy_flow
+
         df = super()._postprocess(df)
         if "T_stc_w_in [°C]" not in df.columns or "T_stc_w_out [°C]" not in df.columns:
             return df

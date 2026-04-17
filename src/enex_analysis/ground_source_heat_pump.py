@@ -18,18 +18,18 @@ from .enex_functions import calc_GSHP_COP
 class GroundSourceHeatPump:
     """Ground source heat pump model for both cooling and heating mode.
 
-    Uses borehole heat exchangers with pygfunction step-response 
-    factor array for precise soil thermal response with temporal 
+    Uses borehole heat exchangers with pygfunction step-response
+    factor array for precise soil thermal response with temporal
     superposition of dynamic building loads. Call ``system_update()``
     each time step to advance the ground temperature history.
     """
-    
+
     def __post_init__(self):
         # Time and Simulation Control
         self.time = 0.0  # [h] Will be updated continuously
 
         # Borehole parameters
-        self.D_b = 2.0  # Borehole burial depth [m] 
+        self.D_b = 2.0  # Borehole burial depth [m]
         self.H_b = 200  # Borehole height [m]
         self.r_b = 0.07  # Borehole radius [m]
         self.R_b = 0.108  # Effective borehole thermal resistance [mK/W]
@@ -53,21 +53,19 @@ class GroundSourceHeatPump:
 
         # Initial Load
         self.Q_r_iu = 0  # Indoor thermal load [W]
-        
+
         # ---------------------------------------------------------------------
         # Temporal Superposition & pygfunction Initialization
         # ---------------------------------------------------------------------
         self.q_b_history = [0.0]  # Store historical loads
-        
+
         # Determine simulation length and timestep (Default: 8760 hours, 1 hour step)
         self.sim_hours = 8760
         self.dt_hours = 1
         self.dt_sec = self.dt_hours * 3600.0
-        
-        borehole = gt.boreholes.Borehole(
-            H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0
-        )
-        
+
+        borehole = gt.boreholes.Borehole(H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0)
+
         n_steps = int(self.sim_hours / self.dt_hours)
         time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g) # Soil thermal diffusivity [m²/s]
@@ -81,7 +79,7 @@ class GroundSourceHeatPump:
         # Unit conversion
         dV_f_m3s = self.dV_f * cu.s2m * cu.L2m3  # Nominal flow rate [m³/s]
 
-        if not hasattr(self, 'T0'):
+        if not hasattr(self, "T0"):
             raise AttributeError("T0 must be provided before system_update().")
 
         # Determine mode based on load sign
@@ -93,7 +91,7 @@ class GroundSourceHeatPump:
             self.T_r_iu = self.T_a_room + self.dT_r_iu # Indoor unit refrigerant [°C]
             dT_a_iu = -10 # Indoor unit outlet air - Room air [K]
             dV_f_m3s_active = dV_f_m3s
-            E_pmp_active = self.E_pmp # Pump power input [W]
+            E_pmp_active = self.E_pmp  # Pump power input [W]
         elif self.Q_r_iu < 0:
             mode = "heating"
             self.T_a_room = 21  # Room air temperature [°C]
@@ -102,11 +100,11 @@ class GroundSourceHeatPump:
             self.T_r_iu = self.T_a_room + self.dT_r_iu # Indoor unit refrigerant [°C]
             dT_a_iu = 10 # Indoor unit outlet air - Room air [K]
             dV_f_m3s_active = dV_f_m3s
-            E_pmp_active = self.E_pmp # Pump power input [W]
+            E_pmp_active = self.E_pmp  # Pump power input [W]
         else:
             mode = "off"
             self.T_a_room = 22  # Room air temperature [°C]
-            self.dT_r_ghx = 0 
+            self.dT_r_ghx = 0
             self.T_r_ghx = self.T0
             self.T_r_iu = self.T0
             dT_a_iu = 0
@@ -127,17 +125,17 @@ class GroundSourceHeatPump:
         # A. Pre-calculate the Historical Temperature Effect (Superposition)
         # ---------------------------------------------------------------------
         T_b_history_effect = 0.0
-        
+
         for i in range(1, len(self.q_b_history)):
-            delta_Q = self.q_b_history[i] - self.q_b_history[i-1]
+            delta_Q = self.q_b_history[i] - self.q_b_history[i - 1]
             elapsed_steps = len(self.q_b_history) - i
-            
+
             idx = elapsed_steps
             if idx < len(self.g_func_list):
                 g_val = self.g_func_list[idx]
             else:
                 g_val = self.g_func_list[-1]  # fallback
-                
+
             T_b_history_effect += (delta_Q / (2 * math.pi * self.k_g)) * g_val
         # ---------------------------------------------------------------------
 
@@ -149,9 +147,9 @@ class GroundSourceHeatPump:
         # ------------------------------------------------------------------
         # Rated airflow: V_a_ref = Q_rated / (rho_a * c_a * dT_rated=10K)
         if mode == "cooling":
-            _Q_rated = 20590.0   # [W] TCH072_GLHP cooling rated capacity
+            _Q_rated = 20590.0  # [W] TCH072_GLHP cooling rated capacity
         elif mode == "heating":
-            _Q_rated = 16450.0   # [W] TCH072_GLHP heating rated capacity
+            _Q_rated = 16450.0  # [W] TCH072_GLHP heating rated capacity
         else:
             _Q_rated = 20590.0
 
@@ -197,9 +195,9 @@ class GroundSourceHeatPump:
 
             self.Q_r_ghx = self.Q_r_iu + self.E_cmp
             self.q_b = (self.Q_r_ghx + E_pmp_active) / self.H_b
-            
+
             # -----------------------------------------------------------------
-            # B. Core Calculation: Borehole Wall Temp with Superposition 
+            # B. Core Calculation: Borehole Wall Temp with Superposition
             # -----------------------------------------------------------------
             self.g_i = self.g_func_list[0]
             self.T_b_history_effect = T_b_history_effect  # Expose history penalty
@@ -209,19 +207,19 @@ class GroundSourceHeatPump:
                 + ((self.q_b - self.q_b_history[-1]) / (2 * math.pi * self.k_g)) * self.g_i
             )
             # -----------------------------------------------------------------
-            
+
             self.T_f = self.T_b + self.q_b * self.R_b
             if dV_f_m3s_active > 0:
                 delta_T_fluid = self.q_b * self.H_b / (2 * c_f * rho_f * dV_f_m3s_active)
             else:
                 delta_T_fluid = 0.0
-                
+
             self.T_f_in = self.T_f + delta_T_fluid
             self.T_f_out = self.T_f - delta_T_fluid
-            
+
             if abs(self.T_f_in - T_f_in_old) < tol or mode == "off":
                 break
-                
+
         # Finalize refrigerant temperature based on converged fluid temperature
         self.T_r_ghx_K = self.T_f_out + self.dT_r_ghx
 
@@ -254,9 +252,7 @@ class GroundSourceHeatPump:
         def get_thermal_exergy(c, rho, dV, T_stream, T_env):
             if T_stream <= 0 or dV <= 0:
                 return 0.0
-            return c * rho * dV * (
-                (T_stream - T_env) - T_env * math.log(T_stream / T_env)
-            )
+            return c * rho * dV * ((T_stream - T_env) - T_env * math.log(T_stream / T_env))
 
         # -------------------------------------------------------------
         # Exergy of air streams
@@ -321,9 +317,7 @@ class GroundSourceHeatPump:
         if self.Q_r_iu == 0:
             self.X_eff = 0.0
         else:
-            self.X_eff = (self.X_a_iu_out - self.X_a_iu_in) / (
-                self.E_fan_iu + self.E_cmp + E_pmp_active
-            )
+            self.X_eff = (self.X_a_iu_out - self.X_a_iu_in) / (self.E_fan_iu + self.E_cmp + E_pmp_active)
 
         # -------------------------------------------------------------
         # Structured exergy balance
@@ -339,7 +333,7 @@ class GroundSourceHeatPump:
                     "X_a_iu_in": self.X_a_iu_in,
                 },
                 "consumption": {"X_c_iu": self.X_c_iu},
-             },
+            },
             "refrigerant loop": {
                 "in": {
                     "X_r_ghx": self.X_r_ghx,

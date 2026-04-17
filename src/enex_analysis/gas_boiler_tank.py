@@ -230,18 +230,10 @@ class GasBoilerTank:
             "T_exh [°C]": self.T_exh,
             "T0 [°C]": T0,
             # Volume flow rates [m³/s]
-            "dV_mix_w_out [m3/s]": (
-                dV_mix_w_out_val if dV_mix_w_out_val > 0 else np.nan
-            ),
-            "dV_tank_w_out [m3/s]": (
-                dV_tank_w_out if dV_tank_w_out > 0 else np.nan
-            ),
-            "dV_tank_w_in [m3/s]": (
-                dV_tank_w_in if dV_tank_w_in > 0 else np.nan
-            ),
-            "dV_mix_sup_w_in [m3/s]": (
-                dV_mix_sup_w_in if dV_mix_sup_w_in > 0 else np.nan
-            ),
+            "dV_mix_w_out [m3/s]": (dV_mix_w_out_val if dV_mix_w_out_val > 0 else np.nan),
+            "dV_tank_w_out [m3/s]": (dV_tank_w_out if dV_tank_w_out > 0 else np.nan),
+            "dV_tank_w_in [m3/s]": (dV_tank_w_in if dV_tank_w_in > 0 else np.nan),
+            "dV_mix_sup_w_in [m3/s]": (dV_mix_sup_w_in if dV_mix_sup_w_in > 0 else np.nan),
             # Energy rates [W]
             "E_NG [W]": E_NG,
             "Q_comb_w [W]": Q_comb_w,
@@ -383,11 +375,7 @@ class GasBoilerTank:
             ),
         )
         dV_tank_w_out: float = alp * ctx.dV_mix_w_out
-        dV_tank_w_in: float = (
-            dV_tank_w_out
-            if ctrl.dV_tank_w_in_ctrl is None
-            else ctrl.dV_tank_w_in_ctrl
-        )
+        dV_tank_w_in: float = dV_tank_w_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
 
         self.dV_tank_w_out = dV_tank_w_out
         self.dV_tank_w_in = dV_tank_w_in
@@ -415,9 +403,7 @@ class GasBoilerTank:
             }
         )
 
-        if not self.tank_always_full or (
-            self.tank_always_full and self.prevent_simultaneous_flow
-        ):
+        if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
             r["tank_level [-]"] = level_solved
 
         return r
@@ -472,8 +458,7 @@ class GasBoilerTank:
         T0_schedule = np.array(T0_schedule)
         if len(T0_schedule) != tN:
             raise ValueError(
-                f"T0_schedule length ({len(T0_schedule)})"
-                f" != time length ({tN})",
+                f"T0_schedule length ({len(T0_schedule)}) != time length ({tN})",
             )
 
         self.time: np.ndarray = time
@@ -679,17 +664,10 @@ class GasBoilerTank:
         df["X_tank_loss [W]"] = df["Q_tank_loss [W]"] * (1 - T0_K / T_tank_K)
 
         # ── 7. Tank stored exergy ──────────────────────────
-        tank_level = (
-            df["tank_level [-]"] if "tank_level [-]" in df.columns else 1.0
-        )
+        tank_level = df["tank_level [-]"] if "tank_level [-]" in df.columns else 1.0
         C_tank_actual = self.C_tank * tank_level
         T_tank_K_prev = T_tank_K.shift(1)
-        df["Xst_tank [W]"] = (
-            (1 - T0_K / T_tank_K)
-            * C_tank_actual
-            * (T_tank_K - T_tank_K_prev)
-            / self.dt
-        )
+        df["Xst_tank [W]"] = (1 - T0_K / T_tank_K) * C_tank_actual * (T_tank_K - T_tank_K_prev) / self.dt
         df.loc[df.index[0], "Xst_tank [W]"] = 0.0
 
         # ── 8. Subsystem exergy ────────────────────────────
@@ -733,15 +711,11 @@ class GasBoilerTank:
 
         # 10b. Mixing valve
         df["Xc_mix [W]"] = (
-            df["X_tank_w_out [W]"].fillna(0)
-            + df["X_mix_sup_w_in [W]"].fillna(0)
-            - df["X_mix_w_out [W]"].fillna(0)
+            df["X_tank_w_out [W]"].fillna(0) + df["X_mix_sup_w_in [W]"].fillna(0) - df["X_mix_w_out [W]"].fillna(0)
         )
 
         # 10c. Storage tank
-        X_in_tank = df["X_comb_w [W]"].fillna(0) + df[
-            "X_tank_w_in [W]"
-        ].fillna(0)
+        X_in_tank = df["X_comb_w [W]"].fillna(0) + df["X_tank_w_in [W]"].fillna(0)
         if "X_uv [W]" in df.columns:
             X_in_tank = X_in_tank + df["X_uv [W]"].fillna(0)
         X_in_tank = X_in_tank + X_sub_in_tank_add
@@ -754,8 +728,6 @@ class GasBoilerTank:
         df["Xc_tank [W]"] = X_in_tank - X_out_tank
 
         # ── 11. Exergetic efficiency ───────────────────────
-        df["X_eff_sys [-]"] = df["X_comb_w [W]"].fillna(0) / df[
-            "X_tot [W]"
-        ].replace(0, np.nan)
+        df["X_eff_sys [-]"] = df["X_comb_w [W]"].fillna(0) / df["X_tot [W]"].replace(0, np.nan)
 
         return df

@@ -8,3 +8,4 @@ Theoretical foundations of energy-exergy analysis.
    
    thermodynamics
    exergy-analysis
+   ashpb_model

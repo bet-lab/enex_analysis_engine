@@ -86,9 +86,7 @@ class ElectricBoiler:
         den: float = max(1e-6, T_tank_w_K - T_sup_w_K)
         alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_sup_w_K) / den))
         dV_tank_w_out: float = alp * dV_mix_w_out
-        dV_tank_w_in: float = (
-            dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
-        )
+        dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
             "dV_mix_w_out": dV_mix_w_out,
             "dV_tank_w_out": dV_tank_w_out,
@@ -237,7 +235,9 @@ class ElectricBoiler:
     ) -> dict:
         return r
 
-    def _assemble_core_results(self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, level_solved: float, ier: int) -> dict:
+    def _assemble_core_results(
+        self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, level_solved: float, ier: int
+    ) -> dict:
         flow_state = self._build_flow_state(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=T_solved_K,
@@ -252,16 +252,19 @@ class ElectricBoiler:
 
         T_mix_w_out_val: float = (
             calc_mixing_valve(T_solved_K, self.T_sup_w_K, self.T_mix_w_out_K)["T_mix_w_out"]
-            if ctx.dV_mix_w_out > 0 else np.nan
+            if ctx.dV_mix_w_out > 0
+            else np.nan
         )
         r: dict = {}
         r.update(ctrl.result)
-        r.update({
-            "heater_is_on": ctrl.is_on,
-            "Q_tank_loss [W]": (self.UA_tank * (T_solved_K - ctx.T0_K)),
-            "T_tank_w [°C]": cu.K2C(T_solved_K),
-            "T_mix_w_out [°C]": T_mix_w_out_val,
-        })
+        r.update(
+            {
+                "heater_is_on": ctrl.is_on,
+                "Q_tank_loss [W]": (self.UA_tank * (T_solved_K - ctx.T0_K)),
+                "T_tank_w [°C]": cu.K2C(T_solved_K),
+                "T_mix_w_out [°C]": T_mix_w_out_val,
+            }
+        )
         if not self.tank_always_full or (self.tank_always_full and self.prevent_simultaneous_flow):
             r["tank_level [-]"] = level_solved
         return r
@@ -282,7 +285,7 @@ class ElectricBoiler:
             (1 - T0_K / T_tank_K)
             * C_tank_actual
             * (T_tank_K - T_tank_K_prev)
-            / getattr(self, "dt", 3600.0) # Assume 1h if not set
+            / getattr(self, "dt", 3600.0)  # Assume 1h if not set
         )
         df.loc[df.index[0], "Xst_tank [W]"] = 0.0
 
@@ -309,18 +312,10 @@ class ElectricBoiler:
 
         df["Q_tank_w_out [W]"] = G_mix_out * (cu.C2K(df["T_mix_w_out [°C]"]) - self.T_sup_w_K)
 
-        df["X_mix_w_out [W]"] = calc_exergy_flow(
-            G_tank_w_out, T_tank_K, T0_K
-        )
-        df["X_tank_w_in [W]"] = calc_exergy_flow(
-            G_tank_w_in, self.T_tank_w_in_K, T0_K
-        )
-        df["X_mix_sup_w_in [W]"] = calc_exergy_flow(
-            G_mix_sup_w, self.T_sup_w_K, T0_K
-        )
-        df["X_tank_w_out [W]"] = calc_exergy_flow(
-            G_mix_out, cu.C2K(df["T_mix_w_out [°C]"]), T0_K
-        )
+        df["X_mix_w_out [W]"] = calc_exergy_flow(G_tank_w_out, T_tank_K, T0_K)
+        df["X_tank_w_in [W]"] = calc_exergy_flow(G_tank_w_in, self.T_tank_w_in_K, T0_K)
+        df["X_mix_sup_w_in [W]"] = calc_exergy_flow(G_mix_sup_w, self.T_sup_w_K, T0_K)
+        df["X_tank_w_out [W]"] = calc_exergy_flow(G_mix_out, cu.C2K(df["T_mix_w_out [°C]"]), T0_K)
 
         # Totals
         X_tot = df["E_heater [W]"].fillna(0)
@@ -331,9 +326,7 @@ class ElectricBoiler:
 
         # Destruction
         df["Xc_mix [W]"] = (
-            df["X_tank_w_out [W]"].fillna(0)
-            + df["X_mix_sup_w_in [W]"].fillna(0)
-            - df["X_mix_w_out [W]"].fillna(0)
+            df["X_tank_w_out [W]"].fillna(0) + df["X_mix_sup_w_in [W]"].fillna(0) - df["X_mix_w_out [W]"].fillna(0)
         )
         X_in_tank = df["E_heater [W]"].fillna(0) + df["X_tank_w_in [W]"].fillna(0)
         if "X_uv [W]" in df.columns:
@@ -446,8 +439,10 @@ class ElectricBoiler:
             )
 
             if res_fn is not None:
+
                 def fn(x):
                     return [res_fn(x[0]), x[1] - tank_level]
+
                 sol, *_ = fsolve(fn, [ctx.T_tank_w_K, ctx.tank_level])
                 ier = 1
             else:

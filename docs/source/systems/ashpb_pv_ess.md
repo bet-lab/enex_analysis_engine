@@ -1,0 +1,76 @@
+# ASHPB with PV and ESS Integration
+> Module: `enex_analysis.ashpb_pv_ess`
+
+## Overview
+The `ASHPB_PV_ESS` scenario class inherits from the standalone `AirSourceHeatPumpBoiler` and integrates the `PhotovoltaicSystem` and `EnergyStorageSystem` subsystems to simulate a grid-connected, renewable-powered thermal system.
+
+## Energy Routing Logic
+The class orchestrates the interaction between the heat pump load, PV generation, and the battery via the `_run_subsystems` and `_augment_results` override hooks:
+
+1. **Calculate Load and Generation**:
+   - The heat pump calculates its total electrical power demand (`E_tot = E_cmp + E_ou_fan + E_iu_fan + ...`).
+   - The PV physics engine calculates the instantaneous generation (`E_pv_out`) from solar irradiance.
+
+2. **Power Balance and ESS Dispatch**:
+   - **Surplus Power (PV > Load)**: The excess power is sent to the ESS to charge it. If the ESS reaches `SOC_max` or the charge request exceeds the internal chemistry bounds, the remaining power is exported to the grid (`E_grid_export`).
+   - **Deficit Power (PV < Load)**: The shortfall is requested from the ESS. If the ESS hits `SOC_min` or the discharge bounds are exceeded, the remaining deficit is imported from the grid (`E_grid_import`).
+
+3. **Data Logging**:
+   - Appends all subsystem state variables (`SOC_ess`, `E_grid_import`, `E_grid_export`, PV temperatures, and Exergy flows) to the final results DataFrame.
+
+## Usage
+Refer to the `example_guide_for_cursor.md` in this directory to generate an interactive `.ipynb` simulation scenario.
+
+
+## Usage Guide & Examples
+
+# Jupyter Notebook Implementation Guide (For Cursor)
+
+This document provides instructions and specifications for generating the `example.ipynb` notebook for this model. Since the actual notebook generation is deferred to Cursor, please follow these guidelines when constructing the `.ipynb` file.
+
+## 1. Objective
+Create an interactive Jupyter Notebook (`example.ipynb`) that demonstrates how to initialize, run, and visualize the simulation for this specific system/model using the `enex_analysis_engine`.
+
+## 2. Notebook Structure Requirements
+
+The `.ipynb` file should contain the following sequential sections (as Markdown and Code cells):
+
+### 2.1. Introduction
+- **Markdown Cell**: Add a title and a brief description of the model being simulated. 
+- Mention the key components and inputs required.
+
+### 2.2. Setup & Imports
+- **Code Cell**: Import necessary modules from `src.enex_analysis`.
+  - `DynamicContext` from `enex_analysis.dynamic_context`
+  - The model class (e.g., `<ModelName>`)
+  - Any utility or visualization modules (e.g., `enex_analysis.visualization` or `matplotlib.pyplot`)
+  - Boundary conditions (if needed, e.g., `weather.py`, `dhw.py`)
+
+### 2.3. Context Initialization
+- **Code Cell**: Initialize the `DynamicContext`.
+  - Set the simulation `time_step` (e.g., 60 seconds).
+  - Load boundary conditions (Weather, DHW profiles).
+
+### 2.4. Model Instantiation & Parameter Configuration
+- **Markdown Cell**: Briefly explain the chosen parameters.
+- **Code Cell**: Instantiate the model. Set typical or default parameters based on the corresponding `theory.md` document.
+
+### 2.5. Simulation Loop
+- **Code Cell**: Write a loop to run the simulation over a defined duration (e.g., 1 day or 1 week).
+  - Example logic:
+    ```python
+    results = []
+    for _ in range(simulation_steps):
+        # Update context
+        # Run model step
+        # Store results
+    ```
+- Convert the stored results into a `pandas.DataFrame` for easy plotting.
+
+### 2.6. Results & Visualization
+- **Markdown Cell**: Explain what the plots will show (e.g., Temperatures over time, Power consumption, COP).
+- **Code Cell**: Use `dartwork-mpl` (or standard `matplotlib`) to generate clear, high-quality plots of the simulation results. Ensure axes are labeled correctly with units.
+
+## 3. Cursor Implementation Command
+To generate the notebook, you can provide Cursor with this command:
+*"Cursor, please read this `example_guide_for_cursor.md` file and the adjacent `theory.md` file. Use them to generate a complete, working `example.ipynb` in this directory based on the guidelines provided."*

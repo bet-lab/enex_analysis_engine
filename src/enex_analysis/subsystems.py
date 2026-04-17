@@ -210,7 +210,7 @@ class SolarThermalCollector:
 
         T_out_K = ksi * T_stc_w_in_K + (1 - ksi) * T0_K + (1 - ksi) * Q_sol_stc / A_U
         T_stc_K = T0_K + (Q_sol_stc - G_stc * (T_out_K - T_stc_w_in_K)) / A_U
-        
+
         return T_out_K, T_stc_K, ksi
 
     # ----------------------------------------------------------
@@ -279,9 +279,7 @@ class SolarThermalCollector:
             I_DN_stc,
             I_dH_stc,
         )
-        S_sol_stc = (
-            k_D * I_DN_stc**0.9 + k_d * I_dH_stc**0.9
-        ) * self.A_stc_pipe
+        S_sol_stc = (k_D * I_DN_stc**0.9 + k_d * I_dH_stc**0.9) * self.A_stc_pipe
         X_sol_stc = Q_sol_stc - S_sol_stc * T0_K
 
         G_stc = c_w * rho_w * dV_stc
@@ -379,7 +377,9 @@ class PhotovoltaicSystem:
     h_o: float = 15.0
 
     # Efficiencies
-    eta_pv: float = 0.20
+    eta_pv: float = 0.15
+    beta_pv: float = 0.0045
+    T_ref_pv_K: float = 298.15
     eta_ctrl: float = 0.95
     T_ctrl_K: float = 308.15
 
@@ -403,7 +403,7 @@ class PhotovoltaicSystem:
         Returns
         -------
         dict
-            Keys: ``I_sol_pv``, ``T_pv_K``, ``E_pv_out``, ``E_ctrl_out``,
+            Keys: ``I_sol_pv``, ``T_pv_K``, ``eta_pv_actual``, ``E_pv_out``, ``E_ctrl_out``,
             ``Q_l_pv``, ``Q_l_ctrl``, ``X_sol``, ``X_pv_out``,
             ``X_ctrl_out``, ``X_c_pv``, ``X_c_ctrl``,
             ``X_l_pv``, ``X_l_ctrl``.
@@ -412,11 +412,16 @@ class PhotovoltaicSystem:
         I_sol = I_DN + I_dH
 
         # ── PV Cell ──────────────────────────────────────────────
-        T_pv_K = T0 + (I_sol * (self.alp_pv - self.eta_pv)) / (2.0 * self.h_o)
-        E_pv_out = self.A_pv * self.eta_pv * I_sol
+        T_pv_K_approx = T0 + (I_sol * (self.alp_pv - self.eta_pv)) / (2.0 * self.h_o)
+        
+        eta_pv_actual = self.eta_pv * (1.0 - self.beta_pv * (T_pv_K_approx - self.T_ref_pv_K))
+        eta_pv_actual = max(0.0, min(self.alp_pv, eta_pv_actual))
+
+        T_pv_K = T0 + (I_sol * (self.alp_pv - eta_pv_actual)) / (2.0 * self.h_o)
+        E_pv_out = self.A_pv * eta_pv_actual * I_sol
         Q_l_pv = 2.0 * self.A_pv * self.h_o * (T_pv_K - T0)
 
-        s_sol = k_D * (I_DN ** 0.9) + k_d * (I_dH ** 0.9)
+        s_sol = k_D * (I_DN**0.9) + k_d * (I_dH**0.9)
         S_sol = self.A_pv * self.alp_pv * s_sol
         S_l_pv = (1.0 / T_pv_K) * Q_l_pv if T_pv_K > 0 else 0.0
         S_g_pv = S_l_pv - S_sol  # S_pv_out = 0 (electricity)
@@ -439,6 +444,7 @@ class PhotovoltaicSystem:
         return {
             "I_sol_pv": I_sol,
             "T_pv_K": T_pv_K,
+            "eta_pv": eta_pv_actual,
             "E_pv_out": E_pv_out,
             "E_ctrl_out": E_ctrl_out,
             "Q_l_pv": Q_l_pv,
@@ -555,8 +561,6 @@ class EnergyStorageSystem:
             "SOC_ess": self.SOC_ess,
             **self._exergy(0.0, E_dis, T0_K),
         }
-
-
 
 
 # ------------------------------------------------------------------

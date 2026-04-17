@@ -45,9 +45,7 @@ def calc_uv_lamp_power(
         return 0.0
 
     time_in_period = current_time_s % period_sec
-    interval = (period_sec - num_switching * exposure_sec) / (
-        num_switching + 1
-    )
+    interval = (period_sec - num_switching * exposure_sec) / (num_switching + 1)
     for i in range(num_switching):
         start_time = interval * (i + 1) + i * exposure_sec
         if start_time <= time_in_period < start_time + exposure_sec:
@@ -103,12 +101,9 @@ def get_uv_params_from_turbidity(turbidity_ntu: float) -> dict:
             ratio = (turbidity_ntu - t1) / (t2 - t1)
             return {
                 "uv_absorbance": row1[2] + ratio * (row2[2] - row1[2]),
-                "uv_transmittance_percent": row1[1]
-                + ratio * (row2[1] - row1[1]),
-                "reference_intensity_mw_cm2": row1[3]
-                + ratio * (row2[3] - row1[3]),
-                "reference_exposure_time_sec": row1[4]
-                + ratio * (row2[4] - row1[4]),
+                "uv_transmittance_percent": row1[1] + ratio * (row2[1] - row1[1]),
+                "reference_intensity_mw_cm2": row1[3] + ratio * (row2[3] - row1[3]),
+                "reference_exposure_time_sec": row1[4] + ratio * (row2[4] - row1[4]),
             }
 
     # Exact match fallback
@@ -156,9 +151,7 @@ def calc_uv_exposure_time(
     p_l_mw_cm = (uvc_output_W * cu.W2mW) / lamp_arc_length_cm
 
     # Intensity at tank wall [mW/cm²]
-    intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(
-        -absorption_coeff * radius_cm
-    )
+    intensity_mw_cm2 = (p_l_mw_cm / (2 * math.pi * radius_cm)) * math.exp(-absorption_coeff * radius_cm)
 
     required_time_sec = target_dose_mj_cm2 / intensity_mw_cm2
     return required_time_sec / 60

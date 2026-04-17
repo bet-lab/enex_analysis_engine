@@ -74,15 +74,11 @@ class GroundSourceHeatPump_RefCycle:
         self.dt_hours = 1
         self.dt_sec = self.dt_hours * 3600.0
 
-        borehole = gt.boreholes.Borehole(
-            H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0
-        )
+        borehole = gt.boreholes.Borehole(H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0)
         n_steps = int(self.sim_hours / self.dt_hours)
         time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g)
-        self.g_func_list = gt.gfunction.gFunction(
-            [borehole], alpha, time=time_array
-        ).gFunc
+        self.g_func_list = gt.gfunction.gFunction([borehole], alpha, time=time_array).gFunc
 
     def system_update(self):
         dV_f_m3s = self.dV_f * cu.s2m * cu.L2m3
@@ -198,7 +194,7 @@ class GroundSourceHeatPump_RefCycle:
                     h1_  = PropsSI("H", "T", T1_, "P", p1_, self.ref)
                     s1_  = PropsSI("S", "T", T1_, "P", p1_, self.ref)
                     h2s_ = PropsSI("H", "P", p2, "S", s1_, self.ref)
-                    h2_  = h1_ + (h2s_ - h1_) / self.eta_is
+                    h2_ = h1_ + (h2s_ - h1_) / self.eta_is
                     dh_c = h2_ - h3
                     if dh_c < 1.0: return 1e6
                     m_r_  = abs(self.Q_r_iu) / dh_c
@@ -218,15 +214,15 @@ class GroundSourceHeatPump_RefCycle:
             s1   = PropsSI("S", "T", T1_K, "P", p1, self.ref)
 
             h2s = PropsSI("H", "P", p2, "S", s1, self.ref)
-            h2  = h1 + (h2s - h1) / self.eta_is
+            h2 = h1 + (h2s - h1) / self.eta_is
             T2_K = PropsSI("T", "P", p2, "H", h2, self.ref)
-            s2   = PropsSI("S", "P", p2, "H", h2, self.ref)
+            s2 = PropsSI("S", "P", p2, "H", h2, self.ref)
 
             p3 = p2
             p4 = p1
-            h4   = h3
+            h4 = h3
             T4_K = PropsSI("T", "P", p4, "H", h4, self.ref)
-            s4   = PropsSI("S", "P", p4, "H", h4, self.ref)
+            s4 = PropsSI("S", "P", p4, "H", h4, self.ref)
 
             dh_eff = h2 - h3
             if dh_eff < 1.0: raise ValueError("dh_eff small")
@@ -487,12 +483,12 @@ class GroundSourceHeatPump_RefCycle:
                 "con": {"X_c_rwhx": X_c_rwhx},
             },
             "ground heat exchanger": {
-                "in":  {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
+                "in": {"E_pmp": self.E_pmp, "X_f_in": X_f_in, "X_b": X_b},
                 "out": {"X_f_out": X_f_out},
                 "con": {"X_c_ghx": X_c_ghx},
             },
             "ground": {
-                "in":  {"X_in_g": X_in_g},
+                "in": {"X_in_g": X_in_g},
                 "out": {"X_out_g": X_out_g},
                 "con": {"X_c_g": X_c_g},
             },

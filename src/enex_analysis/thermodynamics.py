@@ -180,11 +180,7 @@ def calc_refrigerant_exergy(
     h0: pd.Series = T0_K.map(h0_map)
     s0: pd.Series = T0_K.map(s0_map)
 
-    m_dot: pd.Series = (
-        df["m_dot_ref [kg/s]"]
-        if "m_dot_ref [kg/s]" in df.columns
-        else pd.Series(np.nan, index=df.index)
-    )
+    m_dot: pd.Series = df["m_dot_ref [kg/s]"] if "m_dot_ref [kg/s]" in df.columns else pd.Series(np.nan, index=df.index)
 
     for name, h_col, s_col in _STATES:
         if h_col not in df.columns or s_col not in df.columns:

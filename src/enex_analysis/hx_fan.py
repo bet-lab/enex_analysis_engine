@@ -32,12 +32,12 @@ def calc_UA_from_dV_fan(
     -------
     float
         Scaled UA value [W/K].
-        
+
     Notes
     -----
-    Instead of the Dittus-Boelter tube-side exponent (0.8), this uses 
-    a simplified lumped exponent of 0.71. This derivation assumes a 1-row 
-    plain fin-and-tube configuration (N=1) where the Colburn j-factor 
+    Instead of the Dittus-Boelter tube-side exponent (0.8), this uses
+    a simplified lumped exponent of 0.71. This derivation assumes a 1-row
+    plain fin-and-tube configuration (N=1) where the Colburn j-factor
     is proportional to Re^-0.29, leading to h ∝ V^0.71.
     Reference: Wang et al. (2000), DOI: 10.1016/S0017-9310(99)00333-6
     """
@@ -77,9 +77,7 @@ def calc_fan_power_from_dV_fan(
     fan_design_power = fan_params.get("fan_design_power")
 
     if fan_design_flow_rate is None or fan_design_power is None:
-        raise ValueError(
-            "fan_design_flow_rate and fan_design_power must be provided in fan_params"
-        )
+        raise ValueError("fan_design_flow_rate and fan_design_power must be provided in fan_params")
 
     if dV_fan < 0:
         raise ValueError("fan flow rate must be greater than 0")
@@ -95,4 +93,3 @@ def calc_fan_power_from_dV_fan(
     PLR = max(0.0, PLR)
 
     return fan_design_power * PLR
-

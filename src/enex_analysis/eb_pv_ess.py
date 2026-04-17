@@ -9,6 +9,7 @@ from . import calc_util as cu
 from .electric_boiler import ElectricBoiler
 from .subsystems import EnergyStorageSystem, PhotovoltaicSystem
 
+
 class EB_PV_ESS(ElectricBoiler):
     def __init__(
         self,
@@ -40,7 +41,7 @@ class EB_PV_ESS(ElectricBoiler):
 
     def _augment_results(self, base_result: dict, ctx, ctrl, sub_states: dict, T_solved_K: float) -> dict:
         eb_res = super()._augment_results(base_result, ctx, ctrl, sub_states, T_solved_K)
-        
+
         e_heater = float(eb_res.get("E_heater [W]", 0.0))
         E_eb_load = 0.0 if np.isnan(e_heater) else e_heater
 

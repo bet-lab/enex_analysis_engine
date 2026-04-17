@@ -138,11 +138,7 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
             - ``E_subsystem`` (pump electricity [W])
             - ``Q_contribution`` (0.0)
         """
-        dV_feed: float = (
-            ctrl.dV_tank_w_in_ctrl
-            if ctrl.dV_tank_w_in_ctrl is not None
-            else ctx.dV_mix_w_out
-        )
+        dV_feed: float = ctrl.dV_tank_w_in_ctrl if ctrl.dV_tank_w_in_ctrl is not None else ctx.dV_mix_w_out
 
         stc_active: bool = False
         stc_result: dict = {}
@@ -152,7 +148,7 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
             probe = self._stc.calc_performance(
                 I_DN_stc=ctx.I_DN,
                 I_dH_stc=ctx.I_dH,
-                T_stc_w_in_K=T_tank_w_in_K,    # inlet = mains temperature
+                T_stc_w_in_K=T_tank_w_in_K,  # inlet = mains temperature
                 T0_K=ctx.T0_K,
                 dV_stc=dV_feed,
                 is_active=True,
@@ -177,16 +173,14 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
                 I_dH_stc=ctx.I_dH,
                 T_stc_w_in_K=T_tank_w_in_K,
                 T0_K=ctx.T0_K,
-                dV_stc=max(dV_feed, 1e-6),   # non-zero dV for physics validity
+                dV_stc=max(dV_feed, 1e-6),  # non-zero dV for physics validity
                 is_active=False,
             )
 
         E_pump: float = self._stc.E_stc_pump if stc_active else 0.0
 
         # KEY: override mains temp when STC is active
-        T_override: float | None = (
-            stc_result.get("T_stc_pump_w_out_K") if stc_active else None
-        )
+        T_override: float | None = stc_result.get("T_stc_pump_w_out_K") if stc_active else None
 
         return {
             "stc": {
@@ -237,9 +231,7 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
         E_pump: float = state["E_subsystem"]
 
         # For mains_preheat: T_stc_w_out = pump outlet (mains supply T)
-        T_stc_w_out_K: float = state["stc_result"].get(
-            "T_stc_pump_w_out_K", np.nan
-        )
+        T_stc_w_out_K: float = state["stc_result"].get("T_stc_pump_w_out_K", np.nan)
 
         r.update(
             {
@@ -254,16 +246,8 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
                 "Q_stc_pump_w_out [W]": stc_result.get("Q_stc_pump_w_out", 0.0),
                 "Q_stc_w_in [W]": stc_result.get("Q_stc_w_in", 0.0),
                 "Q_l_stc [W]": stc_result.get("Q_l_stc", np.nan),
-                "dV_stc [m3/s]": (
-                    ctrl.dV_tank_w_in_ctrl
-                    if ctrl.dV_tank_w_in_ctrl is not None
-                    else ctx.dV_mix_w_out
-                ),
-                "T_stc_w_out [°C]": (
-                    cu.K2C(T_stc_w_out_K)
-                    if not np.isnan(T_stc_w_out_K)
-                    else np.nan
-                ),
+                "dV_stc [m3/s]": (ctrl.dV_tank_w_in_ctrl if ctrl.dV_tank_w_in_ctrl is not None else ctx.dV_mix_w_out),
+                "T_stc_w_out [°C]": (cu.K2C(T_stc_w_out_K) if not np.isnan(T_stc_w_out_K) else np.nan),
                 "T_stc_w_in [°C]": cu.K2C(T_solved_K),
                 "T_stc [°C]": cu.K2C(stc_result.get("T_stc_K", np.nan)),
                 "E_stc_pump [W]": E_pump,
@@ -304,10 +288,7 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
         df = super()._postprocess(df)
 
         # 2. Guard: STC columns must be present
-        if (
-            "T_stc_w_in [°C]" not in df.columns
-            or "T_stc_w_out [°C]" not in df.columns
-        ):
+        if "T_stc_w_in [°C]" not in df.columns or "T_stc_w_out [°C]" not in df.columns:
             return df
 
         T0_K = cu.C2K(df["T0 [°C]"])
@@ -323,18 +304,14 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
         # 3. Water exergy flows
         df["X_stc_w_in [W]"] = calc_exergy_flow(G_stc, T_stc_w_in_K, T0_K)
         df["X_stc_w_out [W]"] = calc_exergy_flow(G_stc, T_stc_w_out_K, T0_K)
-        df["X_stc_pump_w_out [W]"] = calc_exergy_flow(
-            G_stc, T_stc_pump_w_out_K, T0_K
-        )
+        df["X_stc_pump_w_out [W]"] = calc_exergy_flow(G_stc, T_stc_pump_w_out_K, T0_K)
 
         # 4. Pump electricity = exergy
         E_pump = df["E_stc_pump [W]"].fillna(0)
         df["X_stc_pump [W]"] = E_pump
 
         # 5. Heat loss exergy
-        df["X_l_stc [W]"] = df["Q_l_stc [W]"].fillna(0) * (
-            1 - T0_K / T_stc_K.replace(0, np.nan)
-        )
+        df["X_l_stc [W]"] = df["Q_l_stc [W]"].fillna(0) * (1 - T0_K / T_stc_K.replace(0, np.nan))
 
         # 6. STC exergy destruction
         is_stc_active = df["stc_active [-]"].fillna(False).astype(bool) if "stc_active [-]" in df.columns else False

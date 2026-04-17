@@ -76,9 +76,7 @@ def _add_loop_advection_terms(a, b, c, d, in_idx, out_idx, G_loop, T_loop_in):
     """
     # Invalid case: ignore
     if G_loop <= 0 or in_idx == out_idx:
-        print(
-            "Warning: negative loop flow rate or identical in/out loop nodes."
-        )
+        print("Warning: negative loop flow rate or identical in/out loop nodes.")
         return
 
     # Inlet node (common)

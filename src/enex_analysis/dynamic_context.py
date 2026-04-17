@@ -256,10 +256,7 @@ def check_hp_schedule_active(
     -------
     bool
     """
-    return any(
-        start_hour <= hour < end_hour
-        for start_hour, end_hour in hp_on_schedule
-    )
+    return any(start_hour <= hour < end_hour for start_hour, end_hour in hp_on_schedule)
 
 
 def determine_heat_source_on_off(
@@ -354,9 +351,7 @@ def determine_tank_refill_flow(
         ``None`` means always-full sentinel (no PSF).
     """
     lv: float = tank_level
-    if not tank_always_full or (
-        tank_always_full and prevent_simultaneous_flow
-    ):
+    if not tank_always_full or (tank_always_full and prevent_simultaneous_flow):
         lv = max(
             0.0,
             tank_level - (dV_tank_w_out * dt) / V_tank_full,
@@ -452,17 +447,9 @@ def tank_mass_energy_residual(
         max(0.0, (T_mix_w_out_K - T_sup_w_K) / den),
     )
     dV_tank_w_out: float = alp * ctx.dV_mix_w_out
-    dV_tank_w_in: float = (
-        dV_tank_w_out
-        if ctrl.dV_tank_w_in_ctrl is None
-        else ctrl.dV_tank_w_in_ctrl
-    )
+    dV_tank_w_in: float = dV_tank_w_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
 
-    r_mass: float = (
-        level_next
-        - ctx.tank_level
-        - (dV_tank_w_in - dV_tank_w_out) * dt / V_tank_full
-    )
+    r_mass: float = level_next - ctx.tank_level - (dV_tank_w_in - dV_tank_w_out) * dt / V_tank_full
 
     C_curr: float = C_tank * max(0.001, ctx.tank_level)
     C_next: float = C_tank * max(0.001, level_next)
@@ -479,9 +466,7 @@ def tank_mass_energy_residual(
             T_in_eff = override
             break
 
-    Q_flow_net: float = (
-        c_w * rho_w * (dV_tank_w_in * T_in_eff - dV_tank_w_out * T_next)
-    )
+    Q_flow_net: float = c_w * rho_w * (dV_tank_w_in * T_in_eff - dV_tank_w_out * T_next)
 
     # Subsystem energy contributions
     # (e.g. STC tank-circuit heat gain, pump heat)
@@ -492,13 +477,9 @@ def tank_mass_energy_residual(
         Q_sub_total += ss.get("Q_contribution", 0.0)
         E_sub_total += ss.get("E_subsystem", 0.0)
 
-    Q_total: float = (
-        ctrl.Q_heat_source + E_sub_total + Q_sub_total + Q_flow_net
-    )
-    r_energy: float = (
-        C_next * T_next - C_curr * ctx.T_tank_w_K - dt * (Q_total - Q_loss)
-    )
-    
+    Q_total: float = ctrl.Q_heat_source + E_sub_total + Q_sub_total + Q_flow_net
+    r_energy: float = C_next * T_next - C_curr * ctx.T_tank_w_K - dt * (Q_total - Q_loss)
+
     # Scale to prevent fsolve Jacobian singularity (r_energy is O(1e5) while r_mass is O(1))
     r_energy_scaled = r_energy / C_tank
 

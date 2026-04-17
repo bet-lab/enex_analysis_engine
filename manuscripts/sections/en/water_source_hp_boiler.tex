@@ -1,0 +1,39 @@
+% ═══════════════════════════════════════════════════════════════════
+% §8  Water Source Heat Pump Boiler (Dynamic Model)
+% Source: water_source_heat_pump_boiler.py
+% ═══════════════════════════════════════════════════════════════════
+\section{Water Source Heat Pump Boiler}
+\label{sec:wshpb}
+
+This section describes the dynamic Water Source Heat Pump Boiler (WSHPB) model implemented in \texttt{water\_source\_heat\_pump\_boiler.py}. The model shares a similar structure with the ground source system (Section~\ref{sec:gshpb}), but incorporates the Moving Finite Line Source (MFLS) model to account for the effects of groundwater advection.
+
+\subsection{MFLS-based Water Source Modeling}
+
+Conventional Finite Line Source (FLS) models only consider heat transfer by conduction, which can overestimate long-term subsurface temperature changes in water source environments with active groundwater flow. To dynamically reflect the advection effect of groundwater flow, this package introduces the MFLS model proposed by Molina-Giraldo et al. (2011)~\cite{molina2011moving}.
+
+In the MFLS model, the $g$-function around the heat source is influenced by the effective heat transport velocity of the groundwater, $v_T$, defined as:
+\begin{equation}\label{eq:mfls-vt}
+  v_T = v_{gw}\frac{\rho_w c_w}{\rho_s c_s}
+\end{equation}
+where $v_{gw}$ is the Darcy velocity of the groundwater, and $\rho_w c_w$ and $\rho_s c_s$ are the volumetric heat capacities of water and the effective subsurface medium, respectively.
+
+This groundwater advection term is reflected as an exponential decay in the spatial cumulative temperature response~\cite{molina2011moving}. For a single heat source at a specific time $t$, the dimensional temperature response $\Delta T_{\text{MFLS}}$ can be expressed through the following integral:
+\begin{equation}\label{eq:mfls-integral}
+  \Delta T_{\text{MFLS}}(x, y, t) = \frac{q_L}{4 \pi k_s} \int_{1/\sqrt{4 \alpha_s t}}^{\infty} \chi_{\text{MFLS}}(s, r, H, x', v_T, \alpha_s) \, ds
+\end{equation}
+where $q_L$ represents the heat injection rate per unit length of the borehole, $k_s$ is the ground thermal conductivity, and $\alpha_s$ is the ground thermal diffusivity. The variable of integration is $s=1/\sqrt{4 \alpha_s \tau}$, and $r = \sqrt{x^2+y^2}$ is the radial distance. The integral modifier $\chi_{\text{MFLS}}$ combines the standard FLS solution $\chi_{\text{FLS}}$ with the advection effect, incorporating an exponential decay with respect to the projected distance $x' = x \cos(\theta_{gw}) + y \sin(\theta_{gw})$ based on the groundwater flow direction $\theta_{gw}$:
+\begin{equation}\label{eq:chi-mfls}
+  \chi_{\text{MFLS}} = \chi_{\text{FLS}}(s, r, H) \exp\left( \frac{v_T x'}{2 \alpha_s} - \frac{v_T^2}{16 \alpha_s^2 s^2}\right)
+\end{equation}
+Within the engine, this fundamental solution serves as the basis for spatial superposition across the defined field geometry. Iterating the thermal interference between multiple heat sources accurately yields the effective average ground thermal resistance $R_{g,\text{MFLS}}(t)$ of the entire system. Consequently, it acts as a dynamic boundary condition that prevents severe performance degradation from long-term subsurface heat accumulation, allowing the array to reach a steady-state regime significantly faster.
+
+\subsection{Water Source Evaporator Heat Extraction}
+
+The heat extraction rate from the water source network maintains an isomorphic structure to the geothermal equation, but the evaluation of $R_g(t)$ utilizes the MFLS-based $g$-function:
+\begin{equation}\label{eq:wshp-Qground}
+  Q_\text{source} = \frac{T_g - T_\text{source,in}}{R_b + R_{g,\text{MFLS}}(t)}
+\end{equation}
+\begin{equation}\label{eq:wshpb-Rg-mfls}
+  R_{g,\text{MFLS}}(t) = \frac{g_\text{MFLS}(t)}{2\pi k_s H}
+\end{equation}
+Other aspects such as the brine loop balance, exergy calculations, and the vapor-compression dynamic model are evaluated identically to the standard ground source architecture.

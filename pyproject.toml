@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "coolprop>=7.2.0",
     "dartwork-mpl",
+    "fastapi>=0.135.3",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.0",
     "notebook>=7.3.2",
@@ -18,10 +19,12 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pandas>=2.2.3",
     "pvlib>=0.15.0",
+    "pydantic>=2.12.5",
     "pygfunction>=2.3.1",
     "salib>=1.5.1",
     "scipy>=1.15.2",
     "tqdm>=4.67.1",
+    "uvicorn>=0.44.0",
     "xlrd>=2.0.2",
 ]
 

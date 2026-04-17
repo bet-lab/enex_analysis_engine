@@ -32,9 +32,7 @@ def make_dhw_schedule_from_Annex_42_profile(
     """
     total_minutes = len(flow_rate_array) * df_time_step
     if total_minutes != 1440:
-        raise ValueError(
-            f"Input profile must cover exactly 24 hours (got {total_minutes} min)"
-        )
+        raise ValueError(f"Input profile must cover exactly 24 hours (got {total_minutes} min)")
 
     peak_flow = np.max(flow_rate_array)
     schedule = []
@@ -97,9 +95,7 @@ def calc_total_water_use_from_schedule(
 
     def _time_to_min(t_str: str) -> float:
         parts = t_str.split(":")
-        return float(parts[0]) * 60 + (
-            float(parts[1]) if len(parts) > 1 else 0
-        )
+        return float(parts[0]) * 60 + (float(parts[1]) if len(parts) > 1 else 0)
 
     total_m3 = 0.0
     for start, end, frac in schedule:
@@ -166,16 +162,12 @@ def calc_cold_water_temp(df: pd.DataFrame, target_date_str: str) -> float:
     ratio = 0.4 + 0.01 * (T_out_avg - 4.4)
     lag = 35 - 1.0 * (T_out_avg - 4.4)
 
-    T_mains = T_out_avg + ratio * T_maxdiff * np.sin(
-        2 * np.pi * (day_of_year / 365 - lag / 365 - 0.25)
-    )
+    T_mains = T_out_avg + ratio * T_maxdiff * np.sin(2 * np.pi * (day_of_year / 365 - lag / 365 - 0.25))
 
     return float(T_mains)
 
 
-def build_dhw_usage_ratio(
-    entries: list[tuple[str, str, float]], t_array: np.ndarray
-) -> np.ndarray:
+def build_dhw_usage_ratio(entries: list[tuple[str, str, float]], t_array: np.ndarray) -> np.ndarray:
     """Build schedule ratio array from schedule entries for each timestep.
 
     Parameters
