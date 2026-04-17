@@ -153,8 +153,7 @@ from .ground_source_heat_pump_boiler import (
 )
 from .ground_source_heat_pump import GroundSourceHeatPump
 from .ground_source_heat_pump_ref_cycle import (
-    GroundSourceHeatPump_cooling_RefCycle,
-    GroundSourceHeatPump_heating_RefCycle,
+    GroundSourceHeatPump_RefCycle,
 )
 from .heat_transfer import (
     TRIDIAG_MATRIX_ALGORITHM,
