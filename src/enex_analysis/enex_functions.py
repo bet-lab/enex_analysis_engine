@@ -421,7 +421,7 @@ def calc_HX_perf_for_target_heat(
         Dictionary containing:
             - dV_fan : Required air-side flow rate [m3/s]
             - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
-            - T_ou_a_out_K : Outlet air temperature [K]
+            - T_ou_a_mid_K : air temperature between heat exchanger and fan [K]
             - LMTD : Log-mean temperature difference at operating point [K]
             - Q_LMTD : Heat transfer rate at operating point [W]
             - epsilon : Effectiveness at operating point [–]
