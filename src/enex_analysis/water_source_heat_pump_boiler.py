@@ -36,7 +36,6 @@ from .enex_functions import (
     calc_ref_state,
     calc_simple_tank_UA,
 )
-from .g_function import precompute_gfunction_mls
 
 if TYPE_CHECKING:
     from .subsystems import SolarThermalCollector
@@ -78,15 +77,13 @@ class WaterSourceHeatPumpBoiler:
         k_ins: float = 0.03,
         h_o: float = 15,
         # 4. Borehole heat exchanger (Field + Params)
-        v_gw_m_s: float = 1e-6,
-        theta_gw_rad: float = 0.0,
         N_1: int = 1,
         N_2: int = 1,
         B: float = 6.0,
         D_b: float = 0,
         H_b: float = 200,
         r_b: float = 0.08,
-        R_b: float = 0.108,
+        R_b: float = 0.0,
         dV_b_f_lpm: float = 24,
         k_s: float = 2.0,
         c_s: float = 800,
@@ -185,26 +182,7 @@ class WaterSourceHeatPumpBoiler:
 
         self.Q_cond_LOAD_OFF_TOL: float = 50.0  # W
 
-        # Precompute g-function
         self.dt_s: float = dt_s
-        self._gfunc_interp = precompute_gfunction_mls(
-            N_1=N_1,
-            N_2=N_2,
-            B=B,
-            H_b=H_b,
-            D_b=D_b,
-            r_b=r_b,
-            alpha_s=self.alp_s,
-            k_s=k_s,
-            rho_s=rho_s,
-            c_s=c_s,
-            v_gw=v_gw_m_s,
-            theta_gw=theta_gw_rad,
-            rho_w=rho_w,
-            c_w=c_w,  # Added flow parameters
-            t_max_s=t_max_s,
-            dt_s=dt_s,
-        )
 
         # Simulation state tracking (dynamically updated in analyze_dynamic)
         self.time: np.ndarray = np.array([])
@@ -324,8 +302,8 @@ class WaterSourceHeatPumpBoiler:
 
         T_tank_w_K = cu.C2K(T_tank_w)
 
-        # The source temperature entering HP from the river
-        T_source_K = float(getattr(self, "T_bhe_f_in_K", cu.C2K(15.0)))
+        # The source temperature leaving BHE and entering HP
+        T_source_K = float(getattr(self, "T_bhe_f_out_K", cu.C2K(15.0)))
 
         m_dot_cp_b = self.dV_b_f_m3s * rho_w * c_w
         T_evap_in_K = T_source_K + (self.E_pmp / m_dot_cp_b)
@@ -377,10 +355,9 @@ class WaterSourceHeatPumpBoiler:
         Q_bhe = Q_ref_evap - self.E_pmp
         Q_bhe_unit = Q_bhe / self.H_b
 
-        # Open Loop: River water enters HP at T_bhe_f_in_K (T_source_K)
-        # Discharged water leaves at T_bhe_f_out_K (cooled down by Q_ref_evap)
-        T_bhe_f_in_K = T_source_K
-        T_bhe_f_out_K = T_evap_in_K - Q_ref_evap / m_dot_cp_b
+        # Fluid enters BHE at T_bhe_f_in_K
+        T_bhe_f_in_K = T_evap_in_K - Q_ref_evap / m_dot_cp_b
+        T_bhe_f_out_K = T_source_K
 
         T_bhe_f = (cu.K2C(T_bhe_f_in_K) + cu.K2C(T_bhe_f_out_K)) / 2
         T_bhe = T_bhe_f + Q_bhe_unit * self.R_b
@@ -618,7 +595,7 @@ class WaterSourceHeatPumpBoiler:
 
         return r
 
-    # _compute_bhe_superposition removed due to river water moving line source assumptions
+    # _compute_bhe_superposition removed: river water operates as infinite capacity boundary.
 
     # =============================================================
     # Orchestration
@@ -693,10 +670,9 @@ class WaterSourceHeatPumpBoiler:
 
             # Set boundary condition for water source
             T_source_w_n = T_source_w_arr[n]
+            if np.isnan(T_source_w_n):
+                T_source_w_n = self.T_bhe  # fallback to last known valid
             T_source_w_K_n = cu.C2K(T_source_w_n)
-            self.T_bhe_f_in_K = T_source_w_K_n
-            self.T_bhe_f_in = T_source_w_n
-            self.T_bhe = T_source_w_n
 
             # Subsystem activation
             activation_flags = self._get_activation_flags(hour_of_day)
@@ -804,16 +780,26 @@ class WaterSourceHeatPumpBoiler:
             Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
             self.Q_bhe = Q_bhe_unit * self.H_b
             m_cp_b = c_w * rho_w * self.dV_b_f_m3s
-            dT_bhe_f = float((self.Q_bhe / m_cp_b)) if m_cp_b > 0 else 0.0
+
+            # Infinite heat capacity boundary (River/Lake), no ground interference
+            self.T_bhe = T_source_w_n
+            T_bhe_K = cu.C2K(self.T_bhe)
             
-            # Since T_bhe_f_in_K is given as T_source_w_K_n, T_bhe_f_out_K is evaluated based on Q_bhe
-            # Heat is extracted from the water source, so the discharged water temperature decreases.
-            T_bhe_f_out_K = self.T_bhe_f_in_K - dT_bhe_f
+            # Thermal resistance of pipe
+            T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
+            self.T_bhe_f = cu.K2C(T_bhe_f_K)
+
+            # Assume symmetrical temperature approach around average BHE fluid temperature
+            dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2) if m_cp_b > 0 else 0.0
+            self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
+            self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
+            T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
             self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
             self.T_bhe_f_out_K = T_bhe_f_out_K
 
             # Apply BHE state to hp_result
             hp_result["T_bhe [°C]"] = self.T_bhe
+            hp_result["T_bhe_f [°C]"] = self.T_bhe_f
             hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
             hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
 
