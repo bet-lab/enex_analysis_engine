@@ -13,13 +13,8 @@ def get_kma_api_key() -> str:
     if key:
         return key
     
-    # 2. 파일 확인
-    key_path = Path("KALIS_report/API/API_key_기상청02_지상(종관ASOS)일자료.txt")
-    if key_path.exists():
-        with open(key_path, "r", encoding="utf-8") as f:
-            return f.read().strip()
-            
-    raise ValueError("KMA_API_KEY environment variable or key file not found.")
+    # 2. 하드코딩된 API 키
+    return "ec462489f5aadd290d119226177c6a4706e94cf25cd5a79a2848c49d2cf9fd66"
 
 def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> pd.DataFrame:
     """
@@ -38,7 +33,7 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
         return df
 
     api_key = get_kma_api_key()
-    url = "http://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
+    url = "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
     
     all_items = []
     page_no = 1
@@ -107,7 +102,7 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
     
     # Process Temperature
     df["ta"] = pd.to_numeric(df["ta"], errors="coerce")
-    df["T0_K"] = cu.C2K(df["ta"].fillna(method='ffill').fillna(method='bfill'))
+    df["T0_K"] = cu.C2K(df["ta"].ffill().bfill())
     
     # Process Global Horizontal Irradiance (icsr in KMA ASOS is MJ/m2)
     # Some older datasets might use 'ss' for sunshine duration but icsr is standard

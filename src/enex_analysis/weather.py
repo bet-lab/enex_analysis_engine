@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import pvlib
 
+import warnings
+
 from . import calc_util as cu
 
 
@@ -24,6 +26,11 @@ def load_kma_solar_csv(csv_path: str, encoding: str = "euc-kr") -> pd.DataFrame:
     pd.DataFrame
         DataFrame with datetime index and 'ghi' column [W/m2].
     """
+    warnings.warn(
+        "load_kma_solar_csv is deprecated. Use enex_analysis.external_api.kma_loader instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     df = pd.read_csv(csv_path, encoding=encoding)
 
     # 1. 일시 파싱
@@ -62,6 +69,11 @@ def load_kma_T0_sol_hourly_csv(csv_path: str, encoding: str = "euc-kr") -> pd.Da
     pd.DataFrame
         DataFrame with datetime index, 'T0_K', and 'ghi' columns.
     """
+    warnings.warn(
+        "load_kma_T0_sol_hourly_csv is deprecated. Use enex_analysis.external_api.kma_loader instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     df = pd.read_csv(csv_path, encoding=encoding)
 
     # 컬럼 찾기 함수
