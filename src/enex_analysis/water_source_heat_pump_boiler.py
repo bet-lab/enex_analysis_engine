@@ -324,8 +324,8 @@ class WaterSourceHeatPumpBoiler:
 
         T_tank_w_K = cu.C2K(T_tank_w)
 
-        # The source temperature leaving BHE and entering HP
-        T_source_K = float(getattr(self, "T_bhe_f_out_K", cu.C2K(15.0)))
+        # The source temperature entering HP from the river
+        T_source_K = float(getattr(self, "T_bhe_f_in_K", cu.C2K(15.0)))
 
         m_dot_cp_b = self.dV_b_f_m3s * rho_w * c_w
         T_evap_in_K = T_source_K + (self.E_pmp / m_dot_cp_b)
@@ -377,9 +377,10 @@ class WaterSourceHeatPumpBoiler:
         Q_bhe = Q_ref_evap - self.E_pmp
         Q_bhe_unit = Q_bhe / self.H_b
 
-        # Fluid enters BHE at T_bhe_f_in_K
-        T_bhe_f_in_K = T_evap_in_K - Q_ref_evap / m_dot_cp_b
-        T_bhe_f_out_K = T_source_K
+        # Open Loop: River water enters HP at T_bhe_f_in_K (T_source_K)
+        # Discharged water leaves at T_bhe_f_out_K (cooled down by Q_ref_evap)
+        T_bhe_f_in_K = T_source_K
+        T_bhe_f_out_K = T_evap_in_K - Q_ref_evap / m_dot_cp_b
 
         T_bhe_f = (cu.K2C(T_bhe_f_in_K) + cu.K2C(T_bhe_f_out_K)) / 2
         T_bhe = T_bhe_f + Q_bhe_unit * self.R_b
@@ -806,8 +807,10 @@ class WaterSourceHeatPumpBoiler:
             dT_bhe_f = float((self.Q_bhe / m_cp_b)) if m_cp_b > 0 else 0.0
             
             # Since T_bhe_f_in_K is given as T_source_w_K_n, T_bhe_f_out_K is evaluated based on Q_bhe
-            T_bhe_f_out_K = self.T_bhe_f_in_K + dT_bhe_f
+            # Heat is extracted from the water source, so the discharged water temperature decreases.
+            T_bhe_f_out_K = self.T_bhe_f_in_K - dT_bhe_f
             self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+            self.T_bhe_f_out_K = T_bhe_f_out_K
 
             # Apply BHE state to hp_result
             hp_result["T_bhe [°C]"] = self.T_bhe
