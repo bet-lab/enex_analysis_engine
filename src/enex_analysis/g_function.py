@@ -396,3 +396,84 @@ def air_prandtl_number(T_K):
     # Pr = mu * cp / k
     # For air: Pr ≈ 0.71 (weak temperature dependence)
     return 0.71
+
+
+def calc_borehole_thermal_resistance(
+    k_s: float,
+    k_g: float,
+    k_p: float,
+    r_b: float,
+    r_out: float,
+    r_in: float,
+    D_s: float,
+    m_flow_pipe: float,
+    rho_f: float,
+    mu_f: float,
+    cp_f: float,
+    k_f: float,
+) -> float:
+    """Calculate the local borehole thermal resistance [mK/W] using pygfunction multipole method.
+
+    Assumes a Single U-tube configuration.
+
+    Parameters
+    ----------
+    k_s : float
+        Ground thermal conductivity [W/mK]
+    k_g : float
+        Grout thermal conductivity [W/mK]
+    k_p : float
+        Pipe thermal conductivity [W/mK]
+    r_b : float
+        Borehole radius [m]
+    r_out : float
+        Pipe outer radius [m]
+    r_in : float
+        Pipe inner radius [m]
+    D_s : float
+        Shank spacing (half distance between pipes) [m]
+    m_flow_pipe : float
+        Mass flow rate per pipe [kg/s]
+    rho_f : float
+        Fluid density [kg/m³]
+    mu_f : float
+        Fluid dynamic viscosity [Pa·s]
+    cp_f : float
+        Fluid specific heat capacity [J/kgK]
+    k_f : float
+        Fluid thermal conductivity [W/mK]
+
+    Returns
+    -------
+    float
+        Local borehole thermal resistance [mK/W].
+    """
+    if not HAS_PYGFUNCTION:
+        raise ImportError("pygfunction is not installed.")
+
+    # Offset positions for a Single U-tube
+    pos = [(-D_s, 0.0), (D_s, 0.0)]
+
+    # 1. Convective resistance
+    if m_flow_pipe > 0:
+        h_f = gt.pipes.convective_heat_transfer_coefficient_circular_pipe(
+            m_flow_pipe, r_in, mu_f, rho_f, k_f, cp_f, epsilon=1e-6
+        )
+        R_conv = 1.0 / (2.0 * np.pi * r_in * h_f)
+    else:
+        # Prevent division by zero if there's no flow
+        R_conv = 10.0
+
+    # 2. Conduction resistance of the pipe wall
+    R_cond = gt.pipes.conduction_thermal_resistance_circular_pipe(r_in, r_out, k_p)
+
+    # Total internal fluid-to-outer-pipe resistance
+    R_fp = R_conv + R_cond
+
+    # Build dummy borehole object for structural representation
+    borehole = gt.boreholes.Borehole(H=100.0, D=0.0, r_b=r_b, x=0.0, y=0.0)
+
+    # Create Single U-tube 
+    pipe = gt.pipes.SingleUTube(pos, r_in, r_out, borehole, k_s, k_g, R_fp)
+
+    return pipe.local_borehole_thermal_resistance()
