@@ -699,6 +699,16 @@ class WaterSourceHeatPumpBoiler:
             # Set boundary condition for water source
             T_source_w_n = T_source_w_arr[n]
             if np.isnan(T_source_w_n):
+                # Fallback to last known BHE wall temperature when source schedule has NaN.
+                # WARNING: if all schedule values are NaN, this silently uses self.Ts (init value).
+                if n == 0 or n % 43200 == 0:  # Log at start and every ~30 days
+                    import warnings
+                    warnings.warn(
+                        f"[WSHPB] T_source_w_schedule[{n}] is NaN — falling back to "
+                        f"T_bhe={self.T_bhe:.2f}°C. Check NIER data quality.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
                 T_source_w_n = self.T_bhe  # fallback to last known valid
             T_source_w_K_n = cu.C2K(T_source_w_n)
 

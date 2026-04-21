@@ -29,7 +29,16 @@ def get_nier_water_temp(start_date: str, end_date: str, station_code: str = "S04
         df = pd.read_csv(cache_path)
         df["datetime"] = pd.to_datetime(df["datetime"])
         df.set_index("datetime", inplace=True)
-        return df
+        # Guard: reject cache if Ts_C is entirely NaN (corrupt cache)
+        ts_all_nan: bool = "Ts_C" in df.columns and bool(df["Ts_C"].isnull().all())
+        if ts_all_nan:
+            print(
+                f"[WARN] Cache '{cache_path}' has all-NaN Ts_C — "
+                "invalidating cache and re-fetching from API."
+            )
+            cache_path.unlink()
+        else:
+            return df
 
     api_key = get_nier_api_key()
     url = "https://apis.data.go.kr/1480523/WaterQualityService/getRealTimeWaterQualityList"
@@ -107,7 +116,7 @@ def get_nier_water_temp(start_date: str, end_date: str, station_code: str = "S04
         df["datetime"] = pd.to_datetime(df[time_cols[0]])
 
     df.set_index("datetime", inplace=True)
-    df.index = df.index.tz_localize("Asia/Seoul")
+    df.index = df.index.tz_localize("Asia/Seoul")  # type: ignore[union-attr]
 
     # Water Temp Column matching logic
     temp_col = None
@@ -124,8 +133,23 @@ def get_nier_water_temp(start_date: str, end_date: str, station_code: str = "S04
     # Interpolate for missing measurements
     df["Ts_C"] = df["Ts_C"].ffill().bfill()
     df["Ts_K"] = cu.C2K(df["Ts_C"])
-    
+
     final_df = df[["Ts_C", "Ts_K"]]
+
+    # Guard: do not cache if Ts_C is entirely NaN (API returned no valid measurements)
+    ts_c_series: pd.Series = pd.Series(df["Ts_C"])
+    nan_ratio: float = float(ts_c_series.isnull().mean())
+    if nan_ratio == 1.0:
+        raise ValueError(
+            f"NIER API returned data for station '{station_code}' but all Ts_C values "
+            f"are NaN — check API column mapping (found column: '{temp_col}'). "
+            "Cache not saved."
+        )
+    if nan_ratio > 0.5:
+        print(
+            f"[WARN] NIER Ts_C has {nan_ratio:.1%} NaN for station '{station_code}'. "
+            "Consider checking data quality."
+        )
     final_df.to_csv(cache_path)
-    
-    return final_df
+
+    return final_df  # type: ignore[return-value]
