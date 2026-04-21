@@ -477,3 +477,104 @@ def calc_borehole_thermal_resistance(
     pipe = gt.pipes.SingleUTube(pos, r_in, r_out, borehole, k_s, k_g, R_fp)
 
     return pipe.local_borehole_thermal_resistance()
+
+
+def calc_submerged_coil_thermal_resistance(
+    r_out: float,
+    r_in: float,
+    D_s: float,
+    k_p: float,
+    m_flow_pipe: float,
+    rho_f: float,
+    mu_f: float,
+    cp_f: float,
+    k_f: float,
+    v_river: float = 0.5,
+) -> float:
+    """Calculate the local thermal resistance [mK/W] of a submerged surface water heat exchanger coil.
+
+    Uses the Churchill-Bernstein correlation for cross-flow forced convection over a cylinder
+    to estimate the external (river water) convective heat transfer coefficient.
+    It tricks pygfunction's SingleUTube model into capturing this pure pipe resistance
+    without any ground thermal mass by assigning exceptionally high thermal conductivities
+    to the grout and ground.
+
+    Parameters
+    ----------
+    r_out : float
+        Pipe outer radius [m]
+    r_in : float
+        Pipe inner radius [m]
+    D_s : float
+        Shank spacing (half distance between pipes) [m]
+    k_p : float
+        Pipe thermal conductivity [W/mK]
+    m_flow_pipe : float
+        Mass flow rate per pipe [kg/s]
+    rho_f : float
+        Internal fluid density [kg/m³]
+    mu_f : float
+        Internal fluid dynamic viscosity [Pa·s]
+    cp_f : float
+        Internal fluid specific heat capacity [J/kgK]
+    k_f : float
+        Internal fluid thermal conductivity [W/mK]
+    v_river : float
+        Velocity of the river water cross-flow [m/s]
+
+    Returns
+    -------
+    float
+        Thermal resistance of the submerged coil [mK/W].
+    """
+    if not HAS_PYGFUNCTION:
+        raise ImportError("pygfunction is not installed.")
+
+    # 1. Convective resistance inside the pipe
+    if m_flow_pipe > 0:
+        h_in = gt.pipes.convective_heat_transfer_coefficient_circular_pipe(
+            m_flow_pipe, r_in, mu_f, rho_f, k_f, cp_f, epsilon=1e-6
+        )
+        R_conv_in = 1.0 / (2.0 * np.pi * r_in * h_in)
+    else:
+        R_conv_in = 10.0
+
+    # 2. Conduction resistance of the pipe wall
+    R_cond = gt.pipes.conduction_thermal_resistance_circular_pipe(r_in, r_out, k_p)
+
+    # 3. External (river water) convective resistance
+    # Reference river properties at ~15 degC
+    rho_w = 999.1
+    mu_w = 0.001138
+    cp_w = 4187.0
+    k_w = 0.589
+
+    D_out = 2.0 * r_out
+    Re_D = (rho_w * v_river * D_out) / mu_w
+    Pr = (cp_w * mu_w) / k_w
+
+    if Re_D * Pr >= 0.2:
+        Nu = 0.3 + (0.62 * Re_D**0.5 * Pr**(1/3)) / (1 + (0.4/Pr)**(2/3))**0.25 * (1 + (Re_D/282000.0)**(5/8))**0.8
+    else:
+        Nu = 10.0
+
+    h_ext = (Nu * k_w) / D_out
+    R_conv_ext = 1.0 / (2.0 * np.pi * r_out * h_ext)
+
+    # 4. Total fluid-to-river equivalent resistance
+    R_fp_total = R_conv_in + R_cond + R_conv_ext
+
+    # 5. The Pygfunction Trick
+    # We assign a massive conductivity to nullify the grout/ground resistance
+    k_g_trick = 1e6
+    k_s_trick = 1e6
+
+    # Set up a dummy borehole around the submerged U-tube structure
+    r_b_trick = D_s + r_out + 0.01
+    borehole = gt.boreholes.Borehole(H=100.0, D=0.0, r_b=r_b_trick, x=0.0, y=0.0)
+
+    # The two legs of the U-tube
+    pos = [(-D_s, 0.0), (D_s, 0.0)]
+    pipe = gt.pipes.SingleUTube(pos, r_in, r_out, borehole, k_s_trick, k_g_trick, R_fp_total)
+
+    return pipe.local_borehole_thermal_resistance()

@@ -94,9 +94,10 @@ class WaterSourceHeatPumpBoiler:
         c_s: float = 800,
         rho_s: float = 2000,
         E_pmp: float = 200,
+        v_river: float = 0.5,
         # 6. Superheat / subcool
-        dT_superheat: float = 3.0,
-        dT_subcool: float = 3.0,
+        dT_superheat: float = 5.0,
+        dT_subcool: float = 5.0,
         # 7. Tank fluid limits
         tank_always_full: bool = True,
         prevent_simultaneous_flow: bool = False,
@@ -172,27 +173,26 @@ class WaterSourceHeatPumpBoiler:
         self.alp_s = k_s / (c_s * rho_s)
         self.E_pmp = E_pmp
         self.dV_b_f_m3s = dV_b_f_lpm * cu.L2m3 / cu.m2s
+        self.v_river = v_river
 
         if R_b is None:
-            from .g_function import calc_borehole_thermal_resistance
+            from .g_function import calc_submerged_coil_thermal_resistance
             
             n_boreholes = max(1, self.N_1 * self.N_2)
             m_flow_total = self.dV_b_f_m3s * rho_w
             m_flow_pipe = m_flow_total / n_boreholes
 
-            self.R_b = calc_borehole_thermal_resistance(
-                k_s=self.k_s,
-                k_g=k_g,
-                k_p=k_p,
-                r_b=self.r_b,
+            self.R_b = calc_submerged_coil_thermal_resistance(
                 r_out=r_out,
                 r_in=r_in,
                 D_s=D_s,
+                k_p=k_p,
                 m_flow_pipe=m_flow_pipe,
                 rho_f=rho_w,
                 mu_f=mu_w,
                 cp_f=c_w,
                 k_f=k_w,
+                v_river=self.v_river,
             )
         else:
             self.R_b = R_b
@@ -826,6 +826,7 @@ class WaterSourceHeatPumpBoiler:
             self.T_bhe_f_out_K = T_bhe_f_out_K
 
             # Apply BHE state to hp_result
+            hp_result["Ts [°C]"] = T_source_w_n  # Override: record timestep-specific river water temp (not the static init value self.Ts)
             hp_result["T_bhe [°C]"] = self.T_bhe
             hp_result["T_bhe_f [°C]"] = self.T_bhe_f
             hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
