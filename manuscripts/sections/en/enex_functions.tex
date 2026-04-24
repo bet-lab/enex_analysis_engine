@@ -22,12 +22,7 @@ Similar polynomial form:
   \text{COP}_\text{heat} = b_0 + b_1 T_0 + b_2 T_0^2
 \end{equation}
 
-\paragraph{Ground source heat pump.}
-Modified Carnot COP with ground temperature $T_g$ and condenser temperature $T_\text{cond}$~\cite{sarbu2019}:
-\begin{equation}\label{eq:cop-gshp}
-  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_g}
-\end{equation}
-where $\eta_\text{Carnot}$ is an empirical Carnot efficiency factor (typically 0.4--0.6).
+
 
 \subsection{Friction factor (Darcy--Weisbach)}
 
@@ -43,6 +38,14 @@ Churchill \& Chu correlation~\cite{churchill1975}:
 \begin{equation}\label{eq:churchill-chu}
   \overline{\text{Nu}}_L = \left[0.825 + \frac{0.387\,\text{Ra}_L^{1/6}}{\left(1 + (0.492/\text{Pr})^{9/16}\right)^{8/27}}\right]^2
 \end{equation}
+
+\subsection{Forced convection (cylinder in crossflow)}
+
+Forced convective heat transfer on the outer surface of submerged coil pipes (e.g., in a river) is modeled using the Churchill--Bernstein correlation~\cite{churchill1977}:
+\begin{equation}\label{eq:churchill-bernstein}
+  \overline{\text{Nu}}_D = 0.3 + \frac{0.62\,\text{Re}_D^{1/2}\,\text{Pr}^{1/3}}{\left[ 1 + (0.4/\text{Pr})^{2/3} \right]^{1/4}} \left[ 1 + \left( \frac{\text{Re}_D}{282000} \right)^{5/8} \right]^{4/5}
+\end{equation}
+This correlation covers a wide range of Prandtl and Reynolds numbers, establishing the bulk cross-flow thermal resistance.
 
 \subsection{Finite line source (FLS) g-function}
 

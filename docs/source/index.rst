@@ -140,7 +140,6 @@ The library provides models for a wide range of energy conversion systems:
 
    getting-started/index
    guides/index
-   examples/index
    api/index
    theory/index
 

@@ -12,7 +12,7 @@
   \item 지중 온도는 깊이 방향으로 균일하고 일정하다 (비교란 지중 온도 $T_g$).
   \item 보어홀 열교환기는 유한선원(FLS) g-함수로 모델링한다.
   \item 지중 루프 유체 물성은 평균 브라인 온도에서 평가한다.
-  \item 응축기 모델은 ASHPB와 동일하다 (침수 코일, $UA\cdot\Delta T$).
+  \item 시스템은 CoolProp 기반 물리적 물성치를 통해 명시적 증기압축 사이클로 해석되며, 응축기 모델은 열역학적 밸런스를 고려한 침수 코일 방식으로 연산된다.
 \end{enumerate}
 
 \subsection{지중 결합 증발기}
@@ -27,13 +27,16 @@
 \end{equation}
 $k_s$는 지중 열전도도, $H$는 보어홀 깊이이다.
 
-\subsection{수정 COP 상관식}
+\subsection{명시적 증기압축 역학 모델 (Explicit Vapor-Compression Cycle)}
 
-COP는 지중 루프 브라인 온도를 이용한 Carnot 수정 공식에 기반한다:
-\begin{equation}\label{eq:gshp-COP}
-  \text{COP}_\text{GSHP} = \eta_\text{Carnot}\,\frac{T_\text{cond}}{T_\text{cond} - T_\text{brine}}
+단순 Carnot 기반의 경험적 상관식 적용을 탈피하여, 본 모듈은 CoolProp 라이브러리와 연계한 명시적 증기압축 사이클 모델을 해석한다. 증발기 측의 열전달 성능과 냉매의 증발 온도 하강분($\Delta T_{\text{evap}}$)을 동적으로 결정하기 위해 Brent-최적화 기법을 활용한다. 매 시간 단계에서 열역학적 엔탈피 밸런스를 풀이하여 냉매 질량 유량, 압축기 일량, 응축열량을 정밀 도출하며, 소모 전력 $E_{\text{comp}}$와 성능 계수 $\text{COP}_{\text{sys}}$는 다음과 같이 산출된다:
+\begin{equation}\label{eq:gshp-w-comp}
+  E_{\text{comp}} = \dot{m}_{\text{ref}} (h_{\text{comp,out}} - h_{\text{comp,in}})
 \end{equation}
-여기서 $\eta_\text{Carnot}$은 실제 사이클 손실을 반영하는 계수(통상 0.4--0.6)이다~\cite{sarbu2019}.
+\begin{equation}\label{eq:gshp-COP}
+  \text{COP}_\text{sys} = \frac{Q_\text{cond}}{E_{\text{comp}} + E_{\text{pump,brine}}}
+\end{equation}
+여기서 $\dot{m}_{\text{ref}}$는 냉매 질량 유량이고, $h_{\text{comp,out}}$는 내부 등엔트로피 효율($\eta_{\text{isen}}$)을 반영하여 결정된다. 이 역학적 해는 사용자 설정 하중과 동적 지중열원 온도를 양립하는 유일한 열역학적 작동점으로 수렴한다.
 
 \subsection{브라인 루프 에너지 수지}
 

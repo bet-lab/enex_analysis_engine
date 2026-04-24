@@ -22,7 +22,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from . import calc_util as cu
-from .constants import c_w, rho_w
+from .constants import c_w, rho_w, mu_w, k_w
 from .dynamic_context import (
     ControlState,
     StepContext,
@@ -36,7 +36,6 @@ from .enex_functions import (
     calc_ref_state,
     calc_simple_tank_UA,
 )
-from .g_function import precompute_gfunction_mls
 
 if TYPE_CHECKING:
     from .subsystems import SolarThermalCollector
@@ -78,23 +77,27 @@ class WaterSourceHeatPumpBoiler:
         k_ins: float = 0.03,
         h_o: float = 15,
         # 4. Borehole heat exchanger (Field + Params)
-        v_gw_m_s: float = 1e-6,
-        theta_gw_rad: float = 0.0,
         N_1: int = 1,
         N_2: int = 1,
         B: float = 6.0,
         D_b: float = 0,
         H_b: float = 200,
         r_b: float = 0.08,
-        R_b: float = 0.108,
+        R_b: float | None = None,
+        k_g: float = 1.5,
+        k_p: float = 0.4,
+        r_out: float = 0.016,
+        r_in: float = 0.013,
+        D_s: float = 0.025,
         dV_b_f_lpm: float = 24,
         k_s: float = 2.0,
         c_s: float = 800,
         rho_s: float = 2000,
         E_pmp: float = 200,
+        v_river: float = 0.5,
         # 6. Superheat / subcool
-        dT_superheat: float = 3.0,
-        dT_subcool: float = 3.0,
+        dT_superheat: float = 5.0,
+        dT_subcool: float = 5.0,
         # 7. Tank fluid limits
         tank_always_full: bool = True,
         prevent_simultaneous_flow: bool = False,
@@ -164,13 +167,35 @@ class WaterSourceHeatPumpBoiler:
         self.D_b = D_b
         self.H_b = H_b
         self.r_b = r_b
-        self.R_b = R_b
         self.k_s = k_s
         self.c_s = c_s
         self.rho_s = rho_s
         self.alp_s = k_s / (c_s * rho_s)
         self.E_pmp = E_pmp
         self.dV_b_f_m3s = dV_b_f_lpm * cu.L2m3 / cu.m2s
+        self.v_river = v_river
+
+        if R_b is None:
+            from .g_function import calc_submerged_coil_thermal_resistance
+            
+            n_boreholes = max(1, self.N_1 * self.N_2)
+            m_flow_total = self.dV_b_f_m3s * rho_w
+            m_flow_pipe = m_flow_total / n_boreholes
+
+            self.R_b = calc_submerged_coil_thermal_resistance(
+                r_out=r_out,
+                r_in=r_in,
+                D_s=D_s,
+                k_p=k_p,
+                m_flow_pipe=m_flow_pipe,
+                rho_f=rho_w,
+                mu_f=mu_w,
+                cp_f=c_w,
+                k_f=k_w,
+                v_river=self.v_river,
+            )
+        else:
+            self.R_b = R_b
 
         # Subsystems
         self.stc = stc
@@ -185,26 +210,7 @@ class WaterSourceHeatPumpBoiler:
 
         self.Q_cond_LOAD_OFF_TOL: float = 50.0  # W
 
-        # Precompute g-function
         self.dt_s: float = dt_s
-        self._gfunc_interp = precompute_gfunction_mls(
-            N_1=N_1,
-            N_2=N_2,
-            B=B,
-            H_b=H_b,
-            D_b=D_b,
-            r_b=r_b,
-            alpha_s=self.alp_s,
-            k_s=k_s,
-            rho_s=rho_s,
-            c_s=c_s,
-            v_gw=v_gw_m_s,
-            theta_gw=theta_gw_rad,
-            rho_w=rho_w,
-            c_w=c_w,  # Added flow parameters
-            t_max_s=t_max_s,
-            dt_s=dt_s,
-        )
 
         # Simulation state tracking (dynamically updated in analyze_dynamic)
         self.time: np.ndarray = np.array([])
@@ -617,53 +623,7 @@ class WaterSourceHeatPumpBoiler:
 
         return r
 
-    def _compute_bhe_superposition(
-        self,
-        n: int,
-        time_arr: np.ndarray,
-        Q_bhe_unit_pulse: np.ndarray,
-        Q_bhe_unit_old: float,
-        hp_result: dict,
-        hp_is_on: bool,
-    ) -> float:
-        Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
-
-        if abs(Q_bhe_unit - Q_bhe_unit_old) > 1e-6:
-            Q_bhe_unit_pulse[n] = Q_bhe_unit - Q_bhe_unit_old
-            Q_bhe_unit_old = Q_bhe_unit
-
-        pulses_idx = np.flatnonzero(Q_bhe_unit_pulse[: n + 1])
-        if len(pulses_idx) > 0:
-            dQ = Q_bhe_unit_pulse[pulses_idx]
-            tau = time_arr[n] - time_arr[pulses_idx]
-            tau = np.maximum(tau, 1e-6)
-
-            g_n_array = self._gfunc_interp(tau)
-            dT_bhe = float(np.dot(dQ, g_n_array))
-        else:
-            dT_bhe = 0.0
-
-        self.T_bhe = self.Ts - dT_bhe
-        T_bhe_K = cu.C2K(self.T_bhe)
-        T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
-        self.T_bhe_f = cu.K2C(T_bhe_f_K)
-        self.Q_bhe = Q_bhe_unit * self.H_b
-        m_cp_b = c_w * rho_w * self.dV_b_f_m3s
-
-        # Assume symmetrical temperature approach around average BHE fluid temperature
-        dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2) if m_cp_b > 0 else 0.0
-        self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
-        self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
-        T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
-        self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
-
-        # Apply BHE state to hp_result (so it is visible correctly)
-        hp_result["T_bhe [°C]"] = self.T_bhe
-        hp_result["T_bhe_f [°C]"] = self.T_bhe_f
-        hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
-        hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
-
-        return Q_bhe_unit_old
+    # _compute_bhe_superposition removed: river water operates as infinite capacity boundary.
 
     # =============================================================
     # Orchestration
@@ -679,6 +639,7 @@ class WaterSourceHeatPumpBoiler:
         I_DN_schedule=None,
         I_dH_schedule=None,
         T_sup_w_schedule=None,
+        T_source_w_schedule=None,
         tank_level_init: float = 1.0,
         result_save_csv_path=None,
     ) -> pd.DataFrame:
@@ -698,6 +659,11 @@ class WaterSourceHeatPumpBoiler:
         else:
             T_sup_w_arr = np.full(tN, cu.K2C(self.T_tank_w_in_K))
 
+        if T_source_w_schedule is not None:
+            T_source_w_arr = np.array(T_source_w_schedule, dtype=float)
+        else:
+            T_source_w_arr = np.full(tN, self.Ts)
+
         results_data = []
 
         self.time = time
@@ -708,15 +674,11 @@ class WaterSourceHeatPumpBoiler:
         is_on_prev = False
         is_refilling = False
 
-        self.T_bhe_f = self.Ts
         self.T_bhe = self.Ts
         self.T_bhe_f_in = self.Ts
         self.T_bhe_f_in_K = self.Ts_K
         self.T_bhe_f_out = self.Ts
         self.Q_bhe = 0.0
-
-        Q_bhe_unit_pulse = np.zeros(tN)
-        Q_bhe_unit_old = 0.0
 
         # DHW schedule handling: direct m³/s flow array
         dhw_flow_m3s = np.asarray(dhw_usage_schedule, dtype=float)
@@ -733,6 +695,22 @@ class WaterSourceHeatPumpBoiler:
             T0_K = cu.C2K(T0_schedule[n])
             T_sup_w_n = T_sup_w_arr[n]
             T_sup_w_K_n = cu.C2K(T_sup_w_n)
+
+            # Set boundary condition for water source
+            T_source_w_n = T_source_w_arr[n]
+            if np.isnan(T_source_w_n):
+                # Fallback to last known BHE wall temperature when source schedule has NaN.
+                # WARNING: if all schedule values are NaN, this silently uses self.Ts (init value).
+                if n == 0 or n % 43200 == 0:  # Log at start and every ~30 days
+                    import warnings
+                    warnings.warn(
+                        f"[WSHPB] T_source_w_schedule[{n}] is NaN — falling back to "
+                        f"T_bhe={self.T_bhe:.2f}°C. Check NIER data quality.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                T_source_w_n = self.T_bhe  # fallback to last known valid
+            T_source_w_K_n = cu.C2K(T_source_w_n)
 
             # Subsystem activation
             activation_flags = self._get_activation_flags(hour_of_day)
@@ -836,15 +814,33 @@ class WaterSourceHeatPumpBoiler:
             tank_vol_change_final = (flow_state_final["dV_tank_w_in"] - flow_state_final["dV_tank_w_out"]) * dt_s
             level_next = min(1.0, max(0.0, ctx.tank_level + tank_vol_change_final / self.V_tank_full))
 
-            # --- Phase C: BHE Temporal Superposition ---
-            Q_bhe_unit_old = self._compute_bhe_superposition(
-                n=n,
-                time_arr=time,
-                Q_bhe_unit_pulse=Q_bhe_unit_pulse,
-                Q_bhe_unit_old=Q_bhe_unit_old,
-                hp_result=hp_result,
-                hp_is_on=hp_is_on,
-            )
+            # Heat extraction calculation for reporting
+            Q_bhe_unit = hp_result.get("Q_bhe [W]", 0.0) / self.H_b if hp_is_on else 0.0
+            self.Q_bhe = Q_bhe_unit * self.H_b
+            m_cp_b = c_w * rho_w * self.dV_b_f_m3s
+
+            # Infinite heat capacity boundary (River/Lake), no ground interference
+            self.T_bhe = T_source_w_n
+            T_bhe_K = cu.C2K(self.T_bhe)
+            
+            # Thermal resistance of pipe
+            T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
+            self.T_bhe_f = cu.K2C(T_bhe_f_K)
+
+            # Assume symmetrical temperature approach around average BHE fluid temperature
+            dT_bhe_f_half = float((self.Q_bhe / m_cp_b) / 2) if m_cp_b > 0 else 0.0
+            self.T_bhe_f_in_K = T_bhe_f_K - dT_bhe_f_half
+            self.T_bhe_f_in = cu.K2C(self.T_bhe_f_in_K)
+            T_bhe_f_out_K = T_bhe_f_K + dT_bhe_f_half
+            self.T_bhe_f_out = cu.K2C(T_bhe_f_out_K)
+            self.T_bhe_f_out_K = T_bhe_f_out_K
+
+            # Apply BHE state to hp_result
+            hp_result["Ts [°C]"] = T_source_w_n  # Override: record timestep-specific river water temp (not the static init value self.Ts)
+            hp_result["T_bhe [°C]"] = self.T_bhe
+            hp_result["T_bhe_f [°C]"] = self.T_bhe_f
+            hp_result["T_bhe_f_in [°C]"] = self.T_bhe_f_in
+            hp_result["T_bhe_f_out [°C]"] = self.T_bhe_f_out
 
             # Assemble step results
             step_record = self._assemble_core_results(ctx, ctrl, T_solved_K, level_next, hp_result, flow_state_final)

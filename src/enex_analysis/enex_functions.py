@@ -415,8 +415,14 @@ def calc_HX_perf_for_target_heat(
     Returns
     -------
     dict
-        ``{converged, dV_fan, UA, T_a_mid_C, Q_air, epsilon}``
-        is_active=False 시 nan 반환.
+        Dictionary containing:
+            - dV_fan : Required air-side flow rate [m3/s]
+            - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
+            - T_ou_a_mid_K : air temperature between heat exchanger and fan [K]
+            - LMTD : Log-mean temperature difference at operating point [K]
+            - Q_LMTD : Heat transfer rate at operating point [W]
+            - epsilon : Effectiveness at operating point [–]
+        Returns dict with all values as np.nan if is_active=False
 
     Notes
     -----

@@ -21,6 +21,7 @@ import numpy as np
 c_a = 1005  # Specific heat capacity of air [J/kgK]
 rho_a = 1.225  # Density of air [kg/m³]
 k_a = 0.0257  # Thermal conductivity of air [W/mK]
+Pr_a = 0.71  # Prandtl number of air [-] (at typical ambient temperature)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -32,6 +33,7 @@ rho_w = 1000  # Density of water [kg/m³]
 mu_w = 0.001  # Dynamic viscosity of water [Pa·s]
 k_w = 0.606  # Thermal conductivity of water [W/mK]
 beta = 2.07e-4  # Volumetric expansion coefficient of water [1/K] (at ~20 °C)
+Pr_w = 6.9  # Prandtl number of water [-] (at ~20 °C)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

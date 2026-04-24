@@ -9,3 +9,4 @@ Comprehensive guides for using the Energy-Exergy Analysis Engine.
    user-guide
    io-guide
    advanced-topics
+   nomenclature
