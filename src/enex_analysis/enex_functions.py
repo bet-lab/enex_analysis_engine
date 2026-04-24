@@ -382,7 +382,7 @@ def calc_HX_perf_for_target_heat(
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
 
-    This function determines the airflow that is needed to meet a specified heat transfer demand, accounting for dynamic changes in the overall heat transfer coefficient (UA) as a function of flow velocity using the Dittus-Boelter relationship (UA ∝ velocity^0.8).
+    This function determines the airflow that is needed to meet a specified heat transfer demand, accounting for dynamic changes in the overall heat transfer coefficient (UA) as a function of flow velocity based on the correlation for fin-and-tube heat exchangers by Wang et al. (2000) where UA ∝ velocity^0.71.
 
     Parameters
     ----------
