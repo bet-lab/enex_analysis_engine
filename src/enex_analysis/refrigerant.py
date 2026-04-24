@@ -14,30 +14,28 @@ def calc_ref_state(
     T_cond_K: float,  # 응축 온도 [K] (포화 온도로 해석)
     refrigerant: str,  # 냉매 이름
     eta_cmp_isen: float | Callable,  # 압축기 단열 효율 (Float 또는 함수)
-    mode: str = "heating",  # 작동 모드 ('heating' 또는 'cooling')
+    mode: str = "heating",  # 결과 dict의 "mode" 키에 기록될 운전 모드 문자열
     dT_superheat: float = 0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
     dT_subcool: float = 0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
     is_active: bool = True,  # 활성화 여부 (False일 때 nan 값 반환)
 ) -> dict[str, Any]:
     """
     냉매 사이클의 State 1-4 열역학 물성치를 계산하는 공통 함수.
-    (수정됨: 엑서지 계산 제거 및 단위 접미사 키 포맷팅)
 
-    이 함수는 히트펌프 사이클의 4개 주요 상태점을 계산합니다:
+    증기압축 사이클의 4개 주요 상태점을 계산합니다:
 
-    난방 모드 (mode='heating'):
-    - State 1*: 증발기 포화 증기 (x=1) - 포화 온도점
-    - State 1: 압축기 입구 (증발기 출구, 저압 과열 증기) = State 1* + dT_superheat
-    - State 2: 압축기 출구 (응축기 입구, 고압 과열 증기)
-    - State 3*: 응축기 포화 액체 (x=0) - 포화 온도점
-    - State 3: 응축기 출구 (팽창밸브 입구, 고압 과냉 액체) = State 3* - dT_subcool
-    - State 4: 팽창밸브 출구 (증발기 입구, 저압 액체+기체 혼합물)
+    - State 1 (cmp_in):  압축기 입구 (증발기 출구, 저압 과열 증기)
+    - State 2 (cmp_out): 압축기 출구 (응축기 입구, 고압 과열 증기)
+    - State 3 (exp_in):  팽창밸브 입구 (응축기 출구, 고압 과냉 액체)
+    - State 4 (exp_out): 팽창밸브 출구 (증발기 입구, 저압 2상 혼합물)
 
-    냉방 모드 (mode='cooling', 4-way 밸브로 인한 역순환):
-    - State 1: 압축기 출구 (응축기 입구, 고압 과열 증기)
-    - State 2: 압축기 입구 (증발기 출구, 저압 포화 증기)
-    - State 3: 팽창밸브 출구 (증발기 입구, 저압 액체+기체 혼합물)
-    - State 4: 응축기 출구 (팽창밸브 입구, 고압 포화 액체)
+    키 배정은 항상 물리적 압축기 입출구 기준이며, mode 값은
+    결과 dict의 ``"mode"`` 키에만 기록됩니다.
+
+    Note
+    ----
+    냉방/난방 모드에서 어느 HX가 증발기/응축기인지는 호출측
+    (``_calc_state``)에서 T_evap_K, T_cond_K를 결정하여 전달합니다.
     """
 
     # is_active=False일 때 nan 값으로 채워진 딕셔너리 반환
@@ -142,87 +140,45 @@ def calc_ref_state(
     T_ref_exp_out_K = CP.PropsSI("T", "P", P_evap, "H", h_ref_exp_out, refrigerant)
     s_ref_exp_out = CP.PropsSI("S", "P", P_evap, "H", h_ref_exp_out, refrigerant)
 
-    if mode == "cooling":
-        result = {
-            "P_ref_cmp_in [Pa]": P_ref_cmp_out,
-            "P_ref_cmp_out [Pa]": P_evap,
-            "P_ref_exp_in [Pa]": P_ref_exp_out,
-            "P_ref_exp_out [Pa]": P_cond,
-            "P_ref_evap_sat [Pa]": P_cond,
-            "P_ref_cond_sat_l [Pa]": P_evap,
-            "P_ref_cond_sat_v [Pa]": np.nan,  # Used mainly for heating mapped points appropriately if needed
-            "T_ref_cmp_in_K": T_ref_cmp_out_K,
-            "T_ref_cmp_out_K": T_ref_cmp_in_K,
-            "T_ref_exp_in_K": T_ref_exp_out_K,
-            "T_ref_exp_out_K": T_ref_exp_in_K,
-            "T_ref_evap_sat_K": T_ref_cmp_out_K,
-            "T_ref_cond_sat_l_K": T_ref_exp_in_K,
-            "T_ref_cond_sat_v_K": np.nan,
-            "T_ref_cmp_in [°C]": cu.K2C(T_ref_cmp_out_K),
-            "T_ref_cmp_out [°C]": cu.K2C(T_ref_cmp_in_K),
-            "T_ref_exp_in [°C]": cu.K2C(T_ref_exp_out_K),
-            "T_ref_exp_out [°C]": cu.K2C(T_ref_exp_in_K),
-            "T_ref_evap_sat [°C]": cu.K2C(T_ref_cmp_out_K),
-            "T_ref_cond_sat_l [°C]": cu.K2C(T_ref_exp_in_K),
-            "T_ref_cond_sat_v [°C]": np.nan,
-            "h_ref_cmp_in [J/kg]": h_ref_cmp_out,
-            "h_ref_cmp_out [J/kg]": h_ref_cmp_in,
-            "h_ref_cond_sat_v [J/kg]": np.nan,
-            "h_ref_exp_in [J/kg]": h_ref_exp_out,
-            "h_ref_exp_out [J/kg]": h_ref_exp_in,
-            "h_ref_evap_sat [J/kg]": h_ref_cond_sat_l,
-            "h_ref_cond_sat_l [J/kg]": h_ref_evap_sat,
-            "s_ref_cmp_in [J/(kg·K)]": s_ref_cmp_out,
-            "s_ref_cmp_out [J/(kg·K)]": s_ref_cmp_in,
-            "s_ref_cond_sat_v [J/(kg·K)]": np.nan,
-            "s_ref_exp_in [J/(kg·K)]": s_ref_exp_out,
-            "s_ref_exp_out [J/(kg·K)]": s_ref_exp_in,
-            "s_ref_evap_sat [J/(kg·K)]": s_ref_cond_sat_l,
-            "s_ref_cond_sat_l [J/(kg·K)]": s_ref_evap_sat,
-            "rho_ref_cmp_in [kg/m3]": rho_ref_cmp_in,
-            "mode": "cooling",
-        }
-    else:
-        # 난방 모드
-        result = {
-            "P_ref_cmp_in [Pa]": P_evap,
-            "P_ref_cmp_out [Pa]": P_cond,
-            "P_ref_exp_in [Pa]": P_cond,
-            "P_ref_exp_out [Pa]": P_evap,
-            "P_ref_evap_sat [Pa]": P_evap,
-            "P_ref_cond_sat_l [Pa]": P_cond,
-            "P_ref_cond_sat_v [Pa]": P_ref_cond_sat_v,
-            "T_ref_cmp_in_K": T_ref_cmp_in_K,
-            "T_ref_cmp_out_K": T_ref_cmp_out_K,
-            "T_ref_exp_in_K": T_ref_exp_in_K,
-            "T_ref_exp_out_K": T_ref_exp_out_K,
-            "T_ref_evap_sat_K": T_ref_evap_sat_K,
-            "T_ref_cond_sat_v_K": T_ref_cond_sat_v_K,
-            "T_ref_cond_sat_l_K": T_ref_cond_sat_l_K,
-            "T_ref_cmp_in [°C]": cu.K2C(T_ref_cmp_in_K),
-            "T_ref_cmp_out [°C]": cu.K2C(T_ref_cmp_out_K),
-            "T_ref_exp_in [°C]": cu.K2C(T_ref_exp_in_K),
-            "T_ref_exp_out [°C]": cu.K2C(T_ref_exp_out_K),
-            "T_ref_evap_sat [°C]": cu.K2C(T_ref_evap_sat_K),
-            "T_ref_cond_sat_l [°C]": cu.K2C(T_ref_cond_sat_l_K),
-            "T_ref_cond_sat_v [°C]": cu.K2C(T_ref_cond_sat_v_K),
-            "h_ref_cmp_in [J/kg]": h_ref_cmp_in,
-            "h_ref_cmp_out [J/kg]": h_ref_cmp_out,
-            "h_ref_cond_sat_v [J/kg]": h_ref_cond_sat_v,
-            "h_ref_exp_in [J/kg]": h_ref_exp_in,
-            "h_ref_exp_out [J/kg]": h_ref_exp_out,
-            "h_ref_evap_sat [J/kg]": h_ref_evap_sat,
-            "h_ref_cond_sat_l [J/kg]": h_ref_cond_sat_l,
-            "s_ref_cmp_in [J/(kg·K)]": s_ref_cmp_in,
-            "s_ref_cmp_out [J/(kg·K)]": s_ref_cmp_out,
-            "s_ref_cond_sat_v [J/(kg·K)]": s_ref_cond_sat_v,
-            "s_ref_exp_in [J/(kg·K)]": s_ref_exp_in,
-            "s_ref_exp_out [J/(kg·K)]": s_ref_exp_out,
-            "s_ref_evap_sat [J/(kg·K)]": s_ref_evap_sat,
-            "s_ref_cond_sat_l [J/(kg·K)]": s_ref_cond_sat_l,
-            "rho_ref_cmp_in [kg/m3]": rho_ref_cmp_in,
-            "mode": "heating",
-        }
+    result = {
+        "P_ref_cmp_in [Pa]": P_evap,
+        "P_ref_cmp_out [Pa]": P_cond,
+        "P_ref_exp_in [Pa]": P_cond,
+        "P_ref_exp_out [Pa]": P_evap,
+        "P_ref_evap_sat [Pa]": P_evap,
+        "P_ref_cond_sat_l [Pa]": P_cond,
+        "P_ref_cond_sat_v [Pa]": P_ref_cond_sat_v,
+        "T_ref_cmp_in_K": T_ref_cmp_in_K,
+        "T_ref_cmp_out_K": T_ref_cmp_out_K,
+        "T_ref_exp_in_K": T_ref_exp_in_K,
+        "T_ref_exp_out_K": T_ref_exp_out_K,
+        "T_ref_evap_sat_K": T_ref_evap_sat_K,
+        "T_ref_cond_sat_v_K": T_ref_cond_sat_v_K,
+        "T_ref_cond_sat_l_K": T_ref_cond_sat_l_K,
+        "T_ref_cmp_in [°C]": cu.K2C(T_ref_cmp_in_K),
+        "T_ref_cmp_out [°C]": cu.K2C(T_ref_cmp_out_K),
+        "T_ref_exp_in [°C]": cu.K2C(T_ref_exp_in_K),
+        "T_ref_exp_out [°C]": cu.K2C(T_ref_exp_out_K),
+        "T_ref_evap_sat [°C]": cu.K2C(T_ref_evap_sat_K),
+        "T_ref_cond_sat_l [°C]": cu.K2C(T_ref_cond_sat_l_K),
+        "T_ref_cond_sat_v [°C]": cu.K2C(T_ref_cond_sat_v_K),
+        "h_ref_cmp_in [J/kg]": h_ref_cmp_in,
+        "h_ref_cmp_out [J/kg]": h_ref_cmp_out,
+        "h_ref_cond_sat_v [J/kg]": h_ref_cond_sat_v,
+        "h_ref_exp_in [J/kg]": h_ref_exp_in,
+        "h_ref_exp_out [J/kg]": h_ref_exp_out,
+        "h_ref_evap_sat [J/kg]": h_ref_evap_sat,
+        "h_ref_cond_sat_l [J/kg]": h_ref_cond_sat_l,
+        "s_ref_cmp_in [J/(kg·K)]": s_ref_cmp_in,
+        "s_ref_cmp_out [J/(kg·K)]": s_ref_cmp_out,
+        "s_ref_cond_sat_v [J/(kg·K)]": s_ref_cond_sat_v,
+        "s_ref_exp_in [J/(kg·K)]": s_ref_exp_in,
+        "s_ref_exp_out [J/(kg·K)]": s_ref_exp_out,
+        "s_ref_evap_sat [J/(kg·K)]": s_ref_evap_sat,
+        "s_ref_cond_sat_l [J/(kg·K)]": s_ref_cond_sat_l,
+        "rho_ref_cmp_in [kg/m3]": rho_ref_cmp_in,
+        "mode": mode,
+    }
 
     return result
 
