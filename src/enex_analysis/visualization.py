@@ -1,3 +1,4 @@
+from functools import lru_cache
 """
 Visualization and summary output functions.
 """
@@ -182,15 +183,18 @@ def _draw_cycle_lines_and_annotations(
     color_on: str = "black",
     color_off: str = "oc.gray6",
     tol_atol: float = 0.1,
+    tol_y_atol: float | None = None,
 ) -> None:
     """Draw heat pump cycle lines, scatter markers, and aligned text annotations."""
     cycle_markerfacecolor = color_on if is_on else color_off
     cycle_markeredgecolor = color_on if is_on else color_off
 
+    _tol_y = tol_y_atol if tol_y_atol is not None else tol_atol
+
     def points_are_close(x1, y1, x2, y2, tol=tol_atol):
         if np.isnan(x1) or np.isnan(y1) or np.isnan(x2) or np.isnan(y2):
             return False
-        return abs(x1 - x2) < tol and abs(y1 - y2) < tol
+        return abs(x1 - x2) < tol and abs(y1 - y2) < _tol_y
 
     def draw_segment(k1, k2):
         if not (np.isnan(pts_x[k1]) or np.isnan(pts_x[k2]) or np.isnan(pts_y[k1]) or np.isnan(pts_y[k2])):
@@ -313,21 +317,35 @@ def _draw_cycle_lines_and_annotations(
             )
 
 
+
+@lru_cache(maxsize=8)
+def _get_saturation_curves(refrigerant: str):
+    T_min = CP.PropsSI("Tmin", refrigerant)
+    T_crit = CP.PropsSI("Tcrit", refrigerant)
+    temps_K = np.linspace(T_min + 1, T_crit, 2000)
+    temps = [cu.K2C(T) for T in temps_K]
+    h_liq = [CP.PropsSI("H", "T", T, "Q", 0, refrigerant) / 1000 for T in temps_K]
+    h_vap = [CP.PropsSI("H", "T", T, "Q", 1, refrigerant) / 1000 for T in temps_K]
+    p_sat = [CP.PropsSI("P", "T", T, "Q", 0, refrigerant) / 1000 for T in temps_K]
+    s_liq = [CP.PropsSI("S", "T", T, "Q", 0, refrigerant) / 1000 for T in temps_K]
+    s_vap = [CP.PropsSI("S", "T", T, "Q", 1, refrigerant) / 1000 for T in temps_K]
+    return temps, h_liq, h_vap, p_sat, s_liq, s_vap
+
+
 def plot_th_diagram(
     ax: plt.Axes,
     result: dict[str, float],
     refrigerant: str,
-    T_tank: float | None = None,
-    T0: float | None = None,
+    T_cond_bound: dict[str, float | str] | None = None,
+    T_evap_bound: dict[str, float | str] | None = None,
+    fontsize: float | None = None,
+    tick_pad: float | None = None,
 ) -> None:
     """Plot T-h diagram on given axis."""
     color1, color2, color3, color4, line_color = "oc.blue5", "oc.red5", "black", "oc.gray6", "oc.gray5"
     xmin, xmax, ymin, ymax = 0, 600, -40, 120
 
-    T_critical = cu.K2C(CP.PropsSI("Tcrit", refrigerant))
-    temps = np.linspace(cu.K2C(CP.PropsSI("Tmin", refrigerant)) + 1, T_critical, 3000)
-    h_liq = [CP.PropsSI("H", "T", cu.C2K(T), "Q", 0, refrigerant) / 1000 for T in temps]
-    h_vap = [CP.PropsSI("H", "T", cu.C2K(T), "Q", 1, refrigerant) / 1000 for T in temps]
+    temps, h_liq, h_vap, _, _, _ = _get_saturation_curves(refrigerant)
 
     h1_star = result.get("h_ref_evap_sat [J/kg]", result.get("h1_star [J/kg]", np.nan)) * cu.J2kJ
     h1 = result.get("h_ref_cmp_in [J/kg]", result.get("h1 [J/kg]", np.nan)) * cu.J2kJ
@@ -355,42 +373,55 @@ def plot_th_diagram(
     pts_x = {"1_star": h1_star, "1": h1, "2": h2, "2_star": h2_star, "3_star": h3_star, "3": h3, "4": h4}
     pts_y = {"1_star": T1_star, "1": T1, "2": T2, "2_star": T2_star, "3_star": T3_star, "3": T3, "4": T4}
     is_on = result.get("hp_is_on", result.get("is_on", False))
+    # T-h 다이어그램: x축=엔탈피[kJ/kg], y축=온도[°C]
+    # 두 축의 단위가 달라 tol_y_atol을 별도로 지정:
+    # - h 기준(tol_atol): 0.5 kJ/kg → 포화 구간 좁은 엔탈피 차 허용
+    # - T 기준(tol_y_atol): 0.5 °C → SH/SC 적용 시 과열·과냉 구간 구별 허용
     _draw_cycle_lines_and_annotations(
-        ax, pts_x, pts_y, is_on, color1, color2, line_color, color3, color4, tol_atol=0.05
+        ax, pts_x, pts_y, is_on, color1, color2, line_color, color3, color4,
+        tol_atol=0.5, tol_y_atol=0.5,
     )
 
-    font_sz = dm.fs(-1) if hasattr(dm, "fs") else 9
+    font_sz = fontsize if fontsize is not None else (dm.fs(-1) if hasattr(dm, "fs") else 9)
     trans = ax.get_yaxis_transform()
 
-    if pd.notna(T_tank):
-        ax.axhline(y=T_tank, color="oc.red5", linestyle=":", linewidth=dm.lw(0))
-        offset = dm.make_offset(4, 4, ax.figure) if ax.figure else None
-        transform = trans + offset if offset else trans
-        ax.text(
-            0.0,
-            T_tank,
-            f"Tank: {T_tank:.1f}°C",
-            color="oc.red5",
-            ha="left",
-            va="bottom",
-            transform=transform,
-            fontsize=font_sz,
-        )
+    if T_cond_bound is not None:
+        val = T_cond_bound.get("val")
+        label = T_cond_bound.get("label", "Cond_bound")
+        if pd.notna(val):
+            val = float(val)  # type: ignore
+            ax.axhline(y=val, color="oc.red5", linestyle=":", linewidth=dm.lw(0))
+            offset = dm.make_offset(4, 4, ax.figure) if ax.figure else None
+            transform = trans + offset if offset else trans
+            ax.text(
+                0.0,
+                val,
+                f"{label}: {val:.1f}°C",
+                color="oc.red5",
+                ha="left",
+                va="bottom",
+                transform=transform,
+                fontsize=font_sz,
+            )
 
-    if pd.notna(T0):
-        ax.axhline(y=T0, color="oc.orange5", linestyle=":", linewidth=dm.lw(0))
-        offset = dm.make_offset(4, -4, ax.figure) if ax.figure else None
-        transform = trans + offset if offset else trans
-        ax.text(
-            0.0,
-            T0,
-            f"Outdoor: {T0:.1f}°C",
-            color="oc.orange5",
-            ha="left",
-            va="top",
-            transform=transform,
-            fontsize=font_sz,
-        )
+    if T_evap_bound is not None:
+        val = T_evap_bound.get("val")
+        label = T_evap_bound.get("label", "Evap_bound")
+        if pd.notna(val):
+            val = float(val)  # type: ignore
+            ax.axhline(y=val, color="oc.orange5", linestyle=":", linewidth=dm.lw(0))
+            offset = dm.make_offset(4, -4, ax.figure) if ax.figure else None
+            transform = trans + offset if offset else trans
+            ax.text(
+                0.0,
+                val,
+                f"{label}: {val:.1f}°C",
+                color="oc.orange5",
+                ha="left",
+                va="top",
+                transform=transform,
+                fontsize=font_sz,
+            )
 
     ax.set_xlabel("Enthalpy [kJ/kg]")
     ax.set_ylabel("Temperature [°C]")
@@ -416,7 +447,7 @@ def plot_th_diagram(
     ]
     ax.legend(
         handles=legend_handles,
-        loc="upper right",
+        loc="upper center",
         handlelength=1.5,
         labelspacing=0.5,
         columnspacing=2,
@@ -429,15 +460,14 @@ def plot_ph_diagram(
     ax: plt.Axes,
     result: dict[str, float],
     refrigerant: str,
+    fontsize: float | None = None,
+    tick_pad: float | None = None,
 ) -> None:
     """Plot P-h diagram on given axis."""
     color1, color2, color3, color4, line_color = "oc.blue5", "oc.red5", "black", "oc.gray6", "oc.gray4"
     xmin, xmax, ymin, ymax = 0, 600, 100, 10**4
 
-    T_critical = cu.K2C(CP.PropsSI("Tcrit", refrigerant))
-    temps = np.linspace(cu.K2C(CP.PropsSI("Tmin", refrigerant)) + 1, T_critical, 3000)
-    h_liq = [CP.PropsSI("H", "T", cu.C2K(T), "Q", 0, refrigerant) / 1000 for T in temps]
-    h_vap = [CP.PropsSI("H", "T", cu.C2K(T), "Q", 1, refrigerant) / 1000 for T in temps]
+    temps, h_liq, h_vap, _, _, _ = _get_saturation_curves(refrigerant)
     p_sat = [CP.PropsSI("P", "T", cu.C2K(T), "Q", 0, refrigerant) / 1000 for T in temps]
 
     P1_star = (result.get("P_ref_evap_sat [Pa]") or result.get("P1_star [Pa]", np.nan)) * cu.Pa2kPa
@@ -494,7 +524,7 @@ def plot_ph_diagram(
     ]
     ax.legend(
         handles=legend_handles,
-        loc="upper right",
+        loc="upper center",
         handlelength=1.5,
         labelspacing=0.5,
         columnspacing=2,
@@ -507,17 +537,14 @@ def plot_ts_diagram(
     ax: plt.Axes,
     result: dict[str, float],
     refrigerant: str,
-    T_tank: float | None = None,
-    T0: float | None = None,
+    T_cond_bound: dict[str, float | str] | None = None,
+    T_evap_bound: dict[str, float | str] | None = None,
 ) -> None:
     """Plot T-s diagram on given axis with super heating/cooling considered."""
     color1, color2, color3, color4, line_color = "oc.blue5", "oc.red5", "black", "oc.gray6", "oc.gray5"
     xmin, xmax, ymin, ymax = 0, 2.0, -40, 120
 
-    T_critical = cu.K2C(CP.PropsSI("Tcrit", refrigerant))
-    temps = np.linspace(cu.K2C(CP.PropsSI("Tmin", refrigerant)) + 1, T_critical, 3000)
-    s_liq = [CP.PropsSI("S", "T", cu.C2K(T), "Q", 0, refrigerant) / 1000 for T in temps]
-    s_vap = [CP.PropsSI("S", "T", cu.C2K(T), "Q", 1, refrigerant) / 1000 for T in temps]
+    temps, _, _, _, s_liq, s_vap = _get_saturation_curves(refrigerant)
 
     ax.plot(s_liq, temps, color=color1, label="Sat. liquid", linewidth=dm.lw(0))
     ax.plot(s_vap, temps, color=color2, label="Sat. vapor", linewidth=dm.lw(0))
@@ -553,35 +580,43 @@ def plot_ts_diagram(
     font_sz = dm.fs(-1) if hasattr(dm, "fs") else 9
     trans = ax.get_yaxis_transform()
 
-    if pd.notna(T_tank):
-        ax.axhline(y=T_tank, color="oc.red5", linestyle=":", linewidth=dm.lw(0))
-        offset = dm.make_offset(4, 4, ax.figure) if ax.figure else None
-        transform = trans + offset if offset else trans
-        ax.text(
-            0.0,
-            T_tank,
-            f"Tank: {T_tank:.1f}°C",
-            color="oc.red5",
-            ha="left",
-            va="bottom",
-            transform=transform,
-            fontsize=font_sz,
-        )
+    if T_cond_bound is not None:
+        val = T_cond_bound.get("val")
+        label = T_cond_bound.get("label", "Cond_bound")
+        if pd.notna(val):
+            val = float(val)  # type: ignore
+            ax.axhline(y=val, color="oc.red5", linestyle=":", linewidth=dm.lw(0))
+            offset = dm.make_offset(4, 2, ax.figure) if ax.figure else None
+            transform = trans + offset if offset else trans
+            ax.text(
+                0.0,
+                val,
+                f"{label}: {val:.1f}°C",
+                color="oc.red5",
+                ha="left",
+                va="bottom",
+                transform=transform,
+                fontsize=font_sz,
+            )
 
-    if pd.notna(T0):
-        ax.axhline(y=T0, color="oc.orange5", linestyle=":", linewidth=dm.lw(0))
-        offset = dm.make_offset(4, -4, ax.figure) if ax.figure else None
-        transform = trans + offset if offset else trans
-        ax.text(
-            0.0,
-            T0,
-            f"Outdoor: {T0:.1f}°C",
-            color="oc.orange5",
-            ha="left",
-            va="top",
-            transform=transform,
-            fontsize=font_sz,
-        )
+    if T_evap_bound is not None:
+        val = T_evap_bound.get("val")
+        label = T_evap_bound.get("label", "Evap_bound")
+        if pd.notna(val):
+            val = float(val)  # type: ignore
+            ax.axhline(y=val, color="oc.orange5", linestyle=":", linewidth=dm.lw(0))
+            offset = dm.make_offset(4, -2, ax.figure) if ax.figure else None
+            transform = trans + offset if offset else trans
+            ax.text(
+                0.0,
+                val,
+                f"{label}: {val:.1f}°C",
+                color="oc.orange5",
+                ha="left",
+                va="top",
+                transform=transform,
+                fontsize=font_sz,
+            )
 
     ax.set_xlabel("Entropy [kJ/(kg·K)]")
     ax.set_ylabel("Temperature [°C]")
@@ -607,7 +642,7 @@ def plot_ts_diagram(
     ]
     ax.legend(
         handles=legend_handles,
-        loc="upper right",
+        loc="upper center",
         handlelength=1.5,
         labelspacing=0.5,
         columnspacing=2,
