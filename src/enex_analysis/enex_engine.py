@@ -21,6 +21,7 @@ from .components.fan import Fan
 from .constants import c_a, c_w as c_f, k_w, rho_a, rho_w as rho_f
 from .enex_functions import (
     calc_GSHP_COP,
+    calc_fan_power_from_dV_fan,
 )
 
 # Phase 3 Refactoring: Re-exporting standalone boiler modules for backward compatibility
@@ -823,34 +824,50 @@ class GroundSourceHeatPump:
 
     Uses borehole heat exchangers with pygfunction step-response
     factor array for precise soil thermal response with temporal
-    superposition of dynamic building loads. Call ``system_update()``
-    each time step to advance the ground temperature history.
+    superposition of dynamic building loads.
     """
+    # 1. Borehole parameters
+    H_b: float = 150.0 # Borehole height [m]
+    D_b: float = 2.0   # Borehole burial depth [m]
+    r_b: float = 0.08  # Borehole radius [m]
+    
+    # 2. Pipe & Grout parameters
+    k_p: float = 0.4      # Pipe thermal conductivity [W/mK] (HDPE)
+    k_grout: float = 1.5  # Grout thermal conductivity [W/mK]
+    r_out: float = 0.016  # Pipe outer radius [m] (32mm OD / 2)
+    r_in: float = 0.013   # Pipe inner radius [m] (26mm ID / 2)
+    D_s: float = 0.05     # Shank spacing [m]
+    
+    # 3. Ground parameters
+    k_g: float = 2.0     # Ground thermal conductivity [W/mK]
+    c_g: float = 800.0   # Ground specific heat capacity [J/(kgK)]
+    rho_g: float = 2000.0 # Ground density [kg/m³]
+    T_g: float = 16.0    # Initial ground temperature [°C]
+    
+    # 4. Fluid parameters
+    dV_f: float = 16.0   # Volumetric flow rate of fluid [L/min]
+    
+    # 5. Rated Performance & Design
+    Q_rated_cooling: float = 20590.0 # [W]
+    Q_rated_heating: float = 16450.0 # [W]
+    E_pmp: float = 250.0            # Pump power input [W]
+    dP_iu_fan_design: float = 60.0   # Design pressure drop [Pa]
+    eta_iu_fan_design: float = 0.6   # Design fan efficiency
+    
+    # 6. Simulation Control
+    dt_hours: int = 1
+    sim_hours: int = 8760
+    
+    # 7. Runtime Inputs (per-timestep)
+    Q_r_iu: float = 0.0
+    T0: float = 20.0
 
     def __post_init__(self):
-        # Time and Simulation Control
-        self.time = 0.0  # [h] Will be updated continuously
+        # Initialize historical and temporal states
+        self.time = 0.0
+        self.dt_sec = self.dt_hours * 3600.0
+        self.q_b_history = [0.0]
 
-        # Borehole parameters
-        self.D_b = 2.0   # Borehole burial depth [m]
-        self.H_b = 150.0 # Borehole height [m]
-        self.r_b = 0.08 # Borehole radius [m]
-        
-        # Pipe & Grout parameters for R_b calculation
-        self.k_p = 0.4      # Pipe thermal conductivity [W/mK] (HDPE)
-        self.k_grout = 1.5  # Grout thermal conductivity [W/mK]
-        self.r_out = 0.032/2  # Pipe outer radius [m]
-        self.r_in = 0.026/2   # Pipe inner radius [m]
-        self.D_s = 0.05    # Shank spacing [m]
-
-        # Ground parameters
-        self.k_g = 2.0  # Ground thermal conductivity [W/mK]
-        self.c_g = 800  # Ground specific heat capacity [J/(kgK)]
-        self.rho_g = 2000  # Ground density [kg/m³]
-
-        # Fluid parameters
-        self.dV_f = 16  # Volumetric flow rate of fluid [L/min]
-        
         # Calculate Effective Borehole Thermal Resistance R_b
         # Using water properties at approx 15-20 degC
         m_flow_pipe = (self.dV_f * cu.L2m3 * cu.s2m * rho_f) / 2.0 # Mass flow per pipe [kg/s]
@@ -860,34 +877,22 @@ class GroundSourceHeatPump:
             m_flow_pipe=m_flow_pipe, rho_f=rho_f, mu_f=0.00114, cp_f=c_f, k_f=k_w
         )
 
-        # Pump power of ground heat exchanger
-        self.E_pmp = 250  # Pump power input [W]
+        # Fan parameters (VSD model)
+        _hp_capacity = max(self.Q_rated_cooling, self.Q_rated_heating)
+        self.dV_iu_fan_design = _hp_capacity / (rho_a * c_a * 10.0) 
+        self.E_iu_fan_design = (
+            self.dV_iu_fan_design * self.dP_iu_fan_design / self.eta_iu_fan_design
+        )
+        self.vsd_coeffs_iu = {
+            "c1": 0.0013, "c2": 0.1470, "c3": 0.9506, "c4": -0.0998, "c5": 0.0,
+        }
+        self.fan_params_iu = {
+            "fan_design_flow_rate": self.dV_iu_fan_design,
+            "fan_design_power": self.E_iu_fan_design,
+        }
 
-        # Fan
-        self.fan_iu = Fan().fan1
-
-        # Universal Initial Temperatures
-        self.T_g = 16  # Initial ground temperature [°C]
-
-        # Initial Load & Capacity
-        self.Q_r_iu = 0  # Indoor thermal load [W]
-        self.Q_rated_cooling = 20590.0  # [W] Default rated cooling capacity
-        self.Q_rated_heating = 16450.0  # [W] Default rated heating capacity
-
-        # ---------------------------------------------------------------------
-        # Temporal Superposition & pygfunction Initialization
-        # ---------------------------------------------------------------------
-        self.q_b_history = [0.0]  # Store historical loads
-
-        # Determine simulation length and timestep (Default: 8760 hours, 1 hour step)
-        self.sim_hours = 8760
-        self.dt_hours = 1
-        self.dt_sec = self.dt_hours * 3600.0
-
-        alpha = self.k_g / (self.rho_g * self.c_g) # Soil thermal diffusivity [m²/s]
-        
         # Precompute dimensional g-function interpolator [mK/W]
-        # Return object is a callable interp1d(time_s)
+        alpha = self.k_g / (self.rho_g * self.c_g)
         self.g_func_interp = gf.precompute_gfunction(
             N_1=1, N_2=1, B=6.0, 
             H_b=self.H_b, D_b=self.D_b, r_b=self.r_b,
@@ -960,19 +965,9 @@ class GroundSourceHeatPump:
         max_iter = 20
         tol = 1e-2
         # ------------------------------------------------------------------
-        # Pre-calculate dV_a (indoor unit air volume flow rate) and air flow ratio
+        # Airflow calculation (indoor unit air volume flow rate).
         # Must be computed BEFORE the COP iteration loop.
         # ------------------------------------------------------------------
-        # Rated airflow: V_a_ref = Q_rated / (rho_a * c_a * dT_rated=10K)
-        if mode == "cooling":
-            _Q_rated = self.Q_rated_cooling
-        elif mode == "heating":
-            _Q_rated = self.Q_rated_heating
-        else:
-            _Q_rated = self.Q_rated_cooling
-
-        _dT_rated = 10.0  # [K] rated temperature difference across indoor coil
-        V_a_ref = _Q_rated / (rho_a * c_a * _dT_rated)  # [m³/s]
 
         if self.Q_r_iu == 0:
             self.dV_a = 0.0
@@ -981,7 +976,8 @@ class GroundSourceHeatPump:
                 c_a * rho_a * abs(self.T_a_iu_out_K - self.T_a_room_K)
             )
 
-        dV_a_ratio = self.dV_a / V_a_ref if V_a_ref > 0 else 1.0
+        # Synchronize dV_a_ratio with fan design flow rate
+        dV_a_ratio = self.dV_a / self.dV_iu_fan_design if self.dV_iu_fan_design > 0 else 1.0
         # --------------------------------------------------------------------------
 
         self.T_f = self.T_g_K  # 초기값
@@ -1054,11 +1050,13 @@ class GroundSourceHeatPump:
         self.T_a_iu_in = self.T_a_room
         self.T_a_iu_out = cu.K2C(self.T_a_iu_out_K)
 
-        # Fan power
-        if self.dV_a > 0:
-            self.E_fan_iu = Fan().get_power(self.fan_iu, self.dV_a)
-        else:
-            self.E_fan_iu = 0.0
+        # Fan power - Updated to hx_fan VSD model
+        self.E_fan_iu = calc_fan_power_from_dV_fan(
+            dV_fan=self.dV_a,
+            fan_params=self.fan_params_iu,
+            vsd_coeffs=self.vsd_coeffs_iu,
+            is_active=(self.Q_r_iu != 0.0)
+        )
 
         # System COP calculation
         total_pwr = self.E_cmp + self.E_fan_iu + E_pmp_active
