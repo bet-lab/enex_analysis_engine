@@ -13,9 +13,9 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-import pygfunction as gt
 
 from . import calc_util as cu
+from . import g_function as gf
 from .air_source_heat_pump_boiler import AirSourceHeatPumpBoiler
 from .components.fan import Fan
 from .constants import c_a, c_w as c_f, k_w, rho_a, rho_w as rho_f
@@ -832,21 +832,36 @@ class GroundSourceHeatPump:
         self.time = 0.0  # [h] Will be updated continuously
 
         # Borehole parameters
-        self.D_b = 2.0  # Borehole burial depth [m]
-        self.H_b = 100  # Borehole height [m]
-        self.r_b = 0.026  # Borehole radius [m]
-        self.R_b = 0.108  # Effective borehole thermal resistance [mK/W]
-
-        # Fluid parameters
-        self.dV_f = 16  # Volumetric flow rate of fluid [L/min]
+        self.D_b = 2.0   # Borehole burial depth [m]
+        self.H_b = 150.0 # Borehole height [m]
+        self.r_b = 0.08 # Borehole radius [m]
+        
+        # Pipe & Grout parameters for R_b calculation
+        self.k_p = 0.4      # Pipe thermal conductivity [W/mK] (HDPE)
+        self.k_grout = 1.5  # Grout thermal conductivity [W/mK]
+        self.r_out = 0.032/2  # Pipe outer radius [m]
+        self.r_in = 0.026/2   # Pipe inner radius [m]
+        self.D_s = 0.05    # Shank spacing [m]
 
         # Ground parameters
         self.k_g = 2.0  # Ground thermal conductivity [W/mK]
         self.c_g = 800  # Ground specific heat capacity [J/(kgK)]
         self.rho_g = 2000  # Ground density [kg/m³]
 
+        # Fluid parameters
+        self.dV_f = 16  # Volumetric flow rate of fluid [L/min]
+        
+        # Calculate Effective Borehole Thermal Resistance R_b
+        # Using water properties at approx 15-20 degC
+        m_flow_pipe = (self.dV_f * cu.L2m3 * cu.s2m * rho_f) / 2.0 # Mass flow per pipe [kg/s]
+        self.R_b = gf.calc_borehole_thermal_resistance(
+            k_s=self.k_g, k_g=self.k_grout, k_p=self.k_p,
+            r_b=self.r_b, r_out=self.r_out, r_in=self.r_in, D_s=self.D_s,
+            m_flow_pipe=m_flow_pipe, rho_f=rho_f, mu_f=0.00114, cp_f=c_f, k_f=k_w
+        )
+
         # Pump power of ground heat exchanger
-        self.E_pmp = 200  # Pump power input [W]
+        self.E_pmp = 250  # Pump power input [W]
 
         # Fan
         self.fan_iu = Fan().fan1
@@ -869,15 +884,17 @@ class GroundSourceHeatPump:
         self.dt_hours = 1
         self.dt_sec = self.dt_hours * 3600.0
 
-        borehole = gt.boreholes.Borehole(H=self.H_b, D=self.D_b, r_b=self.r_b, x=0.0, y=0.0)
-
-        n_steps = int(self.sim_hours / self.dt_hours)
-        time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g) # Soil thermal diffusivity [m²/s]
         
-        self.g_func_list = gt.gfunction.gFunction(
-            [borehole], alpha, time=time_array,
-        ).gFunc
+        # Precompute dimensional g-function interpolator [mK/W]
+        # Return object is a callable interp1d(time_s)
+        self.g_func_interp = gf.precompute_gfunction(
+            N_1=1, N_2=1, B=6.0, 
+            H_b=self.H_b, D_b=self.D_b, r_b=self.r_b,
+            alpha_s=alpha, k_s=self.k_g,
+            t_max_s=self.sim_hours * 3600.0,
+            dt_s=self.dt_sec
+        )
         # ---------------------------------------------------------------------
 
     def system_update(self):
@@ -933,15 +950,11 @@ class GroundSourceHeatPump:
 
         for i in range(1, len(self.q_b_history)):
             delta_Q = self.q_b_history[i] - self.q_b_history[i - 1]
-            elapsed_steps = len(self.q_b_history) - i
-
-            idx = elapsed_steps
-            if idx < len(self.g_func_list):
-                g_val = self.g_func_list[idx]
-            else:
-                g_val = self.g_func_list[-1]  # fallback
-
-            T_b_history_effect += (delta_Q / (2 * math.pi * self.k_g)) * g_val
+            elapsed_time = (len(self.q_b_history) - i + 1) * self.dt_sec
+            
+            # Use dimensional g-function from interpolator [mK/W]
+            g_val_dim = float(self.g_func_interp(elapsed_time))
+            T_b_history_effect += delta_Q * g_val_dim
         # ---------------------------------------------------------------------
 
         max_iter = 20
@@ -1004,12 +1017,13 @@ class GroundSourceHeatPump:
             # -----------------------------------------------------------------
             # B. Core Calculation: Borehole Wall Temp with Superposition
             # -----------------------------------------------------------------
-            self.g_i = self.g_func_list[0]
-            self.T_b_history_effect = T_b_history_effect  # Expose history penalty
+            # Dimensional g-value for the current step (dt_sec) [mK/W]
+            self.g_i_dim = float(self.g_func_interp(self.dt_sec))
+            self.T_b_history_effect = T_b_history_effect  
             self.T_b = (
                 self.T_g_K 
                 + T_b_history_effect 
-                + ((self.q_b - self.q_b_history[-1]) / (2 * math.pi * self.k_g)) * self.g_i
+                + (self.q_b - self.q_b_history[-1]) * self.g_i_dim
             )
             # -----------------------------------------------------------------
 
