@@ -842,7 +842,7 @@ class GroundSourceHeatPump:
     k_g: float = 2.0     # Ground thermal conductivity [W/mK]
     c_g: float = 800.0   # Ground specific heat capacity [J/(kgK)]
     rho_g: float = 2000.0 # Ground density [kg/m³]
-    T_g: float = 16.0    # Initial ground temperature [°C]
+    T_g: float = 15.0    # Initial ground temperature [°C]
     
     # 4. Fluid parameters
     dV_f: float = 16.0   # Volumetric flow rate of fluid [L/min]
