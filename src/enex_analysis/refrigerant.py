@@ -13,7 +13,7 @@ def calc_ref_state(
     T_evap_K: float,  # 증발 온도 [K] (포화 온도로 해석)
     T_cond_K: float,  # 응축 온도 [K] (포화 온도로 해석)
     refrigerant: str,  # 냉매 이름
-    eta_cmp_isen: float | Callable,  # 압축기 단열 효율 (Float 또는 함수)
+    eta_cmp_isen: float | Callable,  # 압축기 등엔트로피 효율 (Float 또는 함수)
     mode: str = "heating",  # 작동 모드 ('heating' 또는 'cooling')
     dT_superheat: float = 0.0,  # [K] 증발기 출구 과열도 (State 1* → 1)
     dT_subcool: float = 0.0,  # [K] 응축기 출구 과냉각도 (State 3* → 3)
