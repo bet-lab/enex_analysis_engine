@@ -63,11 +63,15 @@ class AirSourceHeatPumpBoiler:
         ref: str = "R134a",
         V_disp_cmp: float = 0.0002,
         eta_cmp_isen: float | Callable = 0.70,
+        eta_cmp_vol: float | Callable | None = None,
+        eta_cmp_motor: float = 0.90,
+        eta_cmp_inv: float = 0.95,
         dT_superheat: float = 5.0,
         dT_subcool: float = 5.0,
         # 2. Heat exchanger -----------------------------
         UA_cond_design: float | None = None,
         UA_evap_design: float | None = None,
+        UA_evap_exponent: float = 0.71,
         # 3. Outdoor unit fan ---------------------------
         dV_ou_fan_a_design: float | None = None,
         dP_ou_fan_design: float = 75.0,
@@ -118,6 +122,9 @@ class AirSourceHeatPumpBoiler:
         self.ref: str = ref
         self.V_disp_cmp: float = V_disp_cmp
         self.eta_cmp_isen: float = eta_cmp_isen
+        self.eta_cmp_vol: float | Callable = eta_cmp_vol if eta_cmp_vol is not None else lambda r: max(0.4, 0.95 - 0.05 * r)
+        self.eta_cmp_motor: float = eta_cmp_motor
+        self.eta_cmp_inv: float = eta_cmp_inv
         self.dT_superheat: float = dT_superheat
         self.dT_subcool: float = dT_subcool
         self.hp_capacity: float = hp_capacity
@@ -140,6 +147,8 @@ class AirSourceHeatPumpBoiler:
             self.UA_evap_design = self.UA_cond_design * 0.8
         else:
             self.UA_evap_design = UA_evap_design
+
+        self.UA_evap_exponent: float = UA_evap_exponent
 
         # --- 3. Outdoor unit fan ---
         # Default fan flow rate is scaled at 0.0002 m^3/s per W (or 720 CMH per kW),
@@ -278,13 +287,16 @@ class AirSourceHeatPumpBoiler:
             is_active=is_active,
         )
 
+        ratio_P_cmp = cs["P_ref_cmp_out [Pa]"] / cs["P_ref_cmp_in [Pa]"] if is_active and cs["P_ref_cmp_in [Pa]"] > 0 else 1.0
+        eta_vol_val = self.eta_cmp_vol(ratio_P_cmp) if callable(self.eta_cmp_vol) else self.eta_cmp_vol
+
         m_dot_ref: float = (
             Q_cond_target / (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
         )
         Q_ref_cond: float = m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
         Q_ref_evap: float = m_dot_ref * (cs["h_ref_cmp_in [J/kg]"] - cs["h_ref_exp_out [J/kg]"]) if is_active else 0.0
-        E_cmp: float = m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_cmp_in [J/kg]"]) if is_active else 0.0
-        cmp_rps: float = m_dot_ref / (self.V_disp_cmp * cs["rho_ref_cmp_in [kg/m3]"]) if is_active else 0.0
+        E_cmp: float = (m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_cmp_in [J/kg]"]) / (self.eta_cmp_motor * self.eta_cmp_inv)) if is_active else 0.0
+        cmp_rps: float = (m_dot_ref / (self.V_disp_cmp * cs["rho_ref_cmp_in [kg/m3]"] * eta_vol_val)) if is_active else 0.0
 
         HX_perf_ou: dict = calc_HX_perf_for_target_heat(
             Q_ref_target=(Q_ref_evap if is_active else 0.0),

@@ -378,6 +378,7 @@ def calc_HX_perf_for_target_heat(
     UA_design,
     dV_fan_design,
     is_active=True,
+    exponent=0.71,
 ):
     """
     Numerically solve for the air-side flow rate (fan airflow) required to achieve a target heat transfer rate in a heat exchanger, using a dynamically varying UA based on air velocity.
@@ -461,7 +462,7 @@ def calc_HX_perf_for_target_heat(
         }
 
     def _error_function(dV_fan):
-        UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
+        UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design, exponent)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
         # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
         T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon  # Heating assumption (Q_ref_target > 0)
@@ -487,7 +488,7 @@ def calc_HX_perf_for_target_heat(
         # Pick the boundary closer to zero as fallback.
         dV_fallback = dV_min if abs(f_min) <= abs(f_max) else dV_max
 
-        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
+        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design, exponent)
         eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
         T_mid_fb = T_ref_evap_sat_K + eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
         Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
@@ -529,7 +530,7 @@ def calc_HX_perf_for_target_heat(
     if sol.converged:
         # 수렴된 dV_fan 값을 사용하여 최종 값들 계산
         dV_fan_converged = sol.root
-        UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design)
+        UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design, exponent)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
         # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
         T_ou_a_mid_K = T_ref_evap_sat_K + epsilon * (
