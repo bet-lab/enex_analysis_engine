@@ -62,7 +62,7 @@ class AirSourceHeatPumpBoiler:
         # 1. Refrigerant / cycle / compressor -----------
         ref: str = "R134a",
         V_disp_cmp: float = 0.0002,
-        eta_cmp_isen: float | Callable = 0.70,
+        eta_cmp_isen: float | Callable | None = None,
         eta_cmp_vol: float | Callable | None = None,
         eta_cmp_motor: float = 0.90,
         eta_cmp_inv: float = 0.95,
@@ -71,7 +71,7 @@ class AirSourceHeatPumpBoiler:
         # 2. Heat exchanger -----------------------------
         UA_cond_design: float | None = None,
         UA_evap_design: float | None = None,
-        UA_evap_exponent: float = 0.71,
+        n_evap: float = 0.71,
         # 3. Outdoor unit fan ---------------------------
         dV_ou_fan_a_design: float | None = None,
         dP_ou_fan_design: float = 75.0,
@@ -121,8 +121,19 @@ class AirSourceHeatPumpBoiler:
         # --- 1. Refrigerant / cycle / compressor ---
         self.ref: str = ref
         self.V_disp_cmp: float = V_disp_cmp
-        self.eta_cmp_isen: float = eta_cmp_isen
-        self.eta_cmp_vol: float | Callable = eta_cmp_vol if eta_cmp_vol is not None else lambda r: max(0.4, 0.95 - 0.05 * r)
+        
+        # Isentropic Efficiency
+        if eta_cmp_isen is not None:
+            self.eta_cmp_isen: float | Callable = eta_cmp_isen
+        else:
+            self.eta_cmp_isen = 0.70
+
+        # Volumetric Efficiency
+        if eta_cmp_vol is not None:
+            self.eta_cmp_vol: float | Callable = eta_cmp_vol
+        else:
+            self.eta_cmp_vol = lambda r: 0.95 - 0.05 * r
+
         self.eta_cmp_motor: float = eta_cmp_motor
         self.eta_cmp_inv: float = eta_cmp_inv
         self.dT_superheat: float = dT_superheat
@@ -148,7 +159,7 @@ class AirSourceHeatPumpBoiler:
         else:
             self.UA_evap_design = UA_evap_design
 
-        self.UA_evap_exponent: float = UA_evap_exponent
+        self.n_evap: float = n_evap
 
         # --- 3. Outdoor unit fan ---
         # Default fan flow rate is scaled at 0.0002 m^3/s per W (or 720 CMH per kW),
