@@ -490,7 +490,7 @@ def calc_HX_perf_for_target_heat(
 
         UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design, exponent)
         eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
-        T_mid_fb = T_ref_evap_sat_K + eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
+        T_mid_fb = T_ou_a_in_K - eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
         Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
 
         # Diagnostic hint (stored in return dict, not printed)
@@ -533,7 +533,7 @@ def calc_HX_perf_for_target_heat(
         UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design, exponent)
         epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
         # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = T_ref_evap_sat_K + epsilon * (
+        T_ou_a_mid_K = T_ou_a_in_K - epsilon * (
             T_ou_a_in_K - T_ref_evap_sat_K
         )  # Heating assumption (Q_ref_target > 0)
 
