@@ -23,7 +23,7 @@ import numpy as np
 
 from . import calc_util as cu
 from .constants import c_w, k_a, k_D, k_d, rho_w
-from .enex_functions import calc_energy_flow
+from .thermodynamics import calc_energy_flow
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -602,7 +602,7 @@ class UVLamp:
         T_tank_w_in_K: float,
     ) -> dict:
         """Compute UV lamp state for one timestep."""
-        from .enex_functions import calc_uv_lamp_power
+        from .uv_treatment import calc_uv_lamp_power
 
         E_uv: float = calc_uv_lamp_power(
             ctx.current_time_s,

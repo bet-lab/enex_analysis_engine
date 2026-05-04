@@ -275,50 +275,32 @@ class GasBoiler:
 
     def analyze_steady(
         self,
-        T0,
-        dV_w_serv=None,
-        return_dict=True,
-    ):
-        """Run a steady-state analysis at the given operating point.
+        T0: float,
+        Q_heat_target: float,
+        *,
+        return_dict: bool = True,
+    ) -> dict | pd.DataFrame:
+        """Run a steady-state performance snapshot."""
+        
+        # Empty flow state as steady state ignores dynamic withdrawal/refill
+        flow_state = {
+            "dV_w_serv": 0.0,
+            "dV_w_sup_comb": 0.0,
+            "dV_w_bypassed": 0.0,
+            "alp_serv": 0.0,
+            "T_serv_w_actual_K": self.T_sup_w_K,
+        }
 
-        Parameters
-        ----------
-        T0 : float
-            Dead-state (ambient) temperature [°C].
-        dV_w_serv : float, optional
-            Service water flow rate [m³/s]. Defaults to 0.
-        return_dict : bool
-            If True return dict; if False return single-row DataFrame.
+        is_on = Q_heat_target > self.Q_comb_load_threshold
 
-        Returns
-        -------
-        dict or pd.DataFrame
-            Operating-point result.
-        """
-        if dV_w_serv is None:
-            dV_w_serv = 0.0
-
-        flow_state = self._calc_mixing_flow_context(
-            dV_w_serv=dV_w_serv,
-            T_serv_w_K=self.T_serv_w_K,
-            T_sup_w_K=self.T_sup_w_K,
-            T_comb_setpoint_K=self.T_comb_setpoint_K,
-        )
-
-        dV_w_sup_comb = flow_state["dV_w_sup_comb"]
-        Q_comb_load = c_w * rho_w * dV_w_sup_comb * (self.T_comb_setpoint_K - self.T_sup_w_K)
-
-        is_on = Q_comb_load > self.Q_comb_load_threshold
-
-        if abs(Q_comb_load) <= self.Q_comb_load_threshold or not is_on:
+        if abs(Q_heat_target) <= self.Q_comb_load_threshold or not is_on:
             result = self._calc_off_state(T0=T0)
         else:
-            result = self._calc_on_state(Q_comb_load=Q_comb_load, T0=T0, flow_state=flow_state)
+            result = self._calc_on_state(Q_comb_load=Q_heat_target, T0=T0, flow_state=flow_state)
 
         if return_dict:
             return result
-        else:
-            return pd.DataFrame([result])
+        return pd.DataFrame([result])
 
     def analyze_dynamic(
         self,

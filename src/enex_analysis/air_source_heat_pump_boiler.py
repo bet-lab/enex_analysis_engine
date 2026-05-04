@@ -36,14 +36,14 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
-    calc_energy_flow,
-    calc_fan_power_from_dV_fan,
     calc_HX_perf_for_target_heat,
     calc_mixing_valve_flows,
     calc_mixing_valve_temp,
-    calc_ref_state,
-    calc_simple_tank_UA,
 )
+from .heat_transfer import calc_simple_tank_UA
+from .hx_fan import calc_fan_power_from_dV_fan
+from .refrigerant import calc_ref_state
+from .thermodynamics import calc_energy_flow
 from .subsystems import PhotovoltaicSystem, SolarThermalCollector
 
 
@@ -78,7 +78,7 @@ class AirSourceHeatPumpBoiler:
         dV_ou_fan_a_design: float | None = None,
         dP_ou_fan_design: float = 80.0,
         A_cross_ou: float | None = None,
-        eta_ou_fan_design: float = 0.5,
+        eta_ou_fan_design: float = 0.7,
         # 4. Tank / control / load ----------------------
         T_tank_w_upper_bound: float = 65.0,
         T_tank_w_lower_bound: float = 60.0,
@@ -128,7 +128,7 @@ class AirSourceHeatPumpBoiler:
         if eta_cmp_isen is not None:
             self.eta_cmp_isen: float | Callable = eta_cmp_isen
         else:
-            self.eta_cmp_isen = 0.70
+            self.eta_cmp_isen = 0.80
 
         # Volumetric Efficiency
         if eta_cmp_vol is not None:
@@ -252,7 +252,7 @@ class AirSourceHeatPumpBoiler:
         self,
         dT_ref_evap: float,
         T_tank_w: float,
-        Q_cond_target: float,
+        Q_ref_cond: float,
         T0: float,
         *,
         flow_state: dict,
@@ -265,7 +265,7 @@ class AirSourceHeatPumpBoiler:
             Evaporator approach ΔT [K].
         T_tank_w : float
             Tank water temperature [°C].
-        Q_cond_target : float
+        Q_ref_cond : float
             Target condenser heat rate [W].
         T0 : float
             Dead-state / outdoor-air temperature [°C].
@@ -279,7 +279,7 @@ class AirSourceHeatPumpBoiler:
         dict | None
             Cycle performance dictionary; ``None`` if infeasible.
         """
-        dT_ref_cond: float = Q_cond_target / self.UA_cond_design if Q_cond_target > 0 else 0.0
+        dT_ref_cond: float = Q_ref_cond / self.UA_cond_design if Q_ref_cond > 0 else 0.0
 
         T_tank_w_K: float = cu.C2K(T_tank_w)
         T0_K: float = cu.C2K(T0)
@@ -287,7 +287,10 @@ class AirSourceHeatPumpBoiler:
         T_evap_sat_K: float = T0_K - dT_ref_evap
         T_cond_sat_K: float = T_tank_w_K + dT_ref_cond
 
-        is_active: bool = Q_cond_target > 0.0
+        is_active: bool = Q_ref_cond > 0.0
+
+        pinch_min: float = 0.5
+        actual_dT_subcool: float = min(self.dT_subcool, max(0.0, dT_ref_cond - pinch_min))
 
         cs: dict = calc_ref_state(
             T_evap_K=T_evap_sat_K,
@@ -296,7 +299,7 @@ class AirSourceHeatPumpBoiler:
             eta_cmp_isen=self.eta_cmp_isen,
             mode="heating",
             dT_superheat=self.dT_superheat,
-            dT_subcool=self.dT_subcool,
+            dT_subcool=actual_dT_subcool,
             is_active=is_active,
         )
 
@@ -304,9 +307,9 @@ class AirSourceHeatPumpBoiler:
         eta_vol_val = self.eta_cmp_vol(ratio_P_cmp) if callable(self.eta_cmp_vol) else self.eta_cmp_vol
 
         m_dot_ref: float = (
-            Q_cond_target / (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
+            Q_ref_cond / (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
         )
-        Q_ref_cond: float = m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
+        Q_ref_cond_calc: float = m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_exp_in [J/kg]"]) if is_active else 0.0
         Q_ref_evap: float = m_dot_ref * (cs["h_ref_cmp_in [J/kg]"] - cs["h_ref_exp_out [J/kg]"]) if is_active else 0.0
         E_cmp: float = (m_dot_ref * (cs["h_ref_cmp_out [J/kg]"] - cs["h_ref_cmp_in [J/kg]"]) / (self.eta_cmp_motor * self.eta_cmp_inv)) if is_active else 0.0
         cmp_rps: float = (m_dot_ref / (self.V_disp_cmp * cs["rho_ref_cmp_in [kg/m3]"] * eta_vol_val)) if is_active else 0.0
@@ -370,7 +373,7 @@ class AirSourceHeatPumpBoiler:
 
         result.update(
             {
-                "hp_is_on": (Q_cond_target > 0),
+                "hp_is_on": (Q_ref_cond_calc > 0),
                 "converged": True,
                 # Temperatures [°C]
                 "T_ou_a_in [°C]": T0,
@@ -395,15 +398,15 @@ class AirSourceHeatPumpBoiler:
                 "Q_ref_evap [W]": Q_ref_evap,
                 "Q_ou_a [W]": Q_ou_a,
                 "E_cmp [W]": E_cmp,
-                "Q_ref_cond [W]": Q_ref_cond,
+                "Q_ref_cond [W]": Q_ref_cond_calc,
                 "Q_tank_w_in [W]": Q_tank_w_in,
                 "Q_tank_w_out [W]": Q_tank_w_out,
                 "Q_mix_sup_w_in [W]": Q_mix_sup_w_in,
                 "Q_mix_w_out [W]": Q_mix_w_out,
                 "E_tot [W]": E_cmp + E_ou_fan,
                 # COP metrics (analogous to X_eff_ref / X_eff_sys)
-                "cop_ref [-]": (Q_ref_cond / E_cmp if (is_active and E_cmp > 0) else np.nan),
-                "cop_sys [-]": (Q_ref_cond / (E_cmp + E_ou_fan) if (is_active and (E_cmp + E_ou_fan) > 0) else np.nan),
+                "cop_ref [-]": (Q_ref_cond_calc / E_cmp if (is_active and E_cmp > 0) else np.nan),
+                "cop_sys [-]": (Q_ref_cond_calc / (E_cmp + E_ou_fan) if (is_active and (E_cmp + E_ou_fan) > 0) else np.nan),
             }
         )
 
@@ -412,7 +415,7 @@ class AirSourceHeatPumpBoiler:
     def _optimize_operation(
         self,
         T_tank_w: float,
-        Q_cond_target: float,
+        Q_ref_cond: float,
         T0: float,
         *,
         flow_state: dict,
@@ -423,7 +426,7 @@ class AirSourceHeatPumpBoiler:
         ----------
         T_tank_w : float
             Tank water temperature [°C].
-        Q_cond_target : float
+        Q_ref_cond : float
             Target condenser heat rate [W].
         T0 : float
             Dead-state temperature [°C].
@@ -439,7 +442,7 @@ class AirSourceHeatPumpBoiler:
             perf: dict | None = self._calc_state(
                 dT_ref_evap=dT_ref_evap,
                 T_tank_w=T_tank_w,
-                Q_cond_target=Q_cond_target,
+                Q_ref_cond=Q_ref_cond,
                 T0=T0,
                 flow_state=flow_state,
             )
@@ -467,23 +470,15 @@ class AirSourceHeatPumpBoiler:
         self,
         T_tank_w: float,
         T0: float,
-        dV_mix_w_out: float | None = None,
-        Q_cond_target: float | None = None,
+        Q_ref_cond: float,
         *,
-        hour_of_day: float = 0.0,
-        is_on_prev: bool = True,
-        T_sup_w: float | None = None,
         return_dict: bool = True,
     ) -> dict | pd.DataFrame:
         """Run a steady-state performance snapshot.
 
         Evaluates the refrigerant cycle at a given operating point
-        (``T_tank_w``, ``T0``) **without** solving the tank energy
-        balance (storage term = 0 by definition).  Suitable for
-        validation against measured operating-point data.
-
-        Exactly one of ``dV_mix_w_out`` or ``Q_cond_target`` must be
-        provided.
+        (T_tank_w, T0, Q_ref_cond) **without** solving the tank energy
+        balance or tracking dynamic flows.
 
         Parameters
         ----------
@@ -491,25 +486,10 @@ class AirSourceHeatPumpBoiler:
             Tank water temperature [°C] — treated as a given input.
         T0 : float
             Dead-state / outdoor-air temperature [°C].
-        dV_mix_w_out : float | None
-            Service water draw-off flow rate [m³/s].  When given,
-            ``Q_cond_target`` is derived from the steady-state demand
-            (``Q_tank_loss + Q_tank_withdrawal``).
-        Q_cond_target : float | None
-            Target condenser heat rate [W].  Provide when the measured
-            heat output is known (e.g. from literature data).
-        hour_of_day : float
-            Hour within the current day [0–24] for HP schedule check.
-            Mirrors the ``hour_of_day`` argument in ``analyze_dynamic``.
-        is_on_prev : bool
-            HP state at the previous step (hysteresis input).  Defaults
-            to ``True`` (assumes HP was running).
-        T_sup_w : float | None
-            Mains water supply temperature override [°C].  If ``None``,
-            the constructor value is used.  Temporarily syncs internal
-            state and restores it afterwards.
+        Q_ref_cond : float
+            Target condenser heat rate [W].
         return_dict : bool
-            If ``True`` return dict; else single-row DataFrame.
+            If True return dict; else single-row DataFrame.
 
         Returns
         -------
@@ -517,139 +497,84 @@ class AirSourceHeatPumpBoiler:
         """
         import warnings
 
-        if dV_mix_w_out is None and Q_cond_target is None:
-            raise ValueError(
-                "Either dV_mix_w_out or Q_cond_target must be provided.",
+        # Empty flow state as steady state ignores dynamic withdrawal/refill
+        flow_state = {
+            "dV_mix_w_out [m3/s]": 0.0,
+            "dV_tank_w_out [m3/s]": 0.0,
+            "dV_tank_w_in [m3/s]": 0.0,
+            "dV_mix_sup_w_in [m3/s]": 0.0,
+            "alp": 0.0,
+        }
+
+        if Q_ref_cond <= 0:
+            result = self._calc_state(
+                dT_ref_evap=5.0,
+                T_tank_w=T_tank_w,
+                Q_ref_cond=0.0,
+                T0=T0,
+                flow_state=flow_state,
             )
-        if dV_mix_w_out is not None and Q_cond_target is not None:
-            raise ValueError(
-                "Cannot provide both dV_mix_w_out and Q_cond_target.",
+        else:
+            opt_result = self._optimize_operation(
+                T_tank_w=T_tank_w,
+                Q_ref_cond=Q_ref_cond,
+                T0=T0,
+                flow_state=flow_state,
             )
-
-        # ── T_sup_w override: temporarily sync internal state ──────
-        _saved: tuple | None = None
-        if T_sup_w is not None:
-            _saved = (
-                self.T_sup_w,
-                self.T_sup_w_K,
-                self.T_tank_w_in,
-                self.T_tank_w_in_K,
-            )
-            self.T_sup_w = T_sup_w
-            self.T_sup_w_K = cu.C2K(T_sup_w)
-            self.T_tank_w_in = T_sup_w
-            self.T_tank_w_in_K = cu.C2K(T_sup_w)
-
-        try:
-            T_tank_w_K: float = cu.C2K(T_tank_w)
-            T0_K: float = cu.C2K(T0)
-
-            if dV_mix_w_out is None:
-                dV_mix_w_out = 0.0
-
-            # ── Build flow_state (using _build_flow_state, no self.dV_* writes) ─
-            # Energy balance: Q_tank_loss = UA_tank * (T_tank - T0)
-            Q_tank_loss: float = self.UA_tank * (T_tank_w_K - T0_K)
-            flow_state: dict = self._calc_tank_flow_context(
-                dV_mix_w_out=dV_mix_w_out,
-                T_tank_w_K=T_tank_w_K,
-                T_sup_w_K=self.T_sup_w_K,
-                T_mix_w_out_K=self.T_mix_w_out_K,
-            )
-
-            # ── Q_cond_target from steady-state demand (if not given) ─
-            if Q_cond_target is None:
-                # Steady-state demand: HP covers withdrawal + tank losses
-                Q_tank_w_use: float = c_w * rho_w * flow_state["dV_tank_w_out"] * (T_tank_w_K - self.T_sup_w_K)
-                Q_cond_target = Q_tank_loss + Q_tank_w_use
-
-            # ── HP ON/OFF: hysteresis + schedule (mirrors analyze_dynamic) ─
-            hp_is_on: bool = determine_heat_source_on_off(
-                T_tank_w_C=T_tank_w,
-                T_lower=self.T_tank_w_lower_bound,
-                T_upper=self.T_tank_w_upper_bound,
-                is_on_prev=is_on_prev,
-                hour_of_day=hour_of_day,
-                on_schedule=self.hp_on_schedule,
-            )
-
-            if Q_cond_target <= 0 or not hp_is_on:
-                result: dict | None = self._calc_state(
-                    dT_ref_evap=5.0,
+            result = None
+            with contextlib.suppress(Exception):
+                result = self._calc_state(
+                    dT_ref_evap=opt_result.x,
                     T_tank_w=T_tank_w,
-                    Q_cond_target=0.0,
                     T0=T0,
+                    Q_ref_cond=Q_ref_cond,
                     flow_state=flow_state,
                 )
-            else:
-                opt_result = self._optimize_operation(
-                    T_tank_w=T_tank_w,
-                    Q_cond_target=Q_cond_target,
-                    T0=T0,
-                    flow_state=flow_state,
+
+            if result is None or not isinstance(result, dict):
+                warnings.warn(
+                    f"analyze_steady: optimization failed "
+                    f"(T_tank_w={T_tank_w:.1f}°C, T0={T0:.1f}°C, "
+                    f"Q_ref_cond={Q_ref_cond:.0f}W). "
+                    "Returning HP-off state.",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
-                result = None
-                with contextlib.suppress(Exception):
+                try:
                     result = self._calc_state(
-                        dT_ref_evap=opt_result.x,
+                        dT_ref_evap=5.0,
                         T_tank_w=T_tank_w,
+                        Q_ref_cond=0.0,
                         T0=T0,
-                        Q_cond_target=Q_cond_target,
                         flow_state=flow_state,
                     )
+                except Exception:
+                    result = {
+                        "hp_is_on": False,
+                        "converged": False,
+                        "Q_ref_cond [W]": 0.0,
+                        "Q_ref_evap [W]": 0.0,
+                        "E_cmp [W]": 0.0,
+                        "E_ou_fan [W]": 0.0,
+                        "E_tot [W]": 0.0,
+                        "T_tank_w [°C]": T_tank_w,
+                        "T0 [°C]": T0,
+                    }
 
-                if result is None or not isinstance(result, dict):
-                    warnings.warn(
-                        f"analyze_steady: optimization failed "
-                        f"(T_tank_w={T_tank_w:.1f}°C, T0={T0:.1f}°C, "
-                        f"Q_cond_target={Q_cond_target:.0f}W). "
-                        "Returning HP-off state.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
-                    try:
-                        result = self._calc_state(
-                            dT_ref_evap=5.0,
-                            T_tank_w=T_tank_w,
-                            Q_cond_target=0.0,
-                            T0=T0,
-                            flow_state=flow_state,
-                        )
-                    except Exception:
-                        result = {
-                            "hp_is_on": False,
-                            "converged": False,
-                            "Q_ref_cond [W]": 0.0,
-                            "Q_ref_evap [W]": 0.0,
-                            "E_cmp [W]": 0.0,
-                            "E_ou_fan [W]": 0.0,
-                            "E_tot [W]": 0.0,
-                            "T_tank_w [°C]": T_tank_w,
-                            "T0 [°C]": T0,
-                        }
+            if (
+                result is not None
+                and isinstance(result, dict)
+                and "opt_result" in locals()
+                and hasattr(opt_result, "success")
+            ):
+                result["converged"] = opt_result.success
 
-                if (
-                    result is not None
-                    and isinstance(result, dict)
-                    and "opt_result" in locals()
-                    and hasattr(opt_result, "success")
-                ):
-                    result["converged"] = opt_result.success
+        if result is not None:
+            # Steady state doesn't have tank loss because we don't solve tank mass/energy balance
+            result["Q_tank_loss [W]"] = 0.0
+            result["tank_level [-]"] = 1.0  # steady-state: always_full
 
-            # ── Augment result with tank columns (mirrors analyze_dynamic) ─
-            if result is not None:
-                result["Q_tank_loss [W]"] = Q_tank_loss
-                result["tank_level [-]"] = 1.0  # steady-state: always_full
 
-        finally:
-            # ── Restore T_sup_w internal state ─────────────────────
-            if _saved is not None:
-                (
-                    self.T_sup_w,
-                    self.T_sup_w_K,
-                    self.T_tank_w_in,
-                    self.T_tank_w_in_K,
-                ) = _saved
 
         if return_dict:
             return result
@@ -731,7 +656,7 @@ class AirSourceHeatPumpBoiler:
             on_schedule=self.hp_on_schedule,
         )
 
-        Q_cond_target: float = self.hp_capacity if hp_is_on else 0.0
+        Q_ref_cond: float = self.hp_capacity if hp_is_on else 0.0
 
         # Build explicit flow_state — no side-effects on self.dV_*
         flow_state: dict = self._calc_tank_flow_context(
@@ -741,7 +666,7 @@ class AirSourceHeatPumpBoiler:
             T_mix_w_out_K=self.T_mix_w_out_K,
         )
 
-        if Q_cond_target == 0:
+        if Q_ref_cond == 0:
             hp_result = self._calc_state(
                 5.0,
                 T_tank_w,
@@ -752,14 +677,14 @@ class AirSourceHeatPumpBoiler:
         else:
             opt = self._optimize_operation(
                 T_tank_w,
-                Q_cond_target,
+                Q_ref_cond,
                 ctx.T0,
                 flow_state=flow_state,
             )
             hp_result = self._calc_state(
                 opt.x,
                 T_tank_w,
-                Q_cond_target,
+                Q_ref_cond,
                 ctx.T0,
                 flow_state=flow_state,
             )

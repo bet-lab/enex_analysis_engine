@@ -16,12 +16,12 @@ from . import calc_util as cu
 from .air_source_heat_pump_boiler import AirSourceHeatPumpBoiler
 from .components.fan import Fan
 from .constants import c_a, c_w, k_w, rho_a, rho_w
-from .enex_functions import (
-    G_FLS,
+from .cop import (
     calc_ASHP_cooling_COP,
     calc_ASHP_heating_COP,
     calc_GSHP_COP,
 )
+from .g_function import G_FLS
 
 # Phase 3 Refactoring: Re-exporting standalone boiler modules for backward compatibility
 

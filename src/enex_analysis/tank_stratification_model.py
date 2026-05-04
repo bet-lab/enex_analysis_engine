@@ -9,7 +9,8 @@ and natural convection driven by buoyancy forces.
 import numpy as np
 
 from .constants import beta, c_w, g, k_w, mu_w, rho_w
-from .enex_functions import TDMA, _add_loop_advection_terms, calc_UA_tank_arr
+from .heat_transfer import calc_UA_tank_arr
+from .tdma import TDMA, _add_loop_advection_terms
 
 
 class StratifiedTankTDMA:

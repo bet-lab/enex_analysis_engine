@@ -282,7 +282,7 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
             \\dot{X}_{\\mathrm{tot}} \\mathrel{+}=
                 \\dot{X}_{\\mathrm{stc,pump}}
         """
-        from .enex_functions import calc_exergy_flow
+        from .thermodynamics import calc_exergy_flow
 
         # 1. Standard ASHP exergy
         df = super()._postprocess(df)

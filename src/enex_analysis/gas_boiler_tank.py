@@ -33,12 +33,14 @@ from .dynamic_context import (
     determine_tank_refill_flow,
     tank_mass_energy_residual,
 )
+from .dhw import build_dhw_usage_ratio
 from .enex_functions import (
-    build_dhw_usage_ratio,
-    calc_exergy_flow,
     calc_mixing_valve_flows,
     calc_mixing_valve_temp,
-    calc_simple_tank_UA,
+)
+from .heat_transfer import calc_simple_tank_UA
+from .thermodynamics import (
+    calc_exergy_flow,
     convert_electricity_to_exergy,
 )
 
@@ -245,41 +247,23 @@ class GasBoilerTank:
         self,
         T_tank_w: float,
         T0: float,
-        dV_mix_w_out: float = 0.0,
+        Q_heat_target: float,
+        *,
         return_dict: bool = True,
     ) -> dict | pd.DataFrame:
-        """Run a steady-state analysis.
-
-        Parameters
-        ----------
-        T_tank_w : float
-            Tank water temperature [°C].
-        T0 : float
-            Dead-state temperature [°C].
-        dV_mix_w_out : float
-            Service water flow rate [m³/s].
-        return_dict : bool
-            If True return dict; else single-row DataFrame.
-
-        Returns
-        -------
-        dict | pd.DataFrame
-        """
-        self.dV_mix_w_out = dV_mix_w_out
-
-        burner_on: bool
-        if T_tank_w <= self.T_tank_w_lower_bound:
-            burner_on = True
-        elif T_tank_w >= self.T_tank_w_upper_bound:
-            burner_on = False
-        else:
-            burner_on = True
-
+        """Run a steady-state performance snapshot."""
+        burner_on = (Q_heat_target > 0)
+        self.dV_mix_w_out = 0.0
+        
         result: dict = self._calc_state(
             T_tank_w,
             T0,
             burner_on,
         )
+        # Steady state doesn't have tank loss because we don't solve tank mass/energy balance
+        result["Q_tank_loss [W]"] = 0.0
+        result["tank_level [-]"] = 1.0
+
         if return_dict:
             return result
         return pd.DataFrame([result])

@@ -164,7 +164,7 @@ class EB_STC_tank(ElectricBoiler):
         return r
 
     def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        from .enex_functions import calc_exergy_flow
+        from .thermodynamics import calc_exergy_flow
 
         df = super()._postprocess(df)
         if "T_stc_w_in [°C]" not in df.columns or "T_stc_w_out [°C]" not in df.columns:
