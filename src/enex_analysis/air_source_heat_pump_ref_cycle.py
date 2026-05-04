@@ -1,11 +1,13 @@
 import math
-import numpy as np
 from dataclasses import dataclass
+
+import numpy as np
 from CoolProp.CoolProp import PropsSI
 
 from . import calc_util as cu
 from .components.fan import Fan
 from .constants import c_a, rho_a
+
 
 def epsilon_from_NTU(NTU):
     # 2상(liquid, vapor) 조건에서의 열교환률 계산
@@ -36,7 +38,7 @@ class AirSourceHeatPump_cooling:
         self.ref = 'R32' # refrigerant
         self.SH = 6 # superheat [K]
         self.SC = 6 # subcooling [K]
-        
+
         # Temperature
         self.T0 = 35 # environment temperature [°C]
         self.T_a_room = 27 # room air temperature [°C]
@@ -76,7 +78,7 @@ class AirSourceHeatPump_cooling:
             self.S1 = self.S2 = self.S3 = self.S4 = 0.0
             self.X1 = self.X2 = self.X3 = self.X4 = 0.0
             self.X_cmp = self.X_fan_iu = self.X_fan_ou = 0.0
-            self.X_in_tot = 1e-6 
+            self.X_in_tot = 1e-6
             self.X_out_tot = 0.0
             self.X_eff = 0.0
             self.X_in_cmp = self.X_out_cmp = self.X_c_cmp = 0.0
@@ -95,7 +97,7 @@ class AirSourceHeatPump_cooling:
         p0 = 101325
         h0 = PropsSI('H', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
         s0 = PropsSI('S', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
-        
+
         if self.Q_r_iu == 0:
             self.E_cmp, self.E_fan_iu, self.E_fan_ou, self.E_tot = 0.0, 0.0, 0.0, 0.0
             self.m_r, self.COP, self.COP_sys, self.X_eff = 0.0, 0.0, 0.0, 0.0
@@ -111,7 +113,7 @@ class AirSourceHeatPump_cooling:
         def solve_with_dT(dt_iu, dt_ou):
             res = {'T_a_iu_in': self.T_a_room, 'T_a_iu_out': self.T_a_room - dt_iu,
                    'T_a_ou_in': self.T0, 'T_a_ou_out': self.T0 + dt_ou}
-            
+
             # Indoor unit air flows and properties
             C_a_iu = self.Q_r_iu / dt_iu
             m_a_iu = C_a_iu / c_a
@@ -119,7 +121,7 @@ class AirSourceHeatPump_cooling:
             NTU_iu = self.UA_iu / C_a_iu
             eps_iu = epsilon_from_NTU(NTU_iu)
             T_s_iu = Ts_from_otherfluid(res['T_a_iu_in'], res['T_a_iu_out'], eps_iu)
-            
+
             p1 = PropsSI('P', 'T', cu.C2K(T_s_iu), 'Q', 1, self.ref)
             T1_K = cu.C2K(T_s_iu) + self.SH
             h1 = PropsSI('H', 'T', T1_K, 'P', p1, self.ref)
@@ -154,7 +156,7 @@ class AirSourceHeatPump_cooling:
                 if res_lo * res_mid < 0: hi = mid
                 else: lo = mid; res_lo = res_mid
                 T_s_ou = mid
-            
+
             eps_ou = epsilon_from_temperature(res['T_a_ou_in'], res['T_a_ou_out'], T_s_ou)
             NTU_ou = NTU_from_epsilon(eps_ou)
             C_a_ou = self.UA_ou / NTU_ou
@@ -168,14 +170,14 @@ class AirSourceHeatPump_cooling:
             h3 = PropsSI('H', 'T', cu.C2K(T3), 'P', p2, self.ref)
             s3 = PropsSI('S', 'T', cu.C2K(T3), 'P', p2, self.ref)
             m_r = self.Q_r_iu / (h1 - h3)
-            
+
             E_cmp = (m_r * (h2 - h1)) / self.eta_el
             E_fan_iu = Fan().get_power(self.fan_iu, V_a_iu)
             E_fan_ou = Fan().get_power(self.fan_ou, V_a_ou)
-            
+
             if E_cmp <= 0 or E_fan_iu <= 0 or E_fan_ou <= 0:
                 return {'E_tot': 1e12}
-            
+
             res.update({
                 'E_tot': E_cmp + E_fan_iu + E_fan_ou, 'E_cmp': E_cmp, 'E_fan_iu': E_fan_iu, 'E_fan_ou': E_fan_ou,
                 'm_r': m_r, 'h1': h1, 'h2': h2, 'h3': h3, 'h4': h3,
@@ -190,7 +192,7 @@ class AirSourceHeatPump_cooling:
         # 2D Grid Search for minimizing E_tot
         best_E = float('inf')
         best_res = None
-        
+
         # Coarse Grid (Reduced to 3x3 for speed)
         dtiu_coarse = [7, 10, 13]
         dtou_coarse = [6, 15, 23]
@@ -203,7 +205,7 @@ class AirSourceHeatPump_cooling:
                         best_res = r
                         best_dt_iu, best_dt_ou = dt_iu, dt_ou
                 except: continue
-        
+
         # Fine Grid (Reduced to 3x3 around best)
         if best_res:
             dtiu_fine = [best_dt_iu-1.5, best_dt_iu, best_dt_iu+1.5]
@@ -224,13 +226,13 @@ class AirSourceHeatPump_cooling:
 
         # Apply results to instance
         for k, v in best_res.items(): setattr(self, k, v)
-        
+
         # Calculate derived exergy/energy metrics for best point
         p0 = 101325
         h0 = PropsSI('H', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
         s0 = PropsSI('S', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
         T0_K = cu.C2K(self.T0)
-        
+
         self.E_tot = self.E_cmp + self.E_fan_iu + self.E_fan_ou
         self.COP_sys = self.Q_r_iu / self.E_tot
         self.COP = self.Q_r_iu / self.E_cmp
@@ -241,7 +243,7 @@ class AirSourceHeatPump_cooling:
         self.E1, self.E2, self.E3, self.E4 = self.m_r*self.h1, self.m_r*self.h2, self.m_r*self.h3, self.m_r*self.h4
         self.S1, self.S2, self.S3, self.S4 = self.m_r*self.s1, self.m_r*self.s2, self.m_r*self.s3, self.m_r*self.s4
         self.S_cmp, self.S_fan_iu, self.S_fan_ou = 0.0, 0.0, 0.0
-        
+
         # Air exergy and energy/entropy flows (Use standardized attributes)
         self.Q_a_iu_in = c_a * rho_a * self.V_a_iu * cu.C2K(self.T_a_iu_in)
         self.Q_a_iu_out = c_a * rho_a * self.V_a_iu * cu.C2K(self.T_a_iu_out)
@@ -324,7 +326,7 @@ class AirSourceHeatPump_heating:
         self.ref = 'R32' # refrigerant
         self.SH = 6 # superheat [K]
         self.SC = 6 # subcooling [K]
-        
+
         # Temperature
         self.T0 = 0 # environment temperature [°C]
         self.T_a_room = 21 # room air temperature [°C]
@@ -360,7 +362,7 @@ class AirSourceHeatPump_heating:
         def solve_with_dT(dt_iu, dt_ou):
             res = {'T_a_iu_in': self.T_a_room, 'T_a_iu_out': self.T_a_room + dt_iu,
                    'T_a_ou_in': self.T0, 'T_a_ou_out': self.T0 - dt_ou}
-            
+
             # Indoor unit (Condenser) air flows and properties
             C_a_iu = self.Q_r_iu / dt_iu
             m_a_iu = C_a_iu / c_a
@@ -368,7 +370,7 @@ class AirSourceHeatPump_heating:
             NTU_iu = self.UA_iu / C_a_iu
             eps_iu = epsilon_from_NTU(NTU_iu)
             T_s_iu = Ts_from_otherfluid(res['T_a_iu_in'], res['T_a_iu_out'], eps_iu)
-            
+
             # Refrigerant states at condenser
             p2 = PropsSI('P', 'T', cu.C2K(T_s_iu), 'Q', 1, self.ref)
             T3 = T_s_iu - self.SC
@@ -404,7 +406,7 @@ class AirSourceHeatPump_heating:
                 if res_lo * res_mid < 0: hi = mid
                 else: lo = mid; res_lo = res_mid
                 T_s_ou = mid
-            
+
             eps_ou = epsilon_from_temperature(res['T_a_ou_in'], res['T_a_ou_out'], T_s_ou)
             NTU_ou = NTU_from_epsilon(eps_ou)
             C_a_ou = self.UA_ou / NTU_ou
@@ -419,14 +421,14 @@ class AirSourceHeatPump_heating:
             h2s = PropsSI('H', 'P', p2, 'S', s1, self.ref)
             h2 = h1 + (h2s - h1) / self.eta_is
             m_r = self.Q_r_iu / (h2 - h3)
-            
+
             E_cmp = (m_r * (h2 - h1)) / self.eta_el
             E_fan_iu = Fan().get_power(self.fan_iu, V_a_iu)
             E_fan_ou = Fan().get_power(self.fan_ou, V_a_ou)
-            
+
             if E_cmp <= 0 or E_fan_iu <= 0 or E_fan_ou <= 0:
                 return {'E_tot': 1e12}
-            
+
             res.update({
                 'E_tot': E_cmp + E_fan_iu + E_fan_ou, 'E_cmp': E_cmp, 'E_fan_iu': E_fan_iu, 'E_fan_ou': E_fan_ou,
                 'm_r': m_r, 'h1': h1, 'h2': h2, 'h3': h3, 'h4': h3,
@@ -441,7 +443,7 @@ class AirSourceHeatPump_heating:
         # 2D Grid Search for minimizing E_tot
         best_E = float('inf')
         best_res = None
-        
+
         # Coarse Grid (Reduced to 3x3 for speed)
         dtiu_coarse = [7, 10, 13]
         dtou_coarse = [5, 9, 13]
@@ -454,7 +456,7 @@ class AirSourceHeatPump_heating:
                         best_res = r
                         best_dt_iu, best_dt_ou = dt_iu, dt_ou
                 except: continue
-        
+
         # Fine Grid (Reduced to 3x3 around best)
         if best_res:
             dtiu_fine = [best_dt_iu-1.5, best_dt_iu, best_dt_iu+1.5]
@@ -474,13 +476,13 @@ class AirSourceHeatPump_heating:
 
         # Apply results to instance
         for k, v in best_res.items(): setattr(self, k, v)
-        
+
         # Calculate derived exergy/energy metrics for best point
         p0 = 101325
         h0 = PropsSI('H', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
         s0 = PropsSI('S', 'P', p0, 'T', cu.C2K(self.T0), self.ref)
         T0_K = cu.C2K(self.T0)
-        
+
         self.E_tot = self.E_cmp + self.E_fan_iu + self.E_fan_ou
         self.COP_sys = self.Q_r_iu / self.E_tot
         self.COP = self.Q_r_iu / self.E_cmp
@@ -491,7 +493,7 @@ class AirSourceHeatPump_heating:
         self.E1, self.E2, self.E3, self.E4 = self.m_r*self.h1, self.m_r*self.h2, self.m_r*self.h3, self.m_r*self.h4
         self.S1, self.S2, self.S3, self.S4 = self.m_r*self.s1, self.m_r*self.s2, self.m_r*self.s3, self.m_r*self.s4
         self.S_cmp, self.S_fan_iu, self.S_fan_ou = 0.0, 0.0, 0.0
-        
+
         # Air exergy and energy/entropy flows (Use standardized attributes)
         self.Q_a_iu_in = c_a * rho_a * self.V_a_iu * cu.C2K(self.T_a_iu_in)
         self.Q_a_iu_out = c_a * rho_a * self.V_a_iu * cu.C2K(self.T_a_iu_out)
@@ -513,7 +515,7 @@ class AirSourceHeatPump_heating:
         self.X_a_iu_out = c_a * rho_a * self.V_a_iu * ((cu.C2K(self.T_a_iu_out) - T0_K) - T0_K * math.log(cu.C2K(self.T_a_iu_out)/T0_K))
         self.X_a_ou_in = c_a * rho_a * self.V_a_ou * ((cu.C2K(self.T_a_ou_in) - T0_K) - T0_K * math.log(cu.C2K(self.T_a_ou_in)/T0_K))
         self.X_a_ou_out = c_a * rho_a * self.V_a_ou * ((cu.C2K(self.T_a_ou_out) - T0_K) - T0_K * math.log(cu.C2K(self.T_a_ou_out)/T0_K))
-        
+
         # Exergy components (Simplify for optimization context)
         self.X1, self.X2 = _calc_X_flow(self.m_r, [self.h1, self.h2], [self.s1, self.s2], h0, s0, T0_K)
         self.X3, self.X4 = _calc_X_flow(self.m_r, [self.h3, self.h4], [self.s3, self.s4], h0, s0, T0_K)

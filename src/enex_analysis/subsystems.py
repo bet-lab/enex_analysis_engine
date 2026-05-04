@@ -413,7 +413,7 @@ class PhotovoltaicSystem:
 
         # ── PV Cell ──────────────────────────────────────────────
         T_pv_K_approx = T0 + (I_sol * (self.alp_pv - self.eta_pv)) / (2.0 * self.h_o)
-        
+
         eta_pv_actual = self.eta_pv * (1.0 - self.beta_pv * (T_pv_K_approx - self.T_ref_pv_K))
         eta_pv_actual = max(0.0, min(self.alp_pv, eta_pv_actual))
 

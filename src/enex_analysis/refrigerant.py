@@ -2,7 +2,9 @@
 Refrigerant cycle calculations and optimization.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 import CoolProp.CoolProp as CP
 import numpy as np
 

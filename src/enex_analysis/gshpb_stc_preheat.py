@@ -106,8 +106,8 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
 
     def _run_subsystems(
         self,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         dt: float,
         T_tank_w_in_K: float,
     ) -> dict[str, dict]:
@@ -199,8 +199,8 @@ class GSHPB_STC_preheat(GroundSourceHeatPumpBoiler):
     def _augment_results(
         self,
         r: dict,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         sub_states: dict[str, dict],
         T_solved_K: float,
     ) -> dict:

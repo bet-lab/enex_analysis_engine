@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
 from . import calc_util as cu
-from .calc_util import s2h
 from .constants import c_w, rho_w
 from .dynamic_context import (
     ControlState,
@@ -21,10 +20,9 @@ from .dynamic_context import (
 from .enex_functions import (
     build_dhw_usage_ratio,
     calc_exergy_flow,
-    calc_mixing_valve,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
 )
-from .dynamic_context import Subsystem
-from .dynamic_context import Subsystem
 
 
 class ElectricBoiler:
@@ -76,23 +74,23 @@ class ElectricBoiler:
         self.dV_mix_sup_w_in: float = 0.0
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_tank_flow_context(
         dV_mix_w_out: float,
         T_tank_w_K: float,
         T_sup_w_K: float,
         T_mix_w_out_K: float,
         dV_tank_w_in_override: float | None = None,
     ) -> dict:
-        den: float = max(1e-6, T_tank_w_K - T_sup_w_K)
-        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_sup_w_K) / den))
-        dV_tank_w_out: float = alp * dV_mix_w_out
-        dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, T_sup_w_K, T_mix_w_out_K)
+        flows = calc_mixing_valve_flows(dV_mix_w_out, mix_state["alp"])
+        dV_tank_w_out = flows["dV_hot_in"]
+        dV_tank_w_in = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
+            "alp": mix_state["alp"],
             "dV_mix_w_out": dV_mix_w_out,
             "dV_tank_w_out": dV_tank_w_out,
             "dV_tank_w_in": dV_tank_w_in,
-            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
-            "alp": alp,
+            "dV_mix_sup_w_in": flows["dV_cold_in"],
         }
 
     def _calc_state(
@@ -116,7 +114,7 @@ class ElectricBoiler:
         if dV_mix_w_out_val == 0:
             T_mix_w_out_val: float = np.nan
         else:
-            T_mix_w_out_val = calc_mixing_valve(T_tank_w_K, self.T_sup_w_K, self.T_mix_w_out_K)["T_mix_w_out"]
+            T_mix_w_out_val = calc_mixing_valve_temp(T_tank_w_K, self.T_sup_w_K, self.T_mix_w_out_K)["T_mix_w_out"]
 
         return {
             "heater_is_on": heater_on,
@@ -149,7 +147,7 @@ class ElectricBoiler:
         else:
             heater_on = True
 
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=dV_mix_w_out,
             T_tank_w_K=cu.C2K(T_tank_w),
             T_sup_w_K=self.T_sup_w_K,
@@ -172,9 +170,9 @@ class ElectricBoiler:
             T_upper=self.T_tank_w_upper_bound,
             is_on_prev=is_on_prev,
             hour_of_day=ctx.hour_of_day,
-            on_schedule=self.on_schedule,
+            on_schedule=self.on_schedule.get("winter", []) if self.on_schedule else [(0.0, 24.0)],
         )
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=ctx.T_tank_w_K,
             T_sup_w_K=self.T_sup_w_K,
@@ -238,7 +236,7 @@ class ElectricBoiler:
     def _assemble_core_results(
         self, ctx: StepContext, ctrl: ControlState, T_solved_K: float, level_solved: float, ier: int
     ) -> dict:
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=T_solved_K,
             T_sup_w_K=self.T_sup_w_K,
@@ -251,7 +249,7 @@ class ElectricBoiler:
         self.dV_mix_sup_w_in = flow_state["dV_mix_sup_w_in"]
 
         T_mix_w_out_val: float = (
-            calc_mixing_valve(T_solved_K, self.T_sup_w_K, self.T_mix_w_out_K)["T_mix_w_out"]
+            calc_mixing_valve_temp(T_solved_K, self.T_sup_w_K, self.T_mix_w_out_K)["T_mix_w_out"]
             if ctx.dV_mix_w_out > 0
             else np.nan
         )
@@ -277,7 +275,7 @@ class ElectricBoiler:
         # Tank calculations
         T_tank_K = cu.C2K(df["T_tank_w [°C]"])
         T_tank_K_prev = T_tank_K.shift(1).fillna(T_tank_K)
-        tank_level = df.get("tank_level [-]", 1.0)
+        tank_level = df["tank_level [-]"] if "tank_level [-]" in df.columns else 1.0
         C_tank_actual = self.C_tank * tank_level
 
         df["X_tank_loss [W]"] = df["Q_tank_loss [W]"] * (1 - T0_K / T_tank_K)
@@ -394,7 +392,6 @@ class ElectricBoiler:
                 activation_flags=self._get_activation_flags(hour_of_day),
                 I_DN=I_DN_schedule[n],
                 I_dH=I_dH_schedule[n],
-                preheat_on=False,
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
                 dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
@@ -412,11 +409,8 @@ class ElectricBoiler:
                 prevent_simultaneous_flow=self.prevent_simultaneous_flow,
                 tank_level_lower_bound=self.tank_level_lower_bound,
                 tank_level_upper_bound=self.tank_level_upper_bound,
-                dV_tank_w_in_refill=self.dV_tank_w_in_refill,
+                dV_tank_w_in_refill=(self.dV_tank_w_in_refill or 0.0),
                 is_refilling=is_refilling,
-                use_stc=False,
-                mode="",
-                preheat_on=False,
             )
 
             ctrl = ControlState(
@@ -439,9 +433,10 @@ class ElectricBoiler:
             )
 
             if res_fn is not None:
+                _valid_res_fn = res_fn
 
                 def fn(x):
-                    return [res_fn(x[0]), x[1] - tank_level]
+                    return [_valid_res_fn(x[0]), x[1] - tank_level]
 
                 sol, *_ = fsolve(fn, [ctx.T_tank_w_K, ctx.tank_level])
                 ier = 1

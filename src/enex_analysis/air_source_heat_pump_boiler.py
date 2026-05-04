@@ -17,8 +17,9 @@ configured through constructor parameters.
 
 import contextlib
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -38,7 +39,8 @@ from .enex_functions import (
     calc_energy_flow,
     calc_fan_power_from_dV_fan,
     calc_HX_perf_for_target_heat,
-    calc_mixing_valve,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
     calc_ref_state,
     calc_simple_tank_UA,
 )
@@ -71,12 +73,12 @@ class AirSourceHeatPumpBoiler:
         # 2. Heat exchanger -----------------------------
         UA_cond_design: float | None = None,
         UA_evap_design: float | None = None,
-        n_evap: float = 0.71,
+        n_evap: float = 0.65,
         # 3. Outdoor unit fan ---------------------------
         dV_ou_fan_a_design: float | None = None,
-        dP_ou_fan_design: float = 75.0,
+        dP_ou_fan_design: float = 80.0,
         A_cross_ou: float | None = None,
-        eta_ou_fan_design: float = 0.6,
+        eta_ou_fan_design: float = 0.5,
         # 4. Tank / control / load ----------------------
         T_tank_w_upper_bound: float = 65.0,
         T_tank_w_lower_bound: float = 60.0,
@@ -121,7 +123,7 @@ class AirSourceHeatPumpBoiler:
         # --- 1. Refrigerant / cycle / compressor ---
         self.ref: str = ref
         self.V_disp_cmp: float = V_disp_cmp
-        
+
         # Isentropic Efficiency
         if eta_cmp_isen is not None:
             self.eta_cmp_isen: float | Callable = eta_cmp_isen
@@ -166,7 +168,7 @@ class AirSourceHeatPumpBoiler:
         # representing an optimal ratio of airflow volume to thermal capacity.
         # This provides enough margin so that nominal optimization operates at ~80% fan ratio.
         if dV_ou_fan_a_design is None:
-            self.dV_ou_fan_a_design = hp_capacity * 0.0002
+            self.dV_ou_fan_a_design = hp_capacity * 0.0004
         else:
             self.dV_ou_fan_a_design = dV_ou_fan_a_design
 
@@ -350,7 +352,7 @@ class AirSourceHeatPumpBoiler:
             T_mix_w_out_val: float = np.nan
             T_mix_w_out_val_K: float = np.nan
         else:
-            mix: dict = calc_mixing_valve(
+            mix: dict = calc_mixing_valve_temp(
                 T_tank_w_K,
                 self.T_sup_w_K,
                 self.T_mix_w_out_K,
@@ -548,7 +550,7 @@ class AirSourceHeatPumpBoiler:
             # ── Build flow_state (using _build_flow_state, no self.dV_* writes) ─
             # Energy balance: Q_tank_loss = UA_tank * (T_tank - T0)
             Q_tank_loss: float = self.UA_tank * (T_tank_w_K - T0_K)
-            flow_state: dict = self._build_flow_state(
+            flow_state: dict = self._calc_tank_flow_context(
                 dV_mix_w_out=dV_mix_w_out,
                 T_tank_w_K=T_tank_w_K,
                 T_sup_w_K=self.T_sup_w_K,
@@ -658,7 +660,7 @@ class AirSourceHeatPumpBoiler:
     # =============================================================
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_tank_flow_context(
         dV_mix_w_out: float,
         T_tank_w_K: float,
         T_sup_w_K: float,
@@ -687,16 +689,16 @@ class AirSourceHeatPumpBoiler:
             Keys: ``dV_mix_w_out``, ``dV_tank_w_out``, ``dV_tank_w_in``,
             ``dV_mix_sup_w_in``.
         """
-        # Mass balance at mixing valve: alp * dV_tank + (1-alp) * dV_sup = dV_mix
-        den: float = max(1e-6, T_tank_w_K - T_sup_w_K)
-        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_sup_w_K) / den))
-        dV_tank_w_out: float = alp * dV_mix_w_out
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, T_sup_w_K, T_mix_w_out_K)
+        flows = calc_mixing_valve_flows(dV_mix_w_out, mix_state["alp"])
+        dV_tank_w_out: float = flows["dV_hot_in"]
         dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
             "dV_mix_w_out [m3/s]": dV_mix_w_out,
             "dV_tank_w_out [m3/s]": dV_tank_w_out,
             "dV_tank_w_in [m3/s]": dV_tank_w_in,
-            "dV_mix_sup_w_in [m3/s]": (1.0 - alp) * dV_mix_w_out,
+            "dV_mix_sup_w_in [m3/s]": flows["dV_cold_in"],
+            "alp": mix_state["alp"]
         }
 
     def _determine_hp_state(
@@ -732,7 +734,7 @@ class AirSourceHeatPumpBoiler:
         Q_cond_target: float = self.hp_capacity if hp_is_on else 0.0
 
         # Build explicit flow_state — no side-effects on self.dV_*
-        flow_state: dict = self._build_flow_state(
+        flow_state: dict = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=ctx.T_tank_w_K,
             T_sup_w_K=self.T_sup_w_K,
@@ -804,7 +806,7 @@ class AirSourceHeatPumpBoiler:
         self.dV_mix_sup_w_in = (1 - alp) * ctx.dV_mix_w_out
 
         T_mix_w_out_val: float = (
-            calc_mixing_valve(
+            calc_mixing_valve_temp(
                 T_solved_K,
                 self.T_sup_w_K,
                 self.T_mix_w_out_K,
@@ -1018,7 +1020,6 @@ class AirSourceHeatPumpBoiler:
         pd.DataFrame
             Per-timestep result DataFrame.
         """
-        from scipy.optimize import fsolve
 
         time: np.ndarray = np.arange(
             0,
@@ -1339,21 +1340,21 @@ class AirSourceHeatPumpBoiler:
         df["X_eff_sys [-]"] = df["X_ref_cond [W]"] / df["X_tot [W]"].replace(0, np.nan)
 
         df["X_eff_tank [-]"] = 1 - df["Xc_tank [W]"] / X_in_tank.replace(0, np.nan)
-        
+
         X_in_mix = df["X_tank_w_out [W]"].fillna(0) + df["X_mix_sup_w_in [W]"].fillna(0)
         df["X_eff_mix [-]"] = 1 - df["Xc_mix [W]"] / X_in_mix.replace(0, np.nan)
-        
+
         X_in_cmp = df["X_cmp [W]"] + df["X_ref_cmp_in [W]"]
         df["X_eff_cmp [-]"] = 1 - df["Xc_cmp [W]"] / X_in_cmp.replace(0, np.nan)
-        
+
         df["X_eff_ref_cond [-]"] = 1 - df["Xc_ref_cond [W]"] / df["X_ref_cmp_out [W]"].replace(0, np.nan)
-        
+
         df["X_eff_exp [-]"] = 1 - df["Xc_exp [W]"] / df["X_ref_exp_in [W]"].replace(0, np.nan)
-        
+
         a_ou_in = df["X_a_ou_in [W]"].fillna(0) if "X_a_ou_in [W]" in df.columns else 0.0
         X_in_ref_evap = df["X_ref_exp_out [W]"] + a_ou_in
         df["X_eff_ref_evap [-]"] = 1 - df["Xc_ref_evap [W]"] / X_in_ref_evap.replace(0, np.nan)
-        
+
         a_ou_mid = df["X_a_ou_mid [W]"].fillna(0) if "X_a_ou_mid [W]" in df.columns else 0.0
         X_in_ou_fan = df["X_ou_fan [W]"] + a_ou_mid
         df["X_eff_ou_fan [-]"] = 1 - df["Xc_ou_fan [W]"] / X_in_ou_fan.replace(0, np.nan)

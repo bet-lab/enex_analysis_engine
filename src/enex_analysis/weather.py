@@ -2,11 +2,11 @@
 Weather data processing and irradiance calculations.
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pvlib
-
-import warnings
 
 from . import calc_util as cu
 

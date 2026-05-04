@@ -1,14 +1,11 @@
 """Energy and Exergy Analysis Engine package init."""
 
-from .ashpb_pv_ess import ASHPB_PV_ESS
-from .ashpb_stc_preheat import ASHPB_STC_preheat
-from .ashpb_stc_tank import ASHPB_STC_tank
-from .gshpb_pv_ess import GSHPB_PV_ESS
-from .gshpb_stc_preheat import GSHPB_STC_preheat
-from .gshpb_stc_tank import GSHPB_STC_tank
 from .air_source_heat_pump_boiler import (
     AirSourceHeatPumpBoiler,
 )
+from .ashpb_pv_ess import ASHPB_PV_ESS
+from .ashpb_stc_preheat import ASHPB_STC_preheat
+from .ashpb_stc_tank import ASHPB_STC_tank
 from .calc_util import (
     C2F,
     C2K,
@@ -126,7 +123,8 @@ from .enex_functions import (
     calc_fan_power_from_dV_fan,
     calc_GSHP_COP,
     calc_HX_perf_for_target_heat,
-    calc_mixing_valve,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
     calc_Orifice_flow_coefficient,
     calc_stc_performance,
     calc_UA_from_dV_fan,
@@ -148,13 +146,16 @@ from .gas_boiler import (
 from .gas_boiler_tank import (
     GasBoilerTank,
 )
+from .ground_source_heat_pump import GroundSourceHeatPump
 from .ground_source_heat_pump_boiler import (
     GroundSourceHeatPumpBoiler,
 )
-from .ground_source_heat_pump import GroundSourceHeatPump
 from .ground_source_heat_pump_ref_cycle import (
     GroundSourceHeatPump_RefCycle,
 )
+from .gshpb_pv_ess import GSHPB_PV_ESS
+from .gshpb_stc_preheat import GSHPB_STC_preheat
+from .gshpb_stc_tank import GSHPB_STC_tank
 from .heat_transfer import (
     TRIDIAG_MATRIX_ALGORITHM,
     calc_h_vertical_plate,

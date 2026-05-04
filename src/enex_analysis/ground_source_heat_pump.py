@@ -5,12 +5,15 @@ Contains unified cooling, heating, and off mode simulation class with Temporal S
 
 import math
 from dataclasses import dataclass
+
 import numpy as np
 import pygfunction as gt
 
 from . import calc_util as cu
 from .components.fan import Fan
-from .constants import c_a, c_w as c_f, rho_a, rho_w as rho_f
+from .constants import c_a, rho_a
+from .constants import c_w as c_f
+from .constants import rho_w as rho_f
 from .enex_functions import calc_GSHP_COP
 
 
@@ -69,7 +72,7 @@ class GroundSourceHeatPump:
         n_steps = int(self.sim_hours / self.dt_hours)
         time_array = np.arange(1, n_steps + 1) * self.dt_sec
         alpha = self.k_g / (self.rho_g * self.c_g) # Soil thermal diffusivity [m²/s]
-        
+
         self.g_func_list = gt.gfunction.gFunction(
             [borehole], alpha, time=time_array,
         ).gFunc
@@ -95,7 +98,7 @@ class GroundSourceHeatPump:
         elif self.Q_r_iu < 0:
             mode = "heating"
             self.T_a_room = 21  # Room air temperature [°C]
-            self.dT_r_ghx = -3 # GHX refrigerant - GHX outlet water [K] 
+            self.dT_r_ghx = -3 # GHX refrigerant - GHX outlet water [K]
             self.dT_r_iu = 15 # Indoor unit refrigerant - Indoor unit inlet air [K]
             self.T_r_iu = self.T_a_room + self.dT_r_iu # Indoor unit refrigerant [°C]
             dT_a_iu = 10 # Indoor unit outlet air - Room air [K]
@@ -115,9 +118,9 @@ class GroundSourceHeatPump:
         # Temperatures in Kelvin
         self.T0_K = cu.C2K(self.T0)
         self.T_a_room_K = cu.C2K(self.T_a_room)
-        
+
         self.T_a_iu_out_K = self.T_a_room_K + dT_a_iu
-             
+
         self.T_r_iu_K = cu.C2K(self.T_r_iu)
         self.T_g_K = cu.C2K(self.T_g)
 
@@ -202,8 +205,8 @@ class GroundSourceHeatPump:
             self.g_i = self.g_func_list[0]
             self.T_b_history_effect = T_b_history_effect  # Expose history penalty
             self.T_b = (
-                self.T_g_K 
-                + T_b_history_effect 
+                self.T_g_K
+                + T_b_history_effect
                 + ((self.q_b - self.q_b_history[-1]) / (2 * math.pi * self.k_g)) * self.g_i
             )
             # -----------------------------------------------------------------

@@ -22,7 +22,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from . import calc_util as cu
-from .constants import c_w, rho_w, mu_w, k_w
+from .constants import c_w, k_w, mu_w, rho_w
 from .dynamic_context import (
     ControlState,
     StepContext,
@@ -31,11 +31,12 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
-    calc_exergy_flow,
-    calc_mixing_valve,
-    calc_ref_state,
-    calc_simple_tank_UA,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
 )
+from .heat_transfer import calc_simple_tank_UA
+from .refrigerant import calc_ref_state
+from .thermodynamics import calc_exergy_flow
 
 if TYPE_CHECKING:
     from .subsystems import SolarThermalCollector
@@ -177,7 +178,7 @@ class WaterSourceHeatPumpBoiler:
 
         if R_b is None:
             from .g_function import calc_submerged_coil_thermal_resistance
-            
+
             n_boreholes = max(1, self.N_1 * self.N_2)
             m_flow_total = self.dV_b_f_m3s * rho_w
             m_flow_pipe = m_flow_total / n_boreholes
@@ -226,27 +227,28 @@ class WaterSourceHeatPumpBoiler:
         # They will be passed inside `flow_state: dict`.
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_tank_flow_context(
         dV_mix_w_out: float,
         T_tank_w_K: float,
         T_tank_w_in_K: float,
         T_mix_w_out_K: float,
         dV_tank_w_in_override: float | None = None,
     ) -> dict:
-        den: float = max(1e-6, T_tank_w_K - T_tank_w_in_K)
-        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
-        dV_tank_w_out: float = alp * dV_mix_w_out
-        dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K)
+        flows = calc_mixing_valve_flows(dV_mix_w_out, mix_state["alp"])
+        dV_tank_w_out = flows["dV_hot_in"]
+        dV_tank_w_in = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
+            "alp": mix_state["alp"],
             "dV_mix_w_out": dV_mix_w_out,
             "dV_tank_w_out": dV_tank_w_out,
             "dV_tank_w_in": dV_tank_w_in,
-            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
+            "dV_mix_sup_w_in": flows["dV_cold_in"],
         }
 
     def _calc_off_state(self, T_tank_w: float, T0: float, flow_state: dict) -> dict:
         T_tank_w_K = cu.C2K(T_tank_w)
-        mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
 
         # Bound temperatures for PropsSI to prevent crashes when tank overheats
         # R410A critical temp is ~344.49K (71.3 °C)
@@ -492,7 +494,7 @@ class WaterSourceHeatPumpBoiler:
 
         Q_cond_load = self.hp_capacity if hp_is_on else 0.0
 
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=ctx.T_tank_w_K,
             T_tank_w_in_K=self.T_tank_w_in_K,
@@ -606,7 +608,7 @@ class WaterSourceHeatPumpBoiler:
         r["hp_is_on"] = ctrl.is_on
 
         Q_tank_loss = self.UA_tank * (T_solved_K - ctx.T0_K)
-        mix = calc_mixing_valve(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
         r["T_mix_w_out [°C]"] = cu.K2C(mix["T_mix_w_out_K"])
 
         r["Q_tank_loss [W]"] = Q_tank_loss
@@ -738,7 +740,7 @@ class WaterSourceHeatPumpBoiler:
             is_on_prev = hp_is_on
 
             # Refill logic
-            flow_state_guess = self._build_flow_state(
+            flow_state_guess = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=ctx.T_tank_w_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -803,7 +805,7 @@ class WaterSourceHeatPumpBoiler:
                 T_solved_K = T_sup_w_K_n
 
             # Flow state evaluated at solved temperature
-            flow_state_final = self._build_flow_state(
+            flow_state_final = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=T_solved_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -822,7 +824,7 @@ class WaterSourceHeatPumpBoiler:
             # Infinite heat capacity boundary (River/Lake), no ground interference
             self.T_bhe = T_source_w_n
             T_bhe_K = cu.C2K(self.T_bhe)
-            
+
             # Thermal resistance of pipe
             T_bhe_f_K = T_bhe_K - Q_bhe_unit * self.R_b
             self.T_bhe_f = cu.K2C(T_bhe_f_K)

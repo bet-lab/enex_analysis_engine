@@ -36,7 +36,8 @@ from .dynamic_context import (
 from .enex_functions import (
     build_dhw_usage_ratio,
     calc_exergy_flow,
-    calc_mixing_valve,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
     calc_simple_tank_UA,
     convert_electricity_to_exergy,
 )
@@ -196,27 +197,20 @@ class GasBoilerTank:
         if dV_mix_w_out_val == 0:
             T_mix_w_out_val: float = np.nan
         else:
-            mix: dict = calc_mixing_valve(
+            mix: dict = calc_mixing_valve_temp(
                 T_tank_w_K,
                 self.T_sup_w_K,
                 self.T_mix_w_out_K,
             )
             T_mix_w_out_val = mix["T_mix_w_out"]
 
-        den: float = max(
-            1e-6,
-            T_tank_w_K - self.T_sup_w_K,
-        )
-        alp: float = min(
-            1.0,
-            max(
-                0.0,
-                (self.T_mix_w_out_K - self.T_sup_w_K) / den,
-            ),
-        )
-        dV_tank_w_out: float = alp * dV_mix_w_out_val
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, self.T_sup_w_K, self.T_mix_w_out_K)
+        alp = mix_state["alp"]
+        flows = calc_mixing_valve_flows(dV_mix_w_out_val, alp)
+
+        dV_tank_w_out: float = flows["dV_hot_in"]
         dV_tank_w_in: float = self.dV_tank_w_in
-        dV_mix_sup_w_in: float = (1 - alp) * dV_mix_w_out_val
+        dV_mix_sup_w_in: float = flows["dV_cold_in"]
 
         return {
             "burner_is_on": burner_on,
@@ -325,20 +319,13 @@ class GasBoilerTank:
         )
 
         # Mixing valve flows
-        den: float = max(
-            1e-6,
-            ctx.T_tank_w_K - self.T_sup_w_K,
-        )
-        alp: float = min(
-            1.0,
-            max(
-                0.0,
-                (self.T_mix_w_out_K - self.T_sup_w_K) / den,
-            ),
-        )
+        mix_state = calc_mixing_valve_temp(ctx.T_tank_w_K, self.T_sup_w_K, self.T_mix_w_out_K)
+        alp = mix_state["alp"]
+        flows = calc_mixing_valve_flows(ctx.dV_mix_w_out, alp)
+
         self.dV_mix_w_out = ctx.dV_mix_w_out
-        self.dV_tank_w_out = alp * ctx.dV_mix_w_out
-        self.dV_mix_sup_w_in = (1 - alp) * ctx.dV_mix_w_out
+        self.dV_tank_w_out = flows["dV_hot_in"]
+        self.dV_mix_sup_w_in = flows["dV_cold_in"]
 
         result: dict = self._calc_state(
             T_tank_w,
@@ -363,27 +350,20 @@ class GasBoilerTank:
         ier: int,
     ) -> dict:
         """Build result dict at solved state."""
-        den: float = max(
-            1e-6,
-            T_solved_K - self.T_sup_w_K,
-        )
-        alp: float = min(
-            1.0,
-            max(
-                0.0,
-                (self.T_mix_w_out_K - self.T_sup_w_K) / den,
-            ),
-        )
-        dV_tank_w_out: float = alp * ctx.dV_mix_w_out
+        mix_state = calc_mixing_valve_temp(T_solved_K, self.T_sup_w_K, self.T_mix_w_out_K)
+        alp = mix_state["alp"]
+        flows = calc_mixing_valve_flows(ctx.dV_mix_w_out, alp)
+
+        dV_tank_w_out: float = flows["dV_hot_in"]
         dV_tank_w_in: float = dV_tank_w_out if ctrl.dV_tank_w_in_ctrl is None else ctrl.dV_tank_w_in_ctrl
 
         self.dV_tank_w_out = dV_tank_w_out
         self.dV_tank_w_in = dV_tank_w_in
         self.dV_mix_w_out = ctx.dV_mix_w_out
-        self.dV_mix_sup_w_in = (1 - alp) * ctx.dV_mix_w_out
+        self.dV_mix_sup_w_in = flows["dV_cold_in"]
 
         T_mix_w_out_val: float = (
-            calc_mixing_valve(
+            calc_mixing_valve_temp(
                 T_solved_K,
                 self.T_sup_w_K,
                 self.T_mix_w_out_K,
@@ -490,7 +470,7 @@ class GasBoilerTank:
                 hour_of_day=hour_of_day,
                 T0=T0_schedule[n],
                 T0_K=cu.C2K(T0_schedule[n]),
-                preheat_on=False,
+                activation_flags={},
                 T_tank_w_K=T_tank_w_K,
                 tank_level=tank_level,
                 dV_mix_w_out=(self.w_use_frac[n] * self.dV_mix_w_out_max),
@@ -514,9 +494,6 @@ class GasBoilerTank:
                 tank_level_upper_bound=(self.tank_level_upper_bound),
                 dV_tank_w_in_refill=(self.dV_tank_w_in_refill),
                 is_refilling=is_refilling,
-                use_stc=False,
-                mode="",
-                preheat_on=False,
             )
 
             ctrl: ControlState = ControlState(

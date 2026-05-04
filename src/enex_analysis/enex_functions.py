@@ -59,17 +59,6 @@ from .cop import (
 from .cop import (
     calc_GSHP_COP as calc_GSHP_COP,
 )
-from .dhw import (
-    build_dhw_usage_ratio,
-    calc_cold_water_temp,
-    calc_total_water_use_from_schedule,
-    make_dhw_schedule_from_Annex_42_profile,
-)
-from .dynamic_context import (
-    determine_heat_source_on_off,
-    determine_tank_refill_flow,
-    tank_mass_energy_residual,
-)
 from .g_function import (
     G_FLS as G_FLS,
 )
@@ -85,24 +74,11 @@ from .g_function import (
 from .g_function import (
     f as f,
 )
-from .heat_transfer import (
-    calc_h_vertical_plate,
-    calc_LMTD_counter_flow,
-    calc_LMTD_parallel_flow,
-    calc_simple_tank_UA,
-    calc_UA_tank_arr,
-    darcy_friction_factor,
-)
 from .hx_fan import (
     calc_fan_power_from_dV_fan as calc_fan_power_from_dV_fan,
 )
 from .hx_fan import (
     calc_UA_from_dV_fan as calc_UA_from_dV_fan,
-)
-from .refrigerant import (
-    calc_ref_state,
-    create_lmtd_constraints,
-    find_ref_loop_optimal_operation,
 )
 from .tdma import (
     TDMA as TDMA,
@@ -112,10 +88,6 @@ from .tdma import (
 )
 from .thermodynamics import (
     calc_energy_flow,
-    calc_exergy_flow,
-    calc_refrigerant_exergy,
-    convert_electricity_to_exergy,
-    generate_entropy_exergy_term,
 )
 from .uv_treatment import (
     calc_uv_exposure_time as calc_uv_exposure_time,
@@ -125,17 +97,6 @@ from .uv_treatment import (
 )
 from .uv_treatment import (
     get_uv_params_from_turbidity as get_uv_params_from_turbidity,
-)
-from .visualization import (
-    plot_ph_diagram,
-    plot_th_diagram,
-    plot_ts_diagram,
-    print_simulation_summary,
-)
-from .weather import (
-    decompose_ghi_to_poa,
-    load_kma_solar_csv,
-    load_kma_T0_sol_hourly_csv,
 )
 
 try:
@@ -238,7 +199,7 @@ def print_balance(balance, decimal=2):
 # ============================================================================
 
 
-def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
+def calc_mixing_valve_temp(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
     """Calculate 3-way mixing valve output temperature and mixing ratio.
 
     Mixes hot tank water with cold mains water to achieve the target
@@ -271,6 +232,38 @@ def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
         "alp": alp,
         "T_mix_w_out": T_mix_w_out_val,
         "T_mix_w_out_K": T_mix_w_out_val_K,
+    }
+
+
+def calc_mixing_valve_flows(
+    dV_mix_out: float,
+    alp: float
+) -> dict:
+    """
+    Calculate volumetric flow rates at a 3-way mixing valve given a mixing ratio.
+
+    Parameters
+    ----------
+    dV_mix_out : float
+        Total requested service/mixed flow rate [m³/s].
+    alp : float
+        Hot water mixing ratio [0-1].
+
+    Returns
+    -------
+    dict
+        Dictionary containing generic mixing valve mass balances:
+        - `dV_hot_in`: Flow rate drawn from the hot source [m³/s]
+        - `dV_cold_in`: Flow rate drawn from the cold source [m³/s]
+        - `dV_mix_out`: Total mixed flow rate [m³/s]
+    """
+    dV_hot_in = alp * dV_mix_out
+    dV_cold_in = (1.0 - alp) * dV_mix_out
+
+    return {
+        "dV_hot_in": dV_hot_in,
+        "dV_cold_in": dV_cold_in,
+        "dV_mix_out": dV_mix_out,
     }
 
 

@@ -1,6 +1,5 @@
-import math
-from dataclasses import dataclass
 from enex_analysis.air_source_heat_pump_ref_cycle import AirSourceHeatPump_cooling, AirSourceHeatPump_heating
+
 
 def simulate_ashp_step(args):
     """
@@ -8,7 +7,7 @@ def simulate_ashp_step(args):
     args: (step, q_load, t0_val)
     """
     step, q_load, t0_val = args
-    
+
     # Identify mode and instantiate model
     if abs(q_load) < 100:
         q_load = 0
@@ -23,9 +22,9 @@ def simulate_ashp_step(args):
         mode = "Heating"
         model = AirSourceHeatPump_heating()
         model.Q_iu = -q_load # Input Q_iu is positive for heating model
-        
+
     model.T0 = t0_val
-    
+
     # Solve 2D optimization
     try:
         model.system_update()
@@ -35,7 +34,7 @@ def simulate_ashp_step(args):
 
     # Extract all scalar variables from the model instance
     res = {k: v for k, v in vars(model).items() if isinstance(v, (int, float, str, bool))}
-    
+
     # Ensure key cumulative metrics are present
     res.update({
         "Hour": step + 1,
@@ -45,5 +44,5 @@ def simulate_ashp_step(args):
         "X_in_tot": getattr(model, "X_in_tot", 0),
         "X_out_tot": getattr(model, "X_out_tot", 0)
     })
-    
+
     return res

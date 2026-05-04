@@ -34,8 +34,8 @@ import numpy as np
 import pandas as pd
 
 from . import calc_util as cu
-from .ground_source_heat_pump_boiler import GroundSourceHeatPumpBoiler
 from .constants import c_w, rho_w
+from .ground_source_heat_pump_boiler import GroundSourceHeatPumpBoiler
 from .subsystems import SolarThermalCollector
 
 if TYPE_CHECKING:
@@ -170,8 +170,8 @@ class GSHPB_STC_tank(GroundSourceHeatPumpBoiler):
 
     def _run_subsystems(
         self,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         dt: float,
         T_tank_w_in_K: float,
     ) -> dict[str, dict]:
@@ -237,8 +237,8 @@ class GSHPB_STC_tank(GroundSourceHeatPumpBoiler):
     def _augment_results(
         self,
         r: dict,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         sub_states: dict[str, dict],
         T_solved_K: float,
     ) -> dict:

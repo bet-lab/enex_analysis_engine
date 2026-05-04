@@ -14,7 +14,9 @@ from scipy.optimize import brentq, minimize_scalar
 
 from . import calc_util as cu
 from .components.fan import Fan
-from .constants import c_a, c_w as c_f, rho_a, rho_w as rho_f
+from .constants import c_a, rho_a
+from .constants import c_w as c_f
+from .constants import rho_w as rho_f
 
 
 def _ref_flow_exergy(m_r: float, h: float, s: float, h0: float, s0: float, T0_K: float) -> float:
@@ -25,15 +27,15 @@ def _solve_Ca_from_NTU(UA: float, Q: float, T_air_in_K: float, T_ref_K: float) -
     if dT < 1e-6:
         raise ValueError("T_air_in == T_ref: zero driving force.")
     capacity_limit = UA * dT
-    if Q >= capacity_limit:
-        raise ValueError(f"Q >= UA*dT")
+    if capacity_limit <= Q:
+        raise ValueError("Q >= UA*dT")
 
     rhs = Q / (UA * dT)
     def _f(ntu):
         if ntu < 1e-10:
             return 1.0 - rhs
         return (1.0 - math.exp(-ntu)) / ntu - rhs
-    
+
     ntu_sol = brentq(_f, 1e-8, 500.0, xtol=1e-8, maxiter=200)
     return UA / ntu_sol
 
@@ -57,16 +59,16 @@ class GroundSourceHeatPump_RefCycle:
 
         self.D_b = 2.0
         self.H_b = 100.0
-        self.r_b = 0.07 
+        self.r_b = 0.07
         self.R_b = 0.108
 
-        self.dV_f = 20.04 
+        self.dV_f = 20.04
 
         self.k_g = 2.0
         self.c_g = 800.0
         self.rho_g = 2000.0
 
-        self.E_pmp_nom = 100.0 
+        self.E_pmp_nom = 100.0
         self.UA_rwhx = 3000.0
 
         self.q_b_history = [0.0]
@@ -121,7 +123,7 @@ class GroundSourceHeatPump_RefCycle:
         def _cooling_cycle(T_r_iu_C: float, T_f_out_K: float):
             T_r_iu_K = cu.C2K(T_r_iu_C)
             eps_rwhx = 1.0 - math.exp(-self.UA_rwhx / (c_f * rho_f * dV_f_m3s_active))
-            
+
             def _rwhx_resid(T_rwhx: float) -> float:
                 if T_rwhx <= T_r_iu_K + 0.5:
                     return 1e6
@@ -141,7 +143,7 @@ class GroundSourceHeatPump_RefCycle:
                     return 1e6
 
             T_c_lb = max(T_f_out_K + 0.1, T_r_iu_K + 1.0)
-            T_c_ub = 353.15  
+            T_c_ub = 353.15
             T_r_rwhx_K = brentq(_rwhx_resid, T_c_lb, T_c_ub, xtol=0.01, maxiter=60)
 
             p1 = PropsSI("P", "T", T_r_iu_K, "Q", 1, self.ref)
@@ -198,14 +200,14 @@ class GroundSourceHeatPump_RefCycle:
                     dh_c = h2_ - h3
                     if dh_c < 1.0: return 1e6
                     m_r_  = abs(self.Q_r_iu) / dh_c
-                    Q_ref = m_r_ * (h1_ - h3)   
+                    Q_ref = m_r_ * (h1_ - h3)
                     Q_wat = eps_rwhx * c_f * rho_f * dV_f_m3s_active * (T_f_out_K - T_r_rwhx)
                     return Q_ref - Q_wat
                 except Exception:
                     return 1e6
 
             T_e_ub = min(T_r_iu_K - 1.0, T_f_out_K - 0.1)
-            T_e_lb = 233.15  
+            T_e_lb = 233.15
             T_r_rwhx_K = brentq(_rwhx_resid, T_e_lb, T_e_ub, xtol=0.01, maxiter=60)
 
             p1   = PropsSI("P", "T", T_r_rwhx_K, "Q", 1, self.ref)
@@ -254,11 +256,11 @@ class GroundSourceHeatPump_RefCycle:
                             E_c, E_f, *_ = _cooling_cycle(T_C, T_f_out_K)
                             return E_c + E_f
                         except: return 1e12
-                    
+
                     try:
                         rst = minimize_scalar(obj, bounds=(T_r_iu_lb_C, T_r_iu_ub_C), method="bounded", options={"xatol":0.5})
                         _res = _cooling_cycle(rst.x, T_f_out_K)
-                        Q_r_rwhx_val = _res[2] * (_res[11] - _res[15]) 
+                        Q_r_rwhx_val = _res[2] * (_res[11] - _res[15])
                     except Exception:
                         # Pinch-Point Crossover Safety Fallback for Cooling
                         fallback_E_cmp = abs(self.Q_r_iu) * 2.0  # COP = 0.5 Extreme Penalty
@@ -267,7 +269,7 @@ class GroundSourceHeatPump_RefCycle:
                         Q_r_rwhx_val = abs(self.Q_r_iu) + fallback_E_cmp
                         class _Obj: pass
                         rst = _Obj()
-                        rst.x = cu.K2C(T0_K) 
+                        rst.x = cu.K2C(T0_K)
                 else:
                     T_r_iu_lb_C = (T_a_iu_in_K + abs(self.Q_r_iu)/self.UA_iu + 0.5) - 273.15
                     T_r_iu_ub_C = 65.0
@@ -276,7 +278,7 @@ class GroundSourceHeatPump_RefCycle:
                             E_c, E_f, *_ = _heating_cycle(T_C, T_f_out_K)
                             return E_c + E_f
                         except: return 1e12
-                    
+
                     try:
                         rst = minimize_scalar(obj, bounds=(T_r_iu_lb_C, T_r_iu_ub_C), method="bounded", options={"xatol":0.5})
                         _res = _heating_cycle(rst.x, T_f_out_K)
@@ -293,19 +295,19 @@ class GroundSourceHeatPump_RefCycle:
                 (self.E_cmp, self.E_fan_iu, self.m_r, self.V_a_iu, self.m_a_iu, self.C_a_iu,
                  p1, h1, s1, T1_K, p2, h2, s2, T2_K, p3, h3, s3, T3_K, p4, h4, s4, T4_K, T_r_rwhx_K) = _res
                 T_r_iu_K = cu.C2K(rst.x)
-                
+
                 self.p1, self.h1, self.s1, self.T1_K = p1, h1, s1, T1_K
                 self.p2, self.h2, self.s2, self.T2_K = p2, h2, s2, T2_K
                 self.p3, self.h3, self.s3, self.T3_K = p3, h3, s3, T3_K
                 self.p4, self.h4, self.s4, self.T4_K = p4, h4, s4, T4_K
-                
+
                 self.Q_r_rwhx = Q_r_rwhx_val
                 self.Q_r_ghx = self.Q_r_rwhx + self.E_pmp
                 self.q_b = self.Q_r_ghx / self.H_b
 
                 self.g_i = self.g_func_list[0]
                 self.T_b_K = T_g_K + T_b_history_effect + ((self.q_b - self.q_b_history[-1]) / (2*math.pi*self.k_g)) * self.g_i
-                
+
                 T_f_K = self.T_b_K + self.q_b * self.R_b
                 dT_f = self.q_b * self.H_b / (2.0 * c_f * rho_f * dV_f_m3s_active)
                 T_f_in_new_K = T_f_K + dT_f
@@ -315,14 +317,14 @@ class GroundSourceHeatPump_RefCycle:
                     T_f_in_K, T_f_out_K = T_f_in_new_K, T_f_out_new_K
                     break
                 T_f_in_K, T_f_out_K = T_f_in_new_K, T_f_out_new_K
-            
+
             self.COP = abs(self.Q_r_iu) / self.E_cmp
             self.COP_sys = abs(self.Q_r_iu) / (self.E_cmp + self.E_fan_iu + self.E_pmp) if (self.E_cmp + self.E_fan_iu + self.E_pmp) > 0 else 0.0
             self.T_r_iu_K = T_r_iu_K
             self.T_r_rwhx_K = T_r_rwhx_K
-            
+
             # COP and temperatures assigned above
-            
+
         else:
             self.E_cmp, self.E_fan_iu, self.m_r, self.V_a_iu = 0.0, 0.0, 0.0, 0.0
             self.Q_r_rwhx, self.Q_r_ghx, self.q_b = 0.0, 0.0, 0.0
@@ -330,7 +332,7 @@ class GroundSourceHeatPump_RefCycle:
             self.COP_sys = 0.0
             self.m_a_iu = 0.0
             self.C_a_iu = 0.0
-            
+
             self.g_i = self.g_func_list[0]
             self.T_b_K = T_g_K + T_b_history_effect + ((self.q_b - self.q_b_history[-1]) / (2*math.pi*self.k_g)) * self.g_i
             T_f_K = self.T_b_K
@@ -363,12 +365,12 @@ class GroundSourceHeatPump_RefCycle:
             X_in_rwhx, X_out_rwhx = 0.0, 0.0
             X_in_ghx, X_out_ghx = 0.0, 0.0
             X_in_g, X_out_g = 0.0, 0.0
-            
+
             # Reset more variables for off mode
             self.eps_iu = 0.0
             self.NTU_iu = 0.0
             self.E_tot = 0.0
-            
+
         else:
             X1 = _ref_flow_exergy(self.m_r, self.h1, self.s1, h0, s0, T0_K)
             X2 = _ref_flow_exergy(self.m_r, self.h2, self.s2, h0, s0, T0_K)
@@ -379,7 +381,7 @@ class GroundSourceHeatPump_RefCycle:
 
             def _air_exergy(T_K):
                 return c_a * rho_a * self.V_a_iu * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
-            
+
             X_a_iu_in = _air_exergy(T_a_iu_in_K)
             X_a_iu_out = _air_exergy(T_a_iu_out_K)
 
@@ -389,7 +391,7 @@ class GroundSourceHeatPump_RefCycle:
 
             def _fluid_exergy(T_K):
                 return c_f * rho_f * dV_f_m3s_active * ((T_K - T0_K) - T0_K * math.log(T_K / T0_K))
-            
+
             X_f_in = _fluid_exergy(T_f_in_K)
             X_f_out = _fluid_exergy(T_f_out_K)
 

@@ -12,18 +12,17 @@ g-functions, enabling robust long-term ground temperature drift modeling.
 """
 
 from __future__ import annotations
+
 import math
-import warnings
 from typing import TYPE_CHECKING, Any
 
 import CoolProp.CoolProp as CP
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
 from tqdm import tqdm
 
 from . import calc_util as cu
-from .constants import c_w, rho_w, mu_w, k_w
+from .constants import c_w, k_w, mu_w, rho_w
 from .dynamic_context import (
     ControlState,
     StepContext,
@@ -32,11 +31,11 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
-    calc_mixing_valve,
+    calc_exergy_flow,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
     calc_ref_state,
     calc_simple_tank_UA,
-    calc_uv_lamp_power,
-    calc_exergy_flow,
 )
 from .g_function import precompute_gfunction
 
@@ -233,27 +232,28 @@ class GroundSourceHeatPumpBoiler:
         # They will be passed inside `flow_state: dict`.
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_tank_flow_context(
         dV_mix_w_out: float,
         T_tank_w_K: float,
         T_tank_w_in_K: float,
         T_mix_w_out_K: float,
         dV_tank_w_in_override: float | None = None,
     ) -> dict:
-        den: float = max(1e-6, T_tank_w_K - T_tank_w_in_K)
-        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
-        dV_tank_w_out: float = alp * dV_mix_w_out
-        dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K)
+        flows = calc_mixing_valve_flows(dV_mix_w_out, mix_state["alp"])
+        dV_tank_w_out = flows["dV_hot_in"]
+        dV_tank_w_in = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
+            "alp": mix_state["alp"],
             "dV_mix_w_out": dV_mix_w_out,
             "dV_tank_w_out": dV_tank_w_out,
             "dV_tank_w_in": dV_tank_w_in,
-            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
+            "dV_mix_sup_w_in": flows["dV_cold_in"],
         }
 
     def _calc_off_state(self, T_tank_w: float, T0: float, flow_state: dict) -> dict:
         T_tank_w_K = cu.C2K(T_tank_w)
-        mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
 
         # Bound temperatures for PropsSI to prevent crashes when tank overheats
         # R410A critical temp is ~344.49K (71.3 °C)
@@ -503,7 +503,7 @@ class GroundSourceHeatPumpBoiler:
 
         Q_cond_load = self.hp_capacity if hp_is_on else 0.0
 
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=ctx.T_tank_w_K,
             T_tank_w_in_K=self.T_tank_w_in_K,
@@ -617,7 +617,7 @@ class GroundSourceHeatPumpBoiler:
         r["hp_is_on"] = ctrl.is_on
 
         Q_tank_loss = self.UA_tank * (T_solved_K - ctx.T0_K)
-        mix = calc_mixing_valve(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
         r["T_mix_w_out [°C]"] = cu.K2C(mix["T_mix_w_out_K"])
 
         r["Q_tank_loss [W]"] = Q_tank_loss
@@ -778,7 +778,7 @@ class GroundSourceHeatPumpBoiler:
             is_on_prev = hp_is_on
 
             # Refill logic
-            flow_state_guess = self._build_flow_state(
+            flow_state_guess = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=ctx.T_tank_w_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -843,7 +843,7 @@ class GroundSourceHeatPumpBoiler:
                 T_solved_K = T_sup_w_K_n
 
             # Flow state evaluated at solved temperature
-            flow_state_final = self._build_flow_state(
+            flow_state_final = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=T_solved_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -899,7 +899,7 @@ class GroundSourceHeatPumpBoiler:
 
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute GSHPB-specific exergy variables."""
-        from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy, calc_energy_flow
+        from .enex_functions import calc_energy_flow, calc_refrigerant_exergy, convert_electricity_to_exergy
 
         df = df.copy()
         T0_K = cu.C2K(df["T0 [°C]"])

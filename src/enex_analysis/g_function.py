@@ -473,7 +473,7 @@ def calc_borehole_thermal_resistance(
     # Build dummy borehole object for structural representation
     borehole = gt.boreholes.Borehole(H=100.0, D=0.0, r_b=r_b, x=0.0, y=0.0)
 
-    # Create Single U-tube 
+    # Create Single U-tube
     pipe = gt.pipes.SingleUTube(pos, r_in, r_out, borehole, k_s, k_g, R_fp)
 
     return pipe.local_borehole_thermal_resistance()

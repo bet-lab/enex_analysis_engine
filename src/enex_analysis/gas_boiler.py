@@ -17,8 +17,10 @@ from .constants import (
     ex_eff_NG,
     rho_w,
 )
+from .dhw import build_dhw_usage_ratio
 from .enex_functions import (
-    build_dhw_usage_ratio,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
 )
 
 
@@ -56,26 +58,21 @@ class GasBoiler:
         self.Q_comb_load_threshold = 100.0  # Minimum combustion load [W]
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_mixing_flow_context(
         dV_w_serv: float,
         T_serv_w_K: float,
         T_sup_w_K: float,
         T_comb_setpoint_K: float,
     ) -> dict:
-        den = max(1e-6, T_comb_setpoint_K - T_sup_w_K)
-        alp = min(1.0, max(0.0, (T_serv_w_K - T_sup_w_K) / den))
-
-        dV_w_sup_comb = alp * dV_w_serv
-        dV_w_sup_mix = (1 - alp) * dV_w_serv
-
-        T_serv_w_actual_K = alp * T_comb_setpoint_K + (1 - alp) * T_sup_w_K
+        mix_state = calc_mixing_valve_temp(T_comb_setpoint_K, T_sup_w_K, T_serv_w_K)
+        flows = calc_mixing_valve_flows(dV_w_serv, mix_state["alp"])
 
         return {
-            "alp": alp,
+            "alp": mix_state["alp"],
             "dV_w_serv": dV_w_serv,
-            "dV_w_sup_comb": dV_w_sup_comb,
-            "dV_w_sup_mix": dV_w_sup_mix,
-            "T_serv_w_actual_K": T_serv_w_actual_K,
+            "dV_w_sup_comb": flows["dV_hot_in"],
+            "dV_w_sup_mix": flows["dV_cold_in"],
+            "T_serv_w_actual_K": mix_state["T_mix_w_out_K"],
         }
 
     def _calc_on_state(self, Q_comb_load, T0, flow_state: dict):
@@ -252,7 +249,7 @@ class GasBoiler:
         dict
             Off-state result dictionary.
         """
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_mixing_flow_context(
             dV_w_serv=0.0,
             T_serv_w_K=self.T_serv_w_K,
             T_sup_w_K=self.T_sup_w_K,
@@ -301,7 +298,7 @@ class GasBoiler:
         if dV_w_serv is None:
             dV_w_serv = 0.0
 
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_mixing_flow_context(
             dV_w_serv=dV_w_serv,
             T_serv_w_K=self.T_serv_w_K,
             T_sup_w_K=self.T_sup_w_K,
@@ -384,7 +381,7 @@ class GasBoiler:
             # Current service flow
             dV_w_serv = self.w_use_frac[n] * self.dV_w_serv_m3s
 
-            flow_state = self._build_flow_state(
+            flow_state = self._calc_mixing_flow_context(
                 dV_w_serv=dV_w_serv,
                 T_serv_w_K=self.T_serv_w_K,
                 T_sup_w_K=self.T_sup_w_K,

@@ -1,13 +1,14 @@
 from functools import lru_cache
+
 """
 Visualization and summary output functions.
 """
 
 import CoolProp.CoolProp as CP
+import dartwork_mpl as dm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import dartwork_mpl as dm
 
 from . import calc_util as cu
 
@@ -381,7 +382,7 @@ def plot_th_diagram(
         tol_atol=0.5, tol_y_atol=0.5,
     )
 
-    
+
     trans = ax.get_yaxis_transform()
 
     if T_cond_bound is not None:
