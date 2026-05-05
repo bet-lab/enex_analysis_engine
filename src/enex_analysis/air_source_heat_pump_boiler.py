@@ -66,7 +66,7 @@ class AirSourceHeatPumpBoiler:
         V_disp_cmp: float = 0.0002,
         eta_cmp_isen: float | Callable | None = None,
         eta_cmp_vol: float | Callable | None = None,
-        eta_cmp_motor: float = 0.90,
+        eta_cmp_motor: float = 0.9,
         eta_cmp_inv: float = 0.95,
         dT_superheat: float = 5.0,
         dT_subcool: float = 5.0,
@@ -76,9 +76,9 @@ class AirSourceHeatPumpBoiler:
         n_evap: float = 0.65,
         # 3. Outdoor unit fan ---------------------------
         dV_ou_fan_a_design: float | None = None,
-        dP_ou_fan_design: float = 80.0,
+        dP_ou_fan_design: float = 60.0,
         A_cross_ou: float | None = None,
-        eta_ou_fan_design: float = 0.7,
+        eta_ou_fan_design: float = 0.6,
         # 4. Tank / control / load ----------------------
         T_tank_w_upper_bound: float = 65.0,
         T_tank_w_lower_bound: float = 60.0,
@@ -148,7 +148,7 @@ class AirSourceHeatPumpBoiler:
         # performance specifications for industrial heat pumps.
         # Ref: Application of Industrial Heat Pumps. Annex 35 Final Report (IEA Heat Pump Centre, 2014)
         if UA_cond_design is None:
-            self.UA_cond_design = hp_capacity / 10.0
+            self.UA_cond_design = hp_capacity / 6.0
         else:
             self.UA_cond_design = UA_cond_design
 
@@ -168,7 +168,7 @@ class AirSourceHeatPumpBoiler:
         # representing an optimal ratio of airflow volume to thermal capacity.
         # This provides enough margin so that nominal optimization operates at ~80% fan ratio.
         if dV_ou_fan_a_design is None:
-            self.dV_ou_fan_a_design = hp_capacity * 0.0004
+            self.dV_ou_fan_a_design = hp_capacity * 0.00015
         else:
             self.dV_ou_fan_a_design = dV_ou_fan_a_design
 
@@ -1165,7 +1165,7 @@ class AirSourceHeatPumpBoiler:
         pd.DataFrame
             DataFrame with exergy columns appended.
         """
-        from .enex_functions import (
+        from .thermodynamics import (
             calc_exergy_flow,
             calc_refrigerant_exergy,
             convert_electricity_to_exergy,
