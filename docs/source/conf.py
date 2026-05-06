@@ -14,10 +14,10 @@ sys.path.insert(0, src_path)
 
 # Try to import the package - if it fails, we'll mock it
 try:
-    import enex_analysis
-
     # Create alias for enex_analysis_engine
     import sys as _sys
+
+    import enex_analysis
 
     _sys.modules["enex_analysis_engine"] = enex_analysis
     _sys.modules["enex_analysis_engine.calc_util"] = enex_analysis.calc_util

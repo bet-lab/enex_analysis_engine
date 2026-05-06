@@ -169,8 +169,8 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
 
     def _run_subsystems(
         self,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         dt: float,
         T_tank_w_in_K: float,
     ) -> dict[str, dict]:
@@ -236,8 +236,8 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
     def _augment_results(
         self,
         r: dict,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         sub_states: dict[str, dict],
         T_solved_K: float,
     ) -> dict:
@@ -322,7 +322,7 @@ class ASHPB_STC_tank(AirSourceHeatPumpBoiler):
                 \\dot{X}_{\\mathrm{stc,pump,w,out}}
                 - \\dot{X}_{\\mathrm{stc,w,in}}
         """
-        from .enex_functions import calc_exergy_flow
+        from .thermodynamics import calc_exergy_flow
 
         # 1. Standard ASHP exergy
         df = super()._postprocess(df)

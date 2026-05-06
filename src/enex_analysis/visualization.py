@@ -1,13 +1,14 @@
 from functools import lru_cache
+
 """
 Visualization and summary output functions.
 """
 
 import CoolProp.CoolProp as CP
+import dartwork_mpl as dm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import dartwork_mpl as dm
 
 from . import calc_util as cu
 
@@ -266,7 +267,6 @@ def _draw_cycle_lines_and_annotations(
     label_map = {"1": "cmp,in", "2": "cmp,out", "3": "exp,in", "4": "exp,out"}
 
     fig = ax.figure
-    font_sz = dm.fs(-1) if hasattr(dm, "fs") else 9
 
     for x_val, y_val, key in points_list:
         if key in ["1'", "2'"]:
@@ -310,10 +310,10 @@ def _draw_cycle_lines_and_annotations(
 
         if fig is not None:
             offset = dm.make_offset(dx, dy, fig)
-            ax.text(x_val, y_val, text_str, transform=ax.transData + offset, ha=ha, va=va, fontsize=font_sz)
+            ax.text(x_val, y_val, text_str, transform=ax.transData + offset, ha=ha, va=va, fontsize = dm.fs(-2))
         else:
             ax.annotate(
-                text_str, (x_val, y_val), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va, fontsize=font_sz
+                text_str, (x_val, y_val), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va, fontsize = dm.fs(-2)
             )
 
 
@@ -382,7 +382,7 @@ def plot_th_diagram(
         tol_atol=0.5, tol_y_atol=0.5,
     )
 
-    font_sz = fontsize if fontsize is not None else (dm.fs(-1) if hasattr(dm, "fs") else 9)
+
     trans = ax.get_yaxis_transform()
 
     if T_cond_bound is not None:
@@ -391,7 +391,7 @@ def plot_th_diagram(
         if pd.notna(val):
             val = float(val)  # type: ignore
             ax.axhline(y=val, color="oc.red5", linestyle=":", linewidth=dm.lw(0))
-            offset = dm.make_offset(4, 4, ax.figure) if ax.figure else None
+            offset = dm.make_offset(4, 2, ax.figure) if ax.figure else None
             transform = trans + offset if offset else trans
             ax.text(
                 0.0,
@@ -401,7 +401,7 @@ def plot_th_diagram(
                 ha="left",
                 va="bottom",
                 transform=transform,
-                fontsize=font_sz,
+                fontsize = dm.fs(-2),
             )
 
     if T_evap_bound is not None:
@@ -410,7 +410,7 @@ def plot_th_diagram(
         if pd.notna(val):
             val = float(val)  # type: ignore
             ax.axhline(y=val, color="oc.orange5", linestyle=":", linewidth=dm.lw(0))
-            offset = dm.make_offset(4, -4, ax.figure) if ax.figure else None
+            offset = dm.make_offset(4, -2, ax.figure) if ax.figure else None
             transform = trans + offset if offset else trans
             ax.text(
                 0.0,
@@ -420,7 +420,7 @@ def plot_th_diagram(
                 ha="left",
                 va="top",
                 transform=transform,
-                fontsize=font_sz,
+                fontsize = dm.fs(-2)
             )
 
     ax.set_xlabel("Enthalpy [kJ/kg]")
@@ -577,7 +577,6 @@ def plot_ts_diagram(
         ax, pts_x, pts_y, is_on, color1, color2, line_color, color3, color4, tol_atol=0.05
     )
 
-    font_sz = dm.fs(-1) if hasattr(dm, "fs") else 9
     trans = ax.get_yaxis_transform()
 
     if T_cond_bound is not None:
@@ -596,7 +595,7 @@ def plot_ts_diagram(
                 ha="left",
                 va="bottom",
                 transform=transform,
-                fontsize=font_sz,
+                fontsize = dm.fs(-2)
             )
 
     if T_evap_bound is not None:
@@ -615,7 +614,7 @@ def plot_ts_diagram(
                 ha="left",
                 va="top",
                 transform=transform,
-                fontsize=font_sz,
+                fontsize = dm.fs(-2)
             )
 
     ax.set_xlabel("Entropy [kJ/(kg·K)]")

@@ -12,18 +12,17 @@ g-functions, enabling robust long-term ground temperature drift modeling.
 """
 
 from __future__ import annotations
+
 import math
-import warnings
 from typing import TYPE_CHECKING, Any
 
 import CoolProp.CoolProp as CP
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
 from tqdm import tqdm
 
 from . import calc_util as cu
-from .constants import c_w, rho_w, mu_w, k_w
+from .constants import c_w, k_w, mu_w, rho_w
 from .dynamic_context import (
     ControlState,
     StepContext,
@@ -32,12 +31,12 @@ from .dynamic_context import (
     tank_mass_energy_residual,
 )
 from .enex_functions import (
-    calc_mixing_valve,
-    calc_ref_state,
-    calc_simple_tank_UA,
-    calc_uv_lamp_power,
-    calc_exergy_flow,
+    calc_mixing_valve_flows,
+    calc_mixing_valve_temp,
 )
+from .heat_transfer import calc_simple_tank_UA
+from .refrigerant import calc_ref_state
+from .thermodynamics import calc_exergy_flow
 from .g_function import precompute_gfunction
 
 if TYPE_CHECKING:
@@ -233,27 +232,28 @@ class GroundSourceHeatPumpBoiler:
         # They will be passed inside `flow_state: dict`.
 
     @staticmethod
-    def _build_flow_state(
+    def _calc_tank_flow_context(
         dV_mix_w_out: float,
         T_tank_w_K: float,
         T_tank_w_in_K: float,
         T_mix_w_out_K: float,
         dV_tank_w_in_override: float | None = None,
     ) -> dict:
-        den: float = max(1e-6, T_tank_w_K - T_tank_w_in_K)
-        alp: float = min(1.0, max(0.0, (T_mix_w_out_K - T_tank_w_in_K) / den))
-        dV_tank_w_out: float = alp * dV_mix_w_out
-        dV_tank_w_in: float = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
+        mix_state = calc_mixing_valve_temp(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K)
+        flows = calc_mixing_valve_flows(dV_mix_w_out, mix_state["alp"])
+        dV_tank_w_out = flows["dV_hot_in"]
+        dV_tank_w_in = dV_tank_w_out if dV_tank_w_in_override is None else dV_tank_w_in_override
         return {
+            "alp": mix_state["alp"],
             "dV_mix_w_out": dV_mix_w_out,
             "dV_tank_w_out": dV_tank_w_out,
             "dV_tank_w_in": dV_tank_w_in,
-            "dV_mix_sup_w_in": (1.0 - alp) * dV_mix_w_out,
+            "dV_mix_sup_w_in": flows["dV_cold_in"],
         }
 
     def _calc_off_state(self, T_tank_w: float, T0: float, flow_state: dict) -> dict:
         T_tank_w_K = cu.C2K(T_tank_w)
-        mix = calc_mixing_valve(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_tank_w_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
 
         # Bound temperatures for PropsSI to prevent crashes when tank overheats
         # R410A critical temp is ~344.49K (71.3 °C)
@@ -348,6 +348,9 @@ class GroundSourceHeatPumpBoiler:
         T_ref_evap_sat_K = T_evap_in_K - dT_ref_evap
         T_ref_cond_sat_K = T_tank_w_K + dT_ref_cond
 
+        pinch_min: float = 0.5
+        actual_dT_subcool = min(self.dT_subcool, max(0.0, dT_ref_cond - pinch_min))
+
         # 2. Refrigerant Cycle Evaluation
         try:
             cycle_states = calc_ref_state(
@@ -356,7 +359,7 @@ class GroundSourceHeatPumpBoiler:
                 refrigerant=self.ref,
                 eta_cmp_isen=self.eta_cmp_isen,
                 dT_superheat=self.dT_superheat,
-                dT_subcool=self.dT_subcool,
+                dT_subcool=actual_dT_subcool,
             )
         except Exception:
             return None
@@ -503,7 +506,7 @@ class GroundSourceHeatPumpBoiler:
 
         Q_cond_load = self.hp_capacity if hp_is_on else 0.0
 
-        flow_state = self._build_flow_state(
+        flow_state = self._calc_tank_flow_context(
             dV_mix_w_out=ctx.dV_mix_w_out,
             T_tank_w_K=ctx.T_tank_w_K,
             T_tank_w_in_K=self.T_tank_w_in_K,
@@ -617,7 +620,7 @@ class GroundSourceHeatPumpBoiler:
         r["hp_is_on"] = ctrl.is_on
 
         Q_tank_loss = self.UA_tank * (T_solved_K - ctx.T0_K)
-        mix = calc_mixing_valve(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
+        mix = calc_mixing_valve_temp(T_solved_K, self.T_tank_w_in_K, self.T_mix_w_out_K)
         r["T_mix_w_out [°C]"] = cu.K2C(mix["T_mix_w_out_K"])
 
         r["Q_tank_loss [W]"] = Q_tank_loss
@@ -778,7 +781,7 @@ class GroundSourceHeatPumpBoiler:
             is_on_prev = hp_is_on
 
             # Refill logic
-            flow_state_guess = self._build_flow_state(
+            flow_state_guess = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=ctx.T_tank_w_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -843,7 +846,7 @@ class GroundSourceHeatPumpBoiler:
                 T_solved_K = T_sup_w_K_n
 
             # Flow state evaluated at solved temperature
-            flow_state_final = self._build_flow_state(
+            flow_state_final = self._calc_tank_flow_context(
                 dV_mix_w_out=ctx.dV_mix_w_out,
                 T_tank_w_K=T_solved_K,
                 T_tank_w_in_K=T_sup_w_K_n,
@@ -885,21 +888,120 @@ class GroundSourceHeatPumpBoiler:
     def analyze_steady(
         self,
         T_tank_w: float,
-        T_b_f_in: float,
-        dV_mix_w_out: float | None = None,
-        Q_cond_load: float | None = None,
-        T0: float | None = None,
+        T_source: float,
+        Q_ref_cond: float,
+        T0: float = 0.0,
+        *,
         return_dict: bool = True,
-    ):
-        """Minimal steady state analytical method"""
-        if dV_mix_w_out is None and Q_cond_load is None:
-            raise ValueError("Provide one of dV_mix_w_out or Q_cond_load.")
-        # Currently a placeholder to match the API
-        return {}
+    ) -> dict | pd.DataFrame:
+        """Run a steady-state performance snapshot.
+
+        Evaluates the refrigerant cycle at a given operating point
+        (``T_tank_w``, ``T_source``, ``Q_ref_cond``) **without** solving the tank energy
+        balance or tracking dynamic flows.
+
+        Parameters
+        ----------
+        T_tank_w : float
+            Tank water temperature [°C] — treated as a given input.
+        T_source : float
+            Source fluid temperature entering the heat pump [°C].
+        Q_ref_cond : float
+            Target condenser heat rate [W].
+        T0 : float
+            Dead-state / outdoor-air temperature [°C] (for exergy calculations).
+        return_dict : bool
+            If ``True`` return dict; else single-row DataFrame.
+
+        Returns
+        -------
+        dict | pd.DataFrame
+        """
+        import warnings
+        import contextlib
+
+        # Empty flow state as steady state ignores dynamic withdrawal/refill
+        flow_state = {
+            "dV_mix_w_out": 0.0,
+            "dV_tank_w_out": 0.0,
+            "dV_tank_w_in": 0.0,
+            "dV_mix_sup_w_in": 0.0,
+            "alp": 0.0,
+        }
+
+        # Override T_bhe_f_out_K so that _calc_state uses T_source correctly
+        self.T_bhe_f_out_K = cu.C2K(T_source)
+
+        if Q_ref_cond <= 0:
+            result = self._calc_off_state(
+                T_tank_w=T_tank_w,
+                T0=T0,
+                flow_state=flow_state,
+            )
+        else:
+            opt_result = self._optimize_operation(
+                T_tank_w=T_tank_w,
+                Q_cond_load=Q_ref_cond,
+                T0=T0,
+                flow_state=flow_state,
+            )
+            result = None
+            with contextlib.suppress(Exception):
+                opt_x = float(getattr(opt_result, "x", 5.0))
+                result = self._calc_state(
+                    dT_ref_evap=opt_x,
+                    T_tank_w=T_tank_w,
+                    Q_cond_load=Q_ref_cond,
+                    T0=T0,
+                    flow_state=flow_state,
+                )
+
+            if result is None or not isinstance(result, dict):
+                warnings.warn(
+                    f"analyze_steady: optimization failed "
+                    f"(T_tank_w={T_tank_w:.1f}°C, T_source={T_source:.1f}°C, "
+                    f"Q_ref_cond={Q_ref_cond:.0f}W). "
+                    "Returning HP-off state.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                try:
+                    result = self._calc_state(
+                        dT_ref_evap=5.0,
+                        T_tank_w=T_tank_w,
+                        Q_cond_load=0.0,
+                        T0=T0,
+                        flow_state=flow_state,
+                    )
+                except Exception:
+                    result = self._calc_off_state(
+                        T_tank_w=T_tank_w,
+                        T0=T0,
+                        flow_state=flow_state,
+                    )
+
+            if (
+                result is not None
+                and isinstance(result, dict)
+                and "opt_result" in locals()
+                and hasattr(opt_result, "success")
+            ):
+                result["converged"] = opt_result.success
+
+        if result is not None:
+            # Steady state doesn't have tank loss because we don't solve tank mass/energy balance
+            result["Q_tank_loss [W]"] = 0.0
+            result["tank_level [-]"] = 1.0  # steady-state: always_full
+
+        if result is None:
+            result = {}
+        if return_dict:
+            return result
+        return pd.DataFrame([result])
 
     def postprocess_exergy(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute GSHPB-specific exergy variables."""
-        from .enex_functions import calc_refrigerant_exergy, convert_electricity_to_exergy, calc_energy_flow
+        from .thermodynamics import calc_energy_flow, calc_refrigerant_exergy, convert_electricity_to_exergy
 
         df = df.copy()
         T0_K = cu.C2K(df["T0 [°C]"])

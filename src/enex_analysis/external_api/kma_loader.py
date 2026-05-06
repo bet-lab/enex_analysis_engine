@@ -1,8 +1,10 @@
-import os
 import json
-import requests
-import pandas as pd
+import os
 from pathlib import Path
+
+import pandas as pd
+import requests
+
 from .. import calc_util as cu
 
 CACHE_DIR = Path("00_data/.api_cache")
@@ -12,7 +14,7 @@ def get_kma_api_key() -> str:
     key = os.getenv("KMA_API_KEY")
     if key:
         return key
-    
+
     # 2. 하드코딩된 API 키
     return "ec462489f5aadd290d119226177c6a4706e94cf25cd5a79a2848c49d2cf9fd66"
 
@@ -24,7 +26,7 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path = CACHE_DIR / f"kma_{stn_id}_{start_date}_{end_date}.csv"
-    
+
     if cache_path.exists():
         print(f"Loading KMA weather data from cache: {cache_path}")
         df = pd.read_csv(cache_path)
@@ -34,15 +36,15 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
 
     api_key = get_kma_api_key()
     url = "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
-    
+
     all_items = []
     page_no = 1
     num_of_rows = 999
-    
+
     # KMA API parameter format: YYYYMMDD
     start_dt = pd.to_datetime(start_date).strftime("%Y%m%d")
     end_dt = pd.to_datetime(end_date).strftime("%Y%m%d")
-    
+
     while True:
         params = {
             "serviceKey": api_key,
@@ -57,37 +59,37 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
             "startHh": "00",
             "startDt": start_dt,
         }
-        
+
         # requests.get encodes parameters, but KMA often has issues with already encoded keys
         import urllib.parse
         encoded_key = urllib.parse.unquote(api_key)
         params["serviceKey"] = encoded_key
-        
+
         response = requests.get(url, params=params)
         if response.status_code != 200:
             raise ConnectionError(f"KMA API Error: {response.text}")
-            
+
         try:
             data = response.json()
         except json.JSONDecodeError:
             raise ValueError(f"Failed to decode KMA API response: {response.text}")
-            
+
         header = data.get("response", {}).get("header", {})
         if header.get("resultCode") != "00":
             raise ValueError(f"KMA API Error: {header.get('resultMsg')} ({header.get('resultCode')})")
-            
+
         body = data.get("response", {}).get("body", {})
         items = body.get("items", {}).get("item", [])
-        
+
         if not items:
             break
-            
+
         all_items.extend(items)
-        
+
         total_count = body.get("totalCount", 0)
         if len(all_items) >= total_count:
             break
-            
+
         page_no += 1
 
     if not all_items:
@@ -96,14 +98,14 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
     df = pd.DataFrame(all_items)
     df["datetime"] = pd.to_datetime(df["tm"])
     df.set_index("datetime", inplace=True)
-    
+
     # tz_localize for Asia/Seoul to prevent UTC shifting during pvlib algorithms
     df.index = df.index.tz_localize("Asia/Seoul")
-    
+
     # Process Temperature
     df["ta"] = pd.to_numeric(df["ta"], errors="coerce")
     df["T0_K"] = cu.C2K(df["ta"].ffill().bfill())
-    
+
     # Process Global Horizontal Irradiance (icsr in KMA ASOS is MJ/m2)
     # Some older datasets might use 'ss' for sunshine duration but icsr is standard
     # Irradiance is cumulative per hour in MJ/m2, we convert to average W/m2 over that hour
@@ -112,10 +114,10 @@ def get_kma_weather_data(start_date: str, end_date: str, stn_id: int = 108) -> p
         df["ghi"] = df["icsr"] * cu.MJ2J * cu.s2h
     else:
         df["ghi"] = 0.0
-        
+
     df.loc[df["ghi"] < 0, "ghi"] = 0
-    
+
     final_df = df[["T0_K", "ghi"]]
     final_df.to_csv(cache_path)
-    
+
     return final_df

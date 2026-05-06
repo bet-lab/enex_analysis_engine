@@ -8,11 +8,8 @@ and future models can share the same infrastructure.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
-
-import numpy as np
 
 from .constants import c_w, rho_w
 

@@ -19,10 +19,13 @@ from . import g_function as gf
 from .air_source_heat_pump_boiler import AirSourceHeatPumpBoiler
 from .components.fan import Fan
 from .constants import c_a, c_w as c_f, k_w, rho_a, rho_w as rho_f
-from .enex_functions import (
+from .cop import (
+    calc_ASHP_cooling_COP,
+    calc_ASHP_heating_COP,
     calc_GSHP_COP,
-    calc_fan_power_from_dV_fan,
 )
+from .enex_functions import calc_fan_power_from_dV_fan
+from .g_function import G_FLS
 
 # Phase 3 Refactoring: Re-exporting standalone boiler modules for backward compatibility
 
@@ -443,9 +446,9 @@ class GroundSourceHeatPump_cooling:
             )  # g-function [mK/W]
             self.T_b = self.T_g + self.Q_bh * self.g_i  # borehole wall temperature [K]
             self.T_f = self.T_b + self.Q_bh * self.R_b
-            self.T_f_in = self.T_f + self.Q_bh * self.H_b / (2 * c_w * rho_w * self.dV_f)  # fluid inlet temperature [K]
+            self.T_f_in = self.T_f + self.Q_bh * self.H_b / (2 * c_f * rho_f * self.dV_f)  # fluid inlet temperature [K]
             self.T_f_out = self.T_f - self.Q_bh * self.H_b / (
-                2 * c_w * rho_w * self.dV_f
+                2 * c_f * rho_f * self.dV_f
             )  # fluid outlet temperature [K]
             if abs(self.T_f_in - T_f_in_old) < tol:
                 break
@@ -472,8 +475,8 @@ class GroundSourceHeatPump_cooling:
         self.X_r_int = -self.Q_r_int * (1 - self.T0 / self.T_r_int)
         self.X_r_exch = -self.Q_r_exch * (1 - self.T0 / self.T_r_exch)
 
-        self.X_f_in = c_w * rho_w * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
-        self.X_f_out = c_w * rho_w * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
+        self.X_f_in = c_f * rho_f * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
+        self.X_f_out = c_f * rho_f * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
 
         self.X_g = (1 - self.T0 / self.T_g) * (-self.Q_bh * self.H_b)
         self.X_b = (1 - self.T0 / self.T_b) * (-self.Q_bh * self.H_b)
@@ -680,9 +683,9 @@ class GroundSourceHeatPump_heating:
             T_f_in_old = self.T_f_in  # 이전 유체 입구 온도 저장
             self.T_b = self.T_g - self.Q_bh * self.g_i  # borehole wall temperature [K]
             self.T_f = self.T_b - self.Q_bh * self.R_b  # fluid temperature in borehole [K]
-            self.T_f_in = self.T_f - self.Q_bh * self.H_b / (2 * c_w * rho_w * self.dV_f)  # fluid inlet temperature [K]
+            self.T_f_in = self.T_f - self.Q_bh * self.H_b / (2 * c_f * rho_f * self.dV_f)  # fluid inlet temperature [K]
             self.T_f_out = self.T_f + self.Q_bh * self.H_b / (
-                2 * c_w * rho_w * self.dV_f
+                2 * c_f * rho_f * self.dV_f
             )  # fluid outlet temperature [K]
             if abs(self.T_f_in - T_f_in_old) < tol:
                 break
@@ -709,8 +712,8 @@ class GroundSourceHeatPump_heating:
         self.X_r_int = self.Q_r_int * (1 - self.T0 / self.T_r_int)
         self.X_r_exch = self.Q_r_exch * (1 - self.T0 / self.T_r_exch)
 
-        self.X_f_in = c_w * rho_w * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
-        self.X_f_out = c_w * rho_w * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
+        self.X_f_in = c_f * rho_f * self.dV_f * ((self.T_f_in - self.T0) - self.T0 * math.log(self.T_f_in / self.T0))
+        self.X_f_out = c_f * rho_f * self.dV_f * ((self.T_f_out - self.T0) - self.T0 * math.log(self.T_f_out / self.T0))
 
         self.X_g = (1 - self.T0 / self.T_g) * (self.Q_bh * self.H_b)
         self.X_b = (1 - self.T0 / self.T_b) * (self.Q_bh * self.H_b)

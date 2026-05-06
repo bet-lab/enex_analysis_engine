@@ -59,17 +59,6 @@ from .cop import (
 from .cop import (
     calc_GSHP_COP as calc_GSHP_COP,
 )
-from .dhw import (
-    build_dhw_usage_ratio,
-    calc_cold_water_temp,
-    calc_total_water_use_from_schedule,
-    make_dhw_schedule_from_Annex_42_profile,
-)
-from .dynamic_context import (
-    determine_heat_source_on_off,
-    determine_tank_refill_flow,
-    tank_mass_energy_residual,
-)
 from .g_function import (
     G_FLS as G_FLS,
 )
@@ -85,24 +74,11 @@ from .g_function import (
 from .g_function import (
     f as f,
 )
-from .heat_transfer import (
-    calc_h_vertical_plate,
-    calc_LMTD_counter_flow,
-    calc_LMTD_parallel_flow,
-    calc_simple_tank_UA,
-    calc_UA_tank_arr,
-    darcy_friction_factor,
-)
 from .hx_fan import (
     calc_fan_power_from_dV_fan as calc_fan_power_from_dV_fan,
 )
 from .hx_fan import (
     calc_UA_from_dV_fan as calc_UA_from_dV_fan,
-)
-from .refrigerant import (
-    calc_ref_state,
-    create_lmtd_constraints,
-    find_ref_loop_optimal_operation,
 )
 from .tdma import (
     TDMA as TDMA,
@@ -112,10 +88,6 @@ from .tdma import (
 )
 from .thermodynamics import (
     calc_energy_flow,
-    calc_exergy_flow,
-    calc_refrigerant_exergy,
-    convert_electricity_to_exergy,
-    generate_entropy_exergy_term,
 )
 from .uv_treatment import (
     calc_uv_exposure_time as calc_uv_exposure_time,
@@ -125,17 +97,6 @@ from .uv_treatment import (
 )
 from .uv_treatment import (
     get_uv_params_from_turbidity as get_uv_params_from_turbidity,
-)
-from .visualization import (
-    plot_ph_diagram,
-    plot_th_diagram,
-    plot_ts_diagram,
-    print_simulation_summary,
-)
-from .weather import (
-    decompose_ghi_to_poa,
-    load_kma_solar_csv,
-    load_kma_T0_sol_hourly_csv,
 )
 
 try:
@@ -238,7 +199,7 @@ def print_balance(balance, decimal=2):
 # ============================================================================
 
 
-def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
+def calc_mixing_valve_temp(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
     """Calculate 3-way mixing valve output temperature and mixing ratio.
 
     Mixes hot tank water with cold mains water to achieve the target
@@ -271,6 +232,38 @@ def calc_mixing_valve(T_tank_w_K, T_tank_w_in_K, T_mix_w_out_K):
         "alp": alp,
         "T_mix_w_out": T_mix_w_out_val,
         "T_mix_w_out_K": T_mix_w_out_val_K,
+    }
+
+
+def calc_mixing_valve_flows(
+    dV_mix_out: float,
+    alp: float
+) -> dict:
+    """
+    Calculate volumetric flow rates at a 3-way mixing valve given a mixing ratio.
+
+    Parameters
+    ----------
+    dV_mix_out : float
+        Total requested service/mixed flow rate [m³/s].
+    alp : float
+        Hot water mixing ratio [0-1].
+
+    Returns
+    -------
+    dict
+        Dictionary containing generic mixing valve mass balances:
+        - `dV_hot_in`: Flow rate drawn from the hot source [m³/s]
+        - `dV_cold_in`: Flow rate drawn from the cold source [m³/s]
+        - `dV_mix_out`: Total mixed flow rate [m³/s]
+    """
+    dV_hot_in = alp * dV_mix_out
+    dV_cold_in = (1.0 - alp) * dV_mix_out
+
+    return {
+        "dV_hot_in": dV_hot_in,
+        "dV_cold_in": dV_cold_in,
+        "dV_mix_out": dV_mix_out,
     }
 
 
@@ -377,15 +370,11 @@ def calc_HX_perf_for_target_heat(
     UA_design,
     dV_fan_design,
     is_active=True,
-    # Legacy aliases (ignored if T_ref_sat_K is provided via positional)
-    T_ou_a_in_C=None,
-    T_ref_evap_sat_K=None,
-    T_ref_cond_sat_l_K=None,
+    exponent=0.71,
 ):
     """ε-NTU 기반 공기측 열교환기 풍량 수치 해석.
 
-    목표 열전달량(Q_ref_target)을 달성하기 위해 필요한 팬 풍량을
-    Dittus-Boelter 보정(UA ∝ v^0.8)을 적용하여 bisect 법으로 구합니다.
+    This function determines the airflow that is needed to meet a specified heat transfer demand, accounting for dynamic changes in the overall heat transfer coefficient (UA) as a function of flow velocity based on the correlation for fin-and-tube heat exchangers by Wang et al. (2000) where UA ∝ velocity^0.71.
 
     Parameters
     ----------
@@ -464,14 +453,10 @@ def calc_HX_perf_for_target_heat(
         }
 
     def _error_function(dV_fan):
-        UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design)
-        C_air = c_a * rho_a * dV_fan
-        epsilon = 1 - np.exp(-UA / C_air)
-        # 공기 온도 변화: T_a_mid = T_a_in + ε(T_ref_sat - T_a_in)
-        # (증발기/응축기 대수학 동일)
-        T_a_mid_K = T_a_in_K + epsilon * (T_ref_sat_K - T_a_in_K)
-        Q_air = C_air * abs(T_a_in_K - T_a_mid_K)
-        return Q_air - Q_ref_target
+        UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design, exponent)
+        epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
+        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
+        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon  # Heating assumption (Q_ref_target > 0)
 
     dV_min = dV_fan_design * 0.05
     dV_max = dV_fan_design
@@ -481,12 +466,11 @@ def calc_HX_perf_for_target_heat(
 
     if f_min * f_max > 0:
         dV_fallback = dV_min if abs(f_min) <= abs(f_max) else dV_max
-        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design)
-        C_air_fb = c_a * rho_a * dV_fallback
-        eps_fb = 1 - np.exp(-UA_fb / C_air_fb)
-        
-        T_mid = cu.K2C(T_a_in_K + eps_fb * (T_ref_sat_K - T_a_in_K))
-        Q_fb = C_air_fb * abs(cu.C2K(T_mid) - T_a_in_K)
+
+        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design, exponent)
+        eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
+        T_mid_fb = T_ou_a_in_K - eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
+        Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
 
         Q_at_dV_min = Q_ref_target + f_min
         Q_at_dV_max = Q_ref_target + f_max
@@ -513,7 +497,15 @@ def calc_HX_perf_for_target_heat(
     C_air_sol = c_a * rho_a * dV_fan_sol
     eps_sol = 1 - np.exp(-UA_sol / C_air_sol)
 
-    T_mid_K = T_a_in_K + eps_sol * (T_ref_sat_K - T_a_in_K)
+    if sol.converged:
+        # 수렴된 dV_fan 값을 사용하여 최종 값들 계산
+        dV_fan_converged = sol.root
+        UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design, exponent)
+        epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
+        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
+        T_ou_a_mid_K = T_ou_a_in_K - epsilon * (
+            T_ou_a_in_K - T_ref_evap_sat_K
+        )  # Heating assumption (Q_ref_target > 0)
 
     Q_air = C_air_sol * abs(T_mid_K - T_a_in_K)
     T_mid_C = cu.K2C(T_mid_K)

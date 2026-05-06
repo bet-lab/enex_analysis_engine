@@ -1,18 +1,18 @@
-import numpy as np
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-import pandas as pd
-from pathlib import Path
 import io
+from pathlib import Path
 
 import matplotlib
+import numpy as np
+import pandas as pd
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import dartwork_mpl as dm
-from enex_analysis.visualization import plot_ph_diagram, plot_th_diagram
+import matplotlib.pyplot as plt
 
 from enex_analysis.air_source_heat_pump_boiler import AirSourceHeatPumpBoiler
+from enex_analysis.visualization import plot_ph_diagram, plot_th_diagram
 
 router = APIRouter()
 _annual_df = None

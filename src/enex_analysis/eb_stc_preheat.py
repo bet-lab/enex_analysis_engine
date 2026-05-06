@@ -37,8 +37,8 @@ class EB_STC_preheat(ElectricBoiler):
 
     def _run_subsystems(
         self,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         dt: float,
         T_tank_w_in_K: float,
     ) -> dict[str, dict]:
@@ -95,8 +95,8 @@ class EB_STC_preheat(ElectricBoiler):
     def _augment_results(
         self,
         r: dict,
-        ctx: "StepContext",
-        ctrl: "ControlState",
+        ctx: StepContext,
+        ctrl: ControlState,
         sub_states: dict[str, dict],
         T_solved_K: float,
     ) -> dict:
@@ -130,7 +130,7 @@ class EB_STC_preheat(ElectricBoiler):
         return r
 
     def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        from .enex_functions import calc_exergy_flow
+        from .thermodynamics import calc_exergy_flow
 
         df = super()._postprocess(df)
         if "T_stc_w_in [°C]" not in df.columns or "T_stc_w_out [°C]" not in df.columns:
