@@ -1,0 +1,991 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html">
+        <link rel="canonical" href="https://bet-lab.github.io/enex_analysis_engine/_modules/enex_analysis/subsystems.html">
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+        <title>enex_analysis.subsystems - Energy-Exergy Analysis Engine</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=580074bf" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=200b7bb1" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  --color-brand-primary: #4051b5;
+  --color-brand-content: #4051b5;
+  --color-sidebar-background: #f8f9fa;
+  --color-sidebar-background-border: #e9ecef;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">Energy-Exergy Analysis Engine</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  
+  <span class="sidebar-brand-text">Energy-Exergy Analysis Engine</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../getting-started/index.html">Getting Started</a><input aria-label="Toggle navigation of Getting Started" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/configuration.html">Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../guides/index.html">User Guides</a><input aria-label="Toggle navigation of User Guides" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/user-guide.html">User Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/io-guide.html">Input/Output Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/advanced-topics.html">Advanced Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/nomenclature.html">Symbol Naming Convention</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/core.html">Core Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/engines.html">Energy System Engines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/utilities.html">Utility Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/subsystems.html">Subsystems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/advanced.html">Advanced Dynamics &amp; RefCycles</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../theory/index.html">Theory &amp; Background</a><input aria-label="Toggle navigation of Theory &amp; Background" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/thermodynamics.html">Thermodynamics Fundamentals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/exergy-analysis.html">Exergy Analysis Theory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/ashpb_model.html">Air-Source Heat Pump Boiler (ASHPB) Model</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bet-lab/enex_analysis_engine">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for enex_analysis.subsystems</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Attachable subsystems for heat-pump boiler models.</span>
+
+<span class="sd">Each subsystem is a self-contained **pure physics engine**: given</span>
+<span class="sd">physical input state it returns a standardised output dict.</span>
+<span class="sd">All simulation orchestration (activation logic, result assembly,</span>
+<span class="sd">exergy calculation) is the responsibility of the scenario class</span>
+<span class="sd">that uses the subsystem.</span>
+
+<span class="sd">Subsystem catalogue</span>
+<span class="sd">-------------------</span>
+<span class="sd">- ``SolarThermalCollector`` — flat-plate / evacuated-tube STC</span>
+<span class="sd">  physics engine (``calc_performance``, ``is_preheat_on``)</span>
+<span class="sd">- ``PhotovoltaicSystem`` — PV + ESS + inverter chain</span>
+<span class="sd">- ``UVLamp`` — UV disinfection lamp</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">calc_util</span> <span class="k">as</span> <span class="n">cu</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">c_w</span><span class="p">,</span> <span class="n">k_a</span><span class="p">,</span> <span class="n">k_D</span><span class="p">,</span> <span class="n">k_d</span><span class="p">,</span> <span class="n">rho_w</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.thermodynamics</span><span class="w"> </span><span class="kn">import</span> <span class="n">calc_energy_flow</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.dynamic_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControlState</span><span class="p">,</span> <span class="n">StepContext</span><span class="p">,</span> <span class="n">SubsystemExergy</span>
+
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># Default subsystem step() return — STC absent/inactive</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+
+<span class="n">STC_OFF_STEP</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;stc_active&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">&quot;stc_result&quot;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s2">&quot;T_stc_w_out_K&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="s2">&quot;T_stc_pump_w_out_K&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="s2">&quot;Q_stc_w_out&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;Q_stc_pump_w_out&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;Q_stc_w_in&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;E_stc_pump&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;Q_contribution&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;E_subsystem&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="s2">&quot;T_tank_w_in_override_K&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1"># Backward-compatible alias</span>
+<span class="n">STC_OFF</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">STC_OFF_STEP</span>
+
+
+<div class="viewcode-block" id="SolarThermalCollector">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.SolarThermalCollector">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SolarThermalCollector</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Solar Thermal Collector (STC) — pure physics engine.</span>
+
+<span class="sd">    Bundles collector geometry, optical and thermal properties,</span>
+<span class="sd">    and pump parameters.  This class is a **stateless physics</span>
+<span class="sd">    calculator**: given physical inputs it returns a performance</span>
+<span class="sd">    dict.  All simulation orchestration (activation logic,</span>
+<span class="sd">    result assembly, exergy calculation) is the responsibility</span>
+<span class="sd">    of the scenario class that uses this engine.</span>
+
+<span class="sd">    The public API consists of:</span>
+
+<span class="sd">    - :meth:`calc_performance` — single-timestep thermal performance</span>
+<span class="sd">    - :meth:`is_preheat_on` — schedule check</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    A_stc : float</span>
+<span class="sd">        Collector gross area [m²].</span>
+<span class="sd">    stc_tilt : float</span>
+<span class="sd">        Tilt from horizontal [°].</span>
+<span class="sd">    stc_azimuth : float</span>
+<span class="sd">        Azimuth angle (180 = south) [°].</span>
+<span class="sd">    A_stc_pipe : float</span>
+<span class="sd">        Pipe surface area [m²].</span>
+<span class="sd">    alpha_stc : float</span>
+<span class="sd">        Absorptivity [–].</span>
+<span class="sd">    h_o_stc : float</span>
+<span class="sd">        External convective coefficient [W/(m²·K)].</span>
+<span class="sd">    h_r_stc : float</span>
+<span class="sd">        Radiative coefficient [W/(m²·K)].</span>
+<span class="sd">    k_ins_stc : float</span>
+<span class="sd">        Insulation conductivity [W/(m·K)].</span>
+<span class="sd">    x_air_stc : float</span>
+<span class="sd">        Air gap thickness [m].</span>
+<span class="sd">    x_ins_stc : float</span>
+<span class="sd">        Insulation thickness [m].</span>
+<span class="sd">    preheat_start_hour : float</span>
+<span class="sd">        Preheat window start hour.</span>
+<span class="sd">    preheat_end_hour : float</span>
+<span class="sd">        Preheat window end hour.</span>
+<span class="sd">    dV_stc_w : float</span>
+<span class="sd">        Default STC loop flow rate [m³/s].</span>
+<span class="sd">    E_stc_pump : float</span>
+<span class="sd">        STC pump rated power [W].</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Collector</span>
+    <span class="n">A_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">stc_tilt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">35.0</span>
+    <span class="n">stc_azimuth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">180.0</span>
+    <span class="n">A_stc_pipe</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">alpha_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span>
+    <span class="n">h_o_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">15.0</span>
+    <span class="n">h_r_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">k_ins_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.03</span>
+    <span class="n">x_air_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+    <span class="n">x_ins_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+    <span class="c1"># Pump / schedule</span>
+    <span class="n">preheat_start_hour</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">6.0</span>
+    <span class="n">preheat_end_hour</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">18.0</span>
+    <span class="n">dV_stc_w</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span>
+    <span class="n">E_stc_pump</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">50.0</span>
+
+    <span class="c1"># ----------------------------------------------------------</span>
+    <span class="c1"># Physics helpers</span>
+    <span class="c1"># ----------------------------------------------------------</span>
+
+<div class="viewcode-block" id="SolarThermalCollector.calc_overall_heat_transfer_coeff">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.SolarThermalCollector.calc_overall_heat_transfer_coeff">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calc_overall_heat_transfer_coeff</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute overall U-value from parallel resistances.</span>
+
+<span class="sd">        The collector has two heat-loss paths in parallel:</span>
+
+<span class="sd">        - **Path 1** (top): radiation gap ‖ air gap → external conv</span>
+<span class="sd">        - **Path 2** (bottom): insulation → external conv</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            Overall heat-loss coefficient [W/(m²·K)].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">R_air</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_air_stc</span> <span class="o">/</span> <span class="n">k_a</span>
+        <span class="n">R_ins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_ins_stc</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_ins_stc</span>
+        <span class="n">R_o</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_o_stc</span>
+        <span class="n">R_r</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_r_stc</span>
+
+        <span class="c1"># Path 1: radiation ‖ air gap (parallel), then + external</span>
+        <span class="n">R1</span> <span class="o">=</span> <span class="p">(</span><span class="n">R_r</span> <span class="o">*</span> <span class="n">R_air</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">R_r</span> <span class="o">+</span> <span class="n">R_air</span><span class="p">)</span> <span class="o">+</span> <span class="n">R_o</span>
+        <span class="c1"># Path 2: insulation (series) + external</span>
+        <span class="n">R2</span> <span class="o">=</span> <span class="n">R_ins</span> <span class="o">+</span> <span class="n">R_o</span>
+
+        <span class="c1"># Two paths in parallel</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">R1</span> <span class="o">+</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">R2</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calc_solar_absorption</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">I_DN_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">I_dH_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute total irradiance and absorbed heat.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        I_DN_stc : float</span>
+<span class="sd">            Direct-normal irradiance [W/m²].</span>
+<span class="sd">        I_dH_stc : float</span>
+<span class="sd">            Diffuse-horizontal irradiance [W/m²].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple[float, float]</span>
+<span class="sd">            ``(I_sol_stc, Q_sol_stc)`` — total irradiance and</span>
+<span class="sd">            absorbed solar heat rate [W].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">I_sol</span> <span class="o">=</span> <span class="n">I_DN_stc</span> <span class="o">+</span> <span class="n">I_dH_stc</span>
+        <span class="n">Q_sol</span> <span class="o">=</span> <span class="n">I_sol</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_stc_pipe</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_stc</span>
+        <span class="k">return</span> <span class="n">I_sol</span><span class="p">,</span> <span class="n">Q_sol</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calc_outlet_temperature</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">U_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">G_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">Q_sol_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">Q_stc_w_in</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T_stc_w_in_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Solve for collector outlet and mean plate temps.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        U_stc : float</span>
+<span class="sd">            Overall U-value [W/(m²·K)].</span>
+<span class="sd">        G_stc : float</span>
+<span class="sd">            Heat capacity flow rate ``c_w · ρ_w · V̇`` [W/K].</span>
+<span class="sd">        Q_sol_stc : float</span>
+<span class="sd">            Absorbed solar heat [W].</span>
+<span class="sd">        Q_stc_w_in : float</span>
+<span class="sd">            Inlet energy flow [W].</span>
+<span class="sd">        T_stc_w_in_K : float</span>
+<span class="sd">            Inlet water temperature [K].</span>
+<span class="sd">        T0_K : float</span>
+<span class="sd">            Dead-state temperature [K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple[float, float, float]</span>
+<span class="sd">            ``(T_stc_w_out_K, T_stc_K, ksi_stc)`` — outlet temp,</span>
+<span class="sd">            mean plate temp, and dimensionless parameter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">A_U</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">1e-6</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_stc_pipe</span> <span class="o">*</span> <span class="n">U_stc</span><span class="p">)</span>
+        <span class="n">ksi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">A_U</span> <span class="o">/</span> <span class="n">G_stc</span><span class="p">)</span>
+
+        <span class="n">T_out_K</span> <span class="o">=</span> <span class="n">ksi</span> <span class="o">*</span> <span class="n">T_stc_w_in_K</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">ksi</span><span class="p">)</span> <span class="o">*</span> <span class="n">T0_K</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">ksi</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_sol_stc</span> <span class="o">/</span> <span class="n">A_U</span>
+        <span class="n">T_stc_K</span> <span class="o">=</span> <span class="n">T0_K</span> <span class="o">+</span> <span class="p">(</span><span class="n">Q_sol_stc</span> <span class="o">-</span> <span class="n">G_stc</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_out_K</span> <span class="o">-</span> <span class="n">T_stc_w_in_K</span><span class="p">))</span> <span class="o">/</span> <span class="n">A_U</span>
+
+        <span class="k">return</span> <span class="n">T_out_K</span><span class="p">,</span> <span class="n">T_stc_K</span><span class="p">,</span> <span class="n">ksi</span>
+
+    <span class="c1"># ----------------------------------------------------------</span>
+    <span class="c1"># Main performance calculation</span>
+    <span class="c1"># ----------------------------------------------------------</span>
+
+<div class="viewcode-block" id="SolarThermalCollector.calc_performance">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.SolarThermalCollector.calc_performance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calc_performance</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">I_DN_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">I_dH_stc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T_stc_w_in_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">dV_stc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_active</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute STC thermal performance for one timestep.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        I_DN_stc : float</span>
+<span class="sd">            Direct-normal irradiance [W/m²].</span>
+<span class="sd">        I_dH_stc : float</span>
+<span class="sd">            Diffuse-horizontal irradiance [W/m²].</span>
+<span class="sd">        T_stc_w_in_K : float</span>
+<span class="sd">            Inlet water temperature [K].</span>
+<span class="sd">        T0_K : float</span>
+<span class="sd">            Dead-state temperature [K].</span>
+<span class="sd">        dV_stc : float | None</span>
+<span class="sd">            Override flow rate [m³/s]; defaults to</span>
+<span class="sd">            ``self.dV_stc_w``.</span>
+<span class="sd">        is_active : bool</span>
+<span class="sd">            If ``False``, return NaN-filled dict.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Performance results including:</span>
+<span class="sd">            ``I_sol_stc``, ``Q_sol_stc``, ``Q_stc_w_in``,</span>
+<span class="sd">            ``Q_stc_w_out``, ``Q_stc_pump_w_out``,</span>
+<span class="sd">            ``ksi_stc``, ``T_stc_w_out_K``,</span>
+<span class="sd">            ``T_stc_pump_w_out_K``, ``T_stc_w_in_K``,</span>
+<span class="sd">            ``T_stc_K``, ``Q_l_stc``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">dV_stc</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dV_stc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dV_stc_w</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_active</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">&quot;I_sol_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;Q_sol_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;S_sol_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;X_sol_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;Q_stc_w_in&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;Q_stc_w_out&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;Q_stc_pump_w_out&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;ksi_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;T_stc_pump_w_out_K&quot;</span><span class="p">:</span> <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+                <span class="s2">&quot;T_stc_w_out_K&quot;</span><span class="p">:</span> <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+                <span class="s2">&quot;T_stc_w_in_K&quot;</span><span class="p">:</span> <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+                <span class="s2">&quot;T_stc_K&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s2">&quot;Q_l_stc&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="p">}</span>
+
+        <span class="n">U_stc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_overall_heat_transfer_coeff</span><span class="p">()</span>
+        <span class="n">I_sol_stc</span><span class="p">,</span> <span class="n">Q_sol_stc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_solar_absorption</span><span class="p">(</span>
+            <span class="n">I_DN_stc</span><span class="p">,</span>
+            <span class="n">I_dH_stc</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">S_sol_stc</span> <span class="o">=</span> <span class="p">(</span><span class="n">k_D</span> <span class="o">*</span> <span class="n">I_DN_stc</span><span class="o">**</span><span class="mf">0.9</span> <span class="o">+</span> <span class="n">k_d</span> <span class="o">*</span> <span class="n">I_dH_stc</span><span class="o">**</span><span class="mf">0.9</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_stc_pipe</span>
+        <span class="n">X_sol_stc</span> <span class="o">=</span> <span class="n">Q_sol_stc</span> <span class="o">-</span> <span class="n">S_sol_stc</span> <span class="o">*</span> <span class="n">T0_K</span>
+
+        <span class="n">G_stc</span> <span class="o">=</span> <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="n">dV_stc</span>
+        <span class="n">Q_stc_w_in</span> <span class="o">=</span> <span class="n">calc_energy_flow</span><span class="p">(</span>
+            <span class="n">G_stc</span><span class="p">,</span>
+            <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">T_out_K</span><span class="p">,</span> <span class="n">T_stc_K</span><span class="p">,</span> <span class="n">ksi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_outlet_temperature</span><span class="p">(</span>
+            <span class="n">U_stc</span><span class="p">,</span>
+            <span class="n">G_stc</span><span class="p">,</span>
+            <span class="n">Q_sol_stc</span><span class="p">,</span>
+            <span class="n">Q_stc_w_in</span><span class="p">,</span>
+            <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Pump heat addition</span>
+        <span class="n">T_stc_pump_w_out_K</span> <span class="o">=</span> <span class="n">T_out_K</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">E_stc_pump</span> <span class="o">/</span> <span class="n">G_stc</span>
+
+        <span class="c1"># Heat transport rates</span>
+        <span class="n">Q_stc_w_out</span> <span class="o">=</span> <span class="n">calc_energy_flow</span><span class="p">(</span>
+            <span class="n">G_stc</span><span class="p">,</span>
+            <span class="n">T_out_K</span><span class="p">,</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">Q_stc_pump_w_out</span> <span class="o">=</span> <span class="n">calc_energy_flow</span><span class="p">(</span>
+            <span class="n">G_stc</span><span class="p">,</span>
+            <span class="n">T_stc_pump_w_out_K</span><span class="p">,</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Collector heat loss</span>
+        <span class="n">Q_l_stc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_stc_pipe</span> <span class="o">*</span> <span class="n">U_stc</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_stc_K</span> <span class="o">-</span> <span class="n">T0_K</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;I_sol_stc&quot;</span><span class="p">:</span> <span class="n">I_sol_stc</span><span class="p">,</span>
+            <span class="s2">&quot;Q_sol_stc&quot;</span><span class="p">:</span> <span class="n">Q_sol_stc</span><span class="p">,</span>
+            <span class="s2">&quot;S_sol_stc&quot;</span><span class="p">:</span> <span class="n">S_sol_stc</span><span class="p">,</span>
+            <span class="s2">&quot;X_sol_stc&quot;</span><span class="p">:</span> <span class="n">X_sol_stc</span><span class="p">,</span>
+            <span class="s2">&quot;Q_stc_w_in&quot;</span><span class="p">:</span> <span class="n">Q_stc_w_in</span><span class="p">,</span>
+            <span class="s2">&quot;Q_stc_w_out&quot;</span><span class="p">:</span> <span class="n">Q_stc_w_out</span><span class="p">,</span>
+            <span class="s2">&quot;Q_stc_pump_w_out&quot;</span><span class="p">:</span> <span class="n">Q_stc_pump_w_out</span><span class="p">,</span>
+            <span class="s2">&quot;ksi_stc&quot;</span><span class="p">:</span> <span class="n">ksi</span><span class="p">,</span>
+            <span class="s2">&quot;T_stc_pump_w_out_K&quot;</span><span class="p">:</span> <span class="n">T_stc_pump_w_out_K</span><span class="p">,</span>
+            <span class="s2">&quot;T_stc_w_out_K&quot;</span><span class="p">:</span> <span class="n">T_out_K</span><span class="p">,</span>
+            <span class="s2">&quot;T_stc_w_in_K&quot;</span><span class="p">:</span> <span class="n">T_stc_w_in_K</span><span class="p">,</span>
+            <span class="s2">&quot;T_stc_K&quot;</span><span class="p">:</span> <span class="n">T_stc_K</span><span class="p">,</span>
+            <span class="s2">&quot;Q_l_stc&quot;</span><span class="p">:</span> <span class="n">Q_l_stc</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+    <span class="c1"># ----------------------------------------------------------</span>
+    <span class="c1"># Schedule helper</span>
+    <span class="c1"># ----------------------------------------------------------</span>
+
+<div class="viewcode-block" id="SolarThermalCollector.is_preheat_on">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.SolarThermalCollector.is_preheat_on">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_preheat_on</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hour_of_day</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check whether *hour_of_day* falls in the window.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        hour_of_day : float</span>
+<span class="sd">            Hour within the day (0–24).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">preheat_start_hour</span> <span class="o">&lt;=</span> <span class="n">hour_of_day</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">preheat_end_hour</span></div>
+</div>
+
+
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># Photovoltaic System</span>
+
+
+<div class="viewcode-block" id="PhotovoltaicSystem">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.PhotovoltaicSystem">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PhotovoltaicSystem</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Photovoltaic System (PV + Charge Controller) — pure physics engine.</span>
+
+<span class="sd">    Computes PV energy generation from irradiance inputs.  This class</span>
+<span class="sd">    is a **stateless physics calculator**: given physical inputs it</span>
+<span class="sd">    returns a performance dict.  All routing logic (ESS charge/discharge,</span>
+<span class="sd">    Grid import, dump) is the responsibility of the scenario class.</span>
+
+<span class="sd">    The public API:</span>
+
+<span class="sd">    - :meth:`calc_performance` — single-timestep PV generation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Panel physics</span>
+    <span class="n">A_pv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+    <span class="n">alp_pv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.9</span>
+    <span class="n">pv_tilt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">35.0</span>
+    <span class="n">pv_azimuth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">180.0</span>
+    <span class="n">h_o</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">15.0</span>
+
+    <span class="c1"># Efficiencies</span>
+    <span class="n">eta_pv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span>
+    <span class="n">beta_pv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0045</span>
+    <span class="n">T_ref_pv_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">298.15</span>
+    <span class="n">eta_ctrl</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span>
+    <span class="n">T_ctrl_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">308.15</span>
+
+<div class="viewcode-block" id="PhotovoltaicSystem.calc_performance">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.PhotovoltaicSystem.calc_performance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calc_performance</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">I_DN</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">I_dH</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute PV generation for one timestep.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        I_DN : float</span>
+<span class="sd">            Direct-normal irradiance [W/m²].</span>
+<span class="sd">        I_dH : float</span>
+<span class="sd">            Diffuse-horizontal irradiance [W/m²].</span>
+<span class="sd">        T0_K : float</span>
+<span class="sd">            Dead-state (ambient) temperature [K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Keys: ``I_sol_pv``, ``T_pv_K``, ``eta_pv_actual``, ``E_pv_out``, ``E_ctrl_out``,</span>
+<span class="sd">            ``Q_l_pv``, ``Q_l_ctrl``, ``X_sol``, ``X_pv_out``,</span>
+<span class="sd">            ``X_ctrl_out``, ``X_c_pv``, ``X_c_ctrl``,</span>
+<span class="sd">            ``X_l_pv``, ``X_l_ctrl``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T0</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">)</span>
+        <span class="n">I_sol</span> <span class="o">=</span> <span class="n">I_DN</span> <span class="o">+</span> <span class="n">I_dH</span>
+
+        <span class="c1"># ── PV Cell ──────────────────────────────────────────────</span>
+        <span class="n">T_pv_K_approx</span> <span class="o">=</span> <span class="n">T0</span> <span class="o">+</span> <span class="p">(</span><span class="n">I_sol</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alp_pv</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_pv</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_o</span><span class="p">)</span>
+
+        <span class="n">eta_pv_actual</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_pv</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta_pv</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_pv_K_approx</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_ref_pv_K</span><span class="p">))</span>
+        <span class="n">eta_pv_actual</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alp_pv</span><span class="p">,</span> <span class="n">eta_pv_actual</span><span class="p">))</span>
+
+        <span class="n">T_pv_K</span> <span class="o">=</span> <span class="n">T0</span> <span class="o">+</span> <span class="p">(</span><span class="n">I_sol</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alp_pv</span> <span class="o">-</span> <span class="n">eta_pv_actual</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_o</span><span class="p">)</span>
+        <span class="n">E_pv_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_pv</span> <span class="o">*</span> <span class="n">eta_pv_actual</span> <span class="o">*</span> <span class="n">I_sol</span>
+        <span class="n">Q_l_pv</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_pv</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_o</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_pv_K</span> <span class="o">-</span> <span class="n">T0</span><span class="p">)</span>
+
+        <span class="n">s_sol</span> <span class="o">=</span> <span class="n">k_D</span> <span class="o">*</span> <span class="p">(</span><span class="n">I_DN</span><span class="o">**</span><span class="mf">0.9</span><span class="p">)</span> <span class="o">+</span> <span class="n">k_d</span> <span class="o">*</span> <span class="p">(</span><span class="n">I_dH</span><span class="o">**</span><span class="mf">0.9</span><span class="p">)</span>
+        <span class="n">S_sol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_pv</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">alp_pv</span> <span class="o">*</span> <span class="n">s_sol</span>
+        <span class="n">S_l_pv</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">T_pv_K</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_l_pv</span> <span class="k">if</span> <span class="n">T_pv_K</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+        <span class="n">S_g_pv</span> <span class="o">=</span> <span class="n">S_l_pv</span> <span class="o">-</span> <span class="n">S_sol</span>  <span class="c1"># S_pv_out = 0 (electricity)</span>
+
+        <span class="n">X_sol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_pv</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">alp_pv</span> <span class="o">*</span> <span class="p">(</span><span class="n">I_sol</span> <span class="o">-</span> <span class="n">s_sol</span> <span class="o">*</span> <span class="n">T0</span><span class="p">)</span>
+        <span class="n">X_pv_out</span> <span class="o">=</span> <span class="n">E_pv_out</span>
+        <span class="n">X_l_pv</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">T0</span> <span class="o">/</span> <span class="n">T_pv_K</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_l_pv</span> <span class="k">if</span> <span class="n">T_pv_K</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+        <span class="n">X_c_pv</span> <span class="o">=</span> <span class="n">S_g_pv</span> <span class="o">*</span> <span class="n">T0</span>
+
+        <span class="c1"># ── Charge Controller ─────────────────────────────────────</span>
+        <span class="n">E_ctrl_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ctrl</span> <span class="o">*</span> <span class="n">E_pv_out</span>
+        <span class="n">Q_l_ctrl</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ctrl</span><span class="p">)</span> <span class="o">*</span> <span class="n">E_pv_out</span>
+        <span class="n">S_l_ctrl</span> <span class="o">=</span> <span class="n">Q_l_ctrl</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_ctrl_K</span>
+        <span class="n">S_g_ctrl</span> <span class="o">=</span> <span class="n">S_l_ctrl</span>  <span class="c1"># S_ctrl_out=0, S_in=0 (electricity)</span>
+
+        <span class="n">X_ctrl_out</span> <span class="o">=</span> <span class="n">E_ctrl_out</span>
+        <span class="n">X_l_ctrl</span> <span class="o">=</span> <span class="n">Q_l_ctrl</span> <span class="o">-</span> <span class="n">S_l_ctrl</span> <span class="o">*</span> <span class="n">T0</span>
+        <span class="n">X_c_ctrl</span> <span class="o">=</span> <span class="n">S_g_ctrl</span> <span class="o">*</span> <span class="n">T0</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;I_sol_pv&quot;</span><span class="p">:</span> <span class="n">I_sol</span><span class="p">,</span>
+            <span class="s2">&quot;T_pv_K&quot;</span><span class="p">:</span> <span class="n">T_pv_K</span><span class="p">,</span>
+            <span class="s2">&quot;eta_pv&quot;</span><span class="p">:</span> <span class="n">eta_pv_actual</span><span class="p">,</span>
+            <span class="s2">&quot;E_pv_out&quot;</span><span class="p">:</span> <span class="n">E_pv_out</span><span class="p">,</span>
+            <span class="s2">&quot;E_ctrl_out&quot;</span><span class="p">:</span> <span class="n">E_ctrl_out</span><span class="p">,</span>
+            <span class="s2">&quot;Q_l_pv&quot;</span><span class="p">:</span> <span class="n">Q_l_pv</span><span class="p">,</span>
+            <span class="s2">&quot;Q_l_ctrl&quot;</span><span class="p">:</span> <span class="n">Q_l_ctrl</span><span class="p">,</span>
+            <span class="s2">&quot;X_sol&quot;</span><span class="p">:</span> <span class="n">X_sol</span><span class="p">,</span>
+            <span class="s2">&quot;X_pv_out&quot;</span><span class="p">:</span> <span class="n">X_pv_out</span><span class="p">,</span>
+            <span class="s2">&quot;X_ctrl_out&quot;</span><span class="p">:</span> <span class="n">X_ctrl_out</span><span class="p">,</span>
+            <span class="s2">&quot;X_c_pv&quot;</span><span class="p">:</span> <span class="n">X_c_pv</span><span class="p">,</span>
+            <span class="s2">&quot;X_c_ctrl&quot;</span><span class="p">:</span> <span class="n">X_c_ctrl</span><span class="p">,</span>
+            <span class="s2">&quot;X_l_pv&quot;</span><span class="p">:</span> <span class="n">X_l_pv</span><span class="p">,</span>
+            <span class="s2">&quot;X_l_ctrl&quot;</span><span class="p">:</span> <span class="n">X_l_ctrl</span><span class="p">,</span>
+        <span class="p">}</span></div>
+</div>
+
+
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># Energy Storage System</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EnergyStorageSystem</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Energy Storage System (Battery) — pure physics engine.</span>
+
+<span class="sd">    Accepts charging / discharging *requests* (DC power, [W]) and</span>
+<span class="sd">    enforces capacity and SOC limits.  Internal losses and exergy</span>
+<span class="sd">    destruction are computed from round-trip efficiencies.</span>
+
+<span class="sd">    State (``SOC_ess``) is updated in-place at each call to</span>
+<span class="sd">    :meth:`charge` or :meth:`discharge`.  Routing decisions (which</span>
+<span class="sd">    request to fulfil and in what order) are entirely the</span>
+<span class="sd">    responsibility of the scenario class.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    C_ess_max : float</span>
+<span class="sd">        Rated energy capacity [J].  Default 3.6 MJ (= 1 kWh).</span>
+<span class="sd">    SOC_init : float</span>
+<span class="sd">        Initial state of charge [–].</span>
+<span class="sd">    SOC_min : float</span>
+<span class="sd">        Minimum allowable SOC [–] (depth-of-discharge guard).</span>
+<span class="sd">    SOC_max : float</span>
+<span class="sd">        Maximum allowable SOC [–].</span>
+<span class="sd">    eta_ess_chg : float</span>
+<span class="sd">        Charging efficiency (electricity-in to stored) [–].</span>
+<span class="sd">    eta_ess_dis : float</span>
+<span class="sd">        Discharging efficiency (stored to electricity-out) [–].</span>
+<span class="sd">    T_ess_K : float</span>
+<span class="sd">        Representative battery temperature used for entropy calc [K].</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">C_ess_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3.6e6</span>
+    <span class="n">SOC_init</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">SOC_min</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.10</span>
+    <span class="n">SOC_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.00</span>
+    <span class="n">eta_ess_chg</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.90</span>
+    <span class="n">eta_ess_dis</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.90</span>
+    <span class="n">T_ess_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">313.15</span>
+
+    <span class="n">SOC_ess</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_init</span>
+
+    <span class="c1"># ── helpers ──────────────────────────────────────────────────</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_max_chg_power</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Maximum charging power limited by remaining capacity [W].&quot;&quot;&quot;</span>
+        <span class="n">headroom</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SOC_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_ess_max</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">headroom</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_chg</span> <span class="o">*</span> <span class="n">dt</span><span class="p">))</span> <span class="k">if</span> <span class="n">dt</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_max_dis_power</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Maximum discharge power limited by SOC_min [W].&quot;&quot;&quot;</span>
+        <span class="n">available</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_min</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_ess_max</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">available</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_dis</span> <span class="o">/</span> <span class="n">dt</span><span class="p">)</span> <span class="k">if</span> <span class="n">dt</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exergy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">E_chg</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">E_dis</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="n">T0</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">)</span>
+        <span class="n">Q_l</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_chg</span><span class="p">)</span> <span class="o">*</span> <span class="n">E_chg</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_dis</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">E_dis</span>
+        <span class="n">S_l</span> <span class="o">=</span> <span class="n">Q_l</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_ess_K</span>
+        <span class="n">X_l_ess</span> <span class="o">=</span> <span class="n">Q_l</span> <span class="o">-</span> <span class="n">S_l</span> <span class="o">*</span> <span class="n">T0</span>
+        <span class="n">X_c_ess</span> <span class="o">=</span> <span class="n">S_l</span> <span class="o">*</span> <span class="n">T0</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;Q_l_ess&quot;</span><span class="p">:</span> <span class="n">Q_l</span><span class="p">,</span> <span class="s2">&quot;X_l_ess&quot;</span><span class="p">:</span> <span class="n">X_l_ess</span><span class="p">,</span> <span class="s2">&quot;X_c_ess&quot;</span><span class="p">:</span> <span class="n">X_c_ess</span><span class="p">}</span>
+
+    <span class="c1"># ── public API ───────────────────────────────────────────────</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">charge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">E_req_chg</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Request to charge the ESS with *E_req_chg* [W] for *dt* [s].</span>
+
+<span class="sd">        Returns a dict with keys ``E_ess_chg``, ``E_ess_dis``, ``SOC_ess``</span>
+<span class="sd">        plus exergy keys.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">E_chg</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">E_req_chg</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_chg_power</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">+=</span> <span class="n">E_chg</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_chg</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_ess_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SOC_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;E_ess_chg&quot;</span><span class="p">:</span> <span class="n">E_chg</span><span class="p">,</span>
+            <span class="s2">&quot;E_ess_dis&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">&quot;SOC_ess&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_exergy</span><span class="p">(</span><span class="n">E_chg</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">discharge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">E_req_dis</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Request to discharge *E_req_dis* [W] from the ESS for *dt* [s].</span>
+
+<span class="sd">        Returns a dict with keys ``E_ess_dis`` (actual), ``E_ess_chg``,</span>
+<span class="sd">        ``SOC_ess`` plus exergy keys.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">E_dis</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">E_req_dis</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_dis_power</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">-=</span> <span class="n">E_dis</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_ess_dis</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_ess_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SOC_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;E_ess_chg&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">&quot;E_ess_dis&quot;</span><span class="p">:</span> <span class="n">E_dis</span><span class="p">,</span>
+            <span class="s2">&quot;SOC_ess&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOC_ess</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_exergy</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">E_dis</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">),</span>
+        <span class="p">}</span>
+
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># UV Disinfection Lamp</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="UVLamp">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.UVLamp">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UVLamp</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;UV disinfection lamp subsystem.</span>
+
+<span class="sd">    The lamp switches on periodically (``num_switching``</span>
+<span class="sd">    times per ``period_sec``, each for ``exposure_sec``).</span>
+<span class="sd">    All electrical input is converted to heat inside the</span>
+<span class="sd">    tank (``Q_contribution = E_uv``).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lamp_watts : float</span>
+<span class="sd">        Rated lamp power [W].</span>
+<span class="sd">    exposure_sec : float</span>
+<span class="sd">        Duration of each on-cycle [s].</span>
+<span class="sd">    num_switching : int</span>
+<span class="sd">        Number of on-cycles per period.</span>
+<span class="sd">    period_sec : float</span>
+<span class="sd">        Switching period [s] (default 3 h = 10 800 s).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">lamp_watts</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">exposure_sec</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">num_switching</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">period_sec</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">cu</span><span class="o">.</span><span class="n">h2s</span>
+
+<div class="viewcode-block" id="UVLamp.step">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.UVLamp.step">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">StepContext</span><span class="p">,</span>
+        <span class="n">ctrl</span><span class="p">:</span> <span class="n">ControlState</span><span class="p">,</span>
+        <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T_tank_w_in_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute UV lamp state for one timestep.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.uv_treatment</span><span class="w"> </span><span class="kn">import</span> <span class="n">calc_uv_lamp_power</span>
+
+        <span class="n">E_uv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">calc_uv_lamp_power</span><span class="p">(</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">current_time_s</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">period_sec</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_switching</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exposure_sec</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lamp_watts</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;Q_contribution&quot;</span><span class="p">:</span> <span class="n">E_uv</span><span class="p">,</span>
+            <span class="s2">&quot;E_subsystem&quot;</span><span class="p">:</span> <span class="n">E_uv</span><span class="p">,</span>
+            <span class="s2">&quot;T_tank_w_in_override_K&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;E_uv&quot;</span><span class="p">:</span> <span class="n">E_uv</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="UVLamp.assemble_results">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.UVLamp.assemble_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">assemble_results</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">StepContext</span><span class="p">,</span>
+        <span class="n">ctrl</span><span class="p">:</span> <span class="n">ControlState</span><span class="p">,</span>
+        <span class="n">step_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+        <span class="n">T_solved_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Report UV power for DataFrame output.&quot;&quot;&quot;</span>
+        <span class="n">E_uv</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">step_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;E_uv&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">E_uv</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">lamp_watts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;E_uv [W]&quot;</span><span class="p">:</span> <span class="n">E_uv</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="UVLamp.calc_exergy">
+<a class="viewcode-back" href="../../api/subsystems.html#enex_analysis.subsystems.UVLamp.calc_exergy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calc_exergy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+        <span class="n">T0_K</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SubsystemExergy</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;UV exergy = electricity (handled by E→X conversion).</span>
+
+<span class="sd">        No additional post-processing needed.</span>
+<span class="sd">        Returns ``None``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+</div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025, betlab
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/bet-lab/enex_analysis_engine" aria-label="GitHub">
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            </a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    </body>
+</html>

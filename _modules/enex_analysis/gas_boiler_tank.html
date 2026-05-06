@@ -1,0 +1,1026 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html">
+        <link rel="canonical" href="https://bet-lab.github.io/enex_analysis_engine/_modules/enex_analysis/gas_boiler_tank.html">
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+        <title>enex_analysis.gas_boiler_tank - Energy-Exergy Analysis Engine</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=580074bf" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=200b7bb1" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  --color-brand-primary: #4051b5;
+  --color-brand-content: #4051b5;
+  --color-sidebar-background: #f8f9fa;
+  --color-sidebar-background-border: #e9ecef;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #7c88cc;
+  --color-brand-content: #7c88cc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">Energy-Exergy Analysis Engine</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  
+  <span class="sidebar-brand-text">Energy-Exergy Analysis Engine</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../getting-started/index.html">Getting Started</a><input aria-label="Toggle navigation of Getting Started" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting-started/configuration.html">Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../guides/index.html">User Guides</a><input aria-label="Toggle navigation of User Guides" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/user-guide.html">User Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/io-guide.html">Input/Output Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/advanced-topics.html">Advanced Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/nomenclature.html">Symbol Naming Convention</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/core.html">Core Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/engines.html">Energy System Engines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/utilities.html">Utility Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/subsystems.html">Subsystems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/advanced.html">Advanced Dynamics &amp; RefCycles</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../theory/index.html">Theory &amp; Background</a><input aria-label="Toggle navigation of Theory &amp; Background" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/thermodynamics.html">Thermodynamics Fundamentals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/exergy-analysis.html">Exergy Analysis Theory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory/ashpb_model.html">Air-Source Heat Pump Boiler (ASHPB) Model</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bet-lab/enex_analysis_engine">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for enex_analysis.gas_boiler_tank</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Gas boiler with hot-water storage tank — dynamic model.</span>
+
+<span class="sd">System chain:</span>
+<span class="sd">    Combustion Chamber → Hot Water Tank → 3-Way Mixing Valve → Service Water</span>
+
+<span class="sd">The combustion model uses a constant thermal efficiency</span>
+<span class="sd">``eta_comb`` to relate fuel input to useful heat.</span>
+<span class="sd">Exhaust gas losses are ``(1 − eta_comb) × E_NG``.</span>
+
+<span class="sd">Exergy topology (4 components):</span>
+<span class="sd">    1. Combustion   — NG chemical exergy, exhaust exergy</span>
+<span class="sd">    2. Tank         — stored, loss, destruction</span>
+<span class="sd">    3. Mixing       — destruction</span>
+<span class="sd">    4. System total — NG exergy input</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">calc_util</span> <span class="k">as</span> <span class="n">cu</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">c_w</span><span class="p">,</span> <span class="n">ex_eff_NG</span><span class="p">,</span> <span class="n">rho_w</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.dynamic_context</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ControlState</span><span class="p">,</span>
+    <span class="n">StepContext</span><span class="p">,</span>
+    <span class="n">Subsystem</span><span class="p">,</span>
+    <span class="n">determine_heat_source_on_off</span><span class="p">,</span>
+    <span class="n">determine_tank_refill_flow</span><span class="p">,</span>
+    <span class="n">tank_mass_energy_residual</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.dhw</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_dhw_usage_ratio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.enex_functions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">calc_mixing_valve_flows</span><span class="p">,</span>
+    <span class="n">calc_mixing_valve_temp</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.heat_transfer</span><span class="w"> </span><span class="kn">import</span> <span class="n">calc_simple_tank_UA</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.thermodynamics</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">calc_exergy_flow</span><span class="p">,</span>
+    <span class="n">convert_electricity_to_exergy</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="GasBoilerTank">
+<a class="viewcode-back" href="../../api/engines.html#enex_analysis.gas_boiler_tank.GasBoilerTank">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GasBoilerTank</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gas-fired boiler with storage tank.</span>
+
+<span class="sd">    Combustion chamber heats water which is stored in</span>
+<span class="sd">    an insulated tank.  Service water is delivered via</span>
+<span class="sd">    a 3-way mixing valve.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="GasBoilerTank.__init__">
+<a class="viewcode-back" href="../../api/engines.html#enex_analysis.gas_boiler_tank.GasBoilerTank.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="c1"># 1. Combustion ------------------------------------</span>
+        <span class="n">eta_comb</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.9</span><span class="p">,</span>
+        <span class="n">T_exh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">70.0</span><span class="p">,</span>
+        <span class="n">burner_capacity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">15000.0</span><span class="p">,</span>
+        <span class="c1"># 2. Tank geometry / insulation --------------------</span>
+        <span class="n">r0</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">H</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+        <span class="n">x_shell</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+        <span class="n">x_ins</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.10</span><span class="p">,</span>
+        <span class="n">k_shell</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+        <span class="n">k_ins</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.03</span><span class="p">,</span>
+        <span class="n">h_o</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">15</span><span class="p">,</span>
+        <span class="c1"># 3. Temperature set-points ------------------------</span>
+        <span class="n">T_tank_w_upper_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">65.0</span><span class="p">,</span>
+        <span class="n">T_tank_w_lower_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">60.0</span><span class="p">,</span>
+        <span class="n">T_mix_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">45.0</span><span class="p">,</span>
+        <span class="n">T_sup_w</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">dV_mix_w_out_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span><span class="p">,</span>
+        <span class="c1"># 4. Tank water level management -------------------</span>
+        <span class="n">tank_always_full</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">tank_level_lower_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">tank_level_upper_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">dV_tank_w_in_refill</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span><span class="p">,</span>
+        <span class="n">prevent_simultaneous_flow</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="c1"># 5. Operating schedule ----------------------------</span>
+        <span class="n">on_schedule</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="c1"># 6. Subsystems ------------------------------------</span>
+        <span class="n">stc</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">uv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="n">on_schedule</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">on_schedule</span> <span class="o">=</span> <span class="p">[(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">24.0</span><span class="p">)]</span>
+
+        <span class="c1"># --- 1. Combustion ---</span>
+        <span class="k">if</span> <span class="n">eta_comb</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">eta_comb</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;eta_comb must be in (0, 1], got </span><span class="si">{</span><span class="n">eta_comb</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eta_comb</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">eta_comb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_exh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T_exh</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_exh_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_exh</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">burner_capacity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">burner_capacity</span>
+
+        <span class="c1"># --- 2. Tank ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tank_physical</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;r0&quot;</span><span class="p">:</span> <span class="n">r0</span><span class="p">,</span>
+            <span class="s2">&quot;H&quot;</span><span class="p">:</span> <span class="n">H</span><span class="p">,</span>
+            <span class="s2">&quot;x_shell&quot;</span><span class="p">:</span> <span class="n">x_shell</span><span class="p">,</span>
+            <span class="s2">&quot;x_ins&quot;</span><span class="p">:</span> <span class="n">x_ins</span><span class="p">,</span>
+            <span class="s2">&quot;k_shell&quot;</span><span class="p">:</span> <span class="n">k_shell</span><span class="p">,</span>
+            <span class="s2">&quot;k_ins&quot;</span><span class="p">:</span> <span class="n">k_ins</span><span class="p">,</span>
+            <span class="s2">&quot;h_o&quot;</span><span class="p">:</span> <span class="n">h_o</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UA_tank</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">calc_simple_tank_UA</span><span class="p">(</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">tank_physical</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">V_tank_full</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">r0</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">H</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">C_tank</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">V_tank_full</span>
+
+        <span class="c1"># --- 3. Temperature set-points ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_upper_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T_tank_w_upper_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_lower_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T_tank_w_lower_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T_sup_w</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_sup_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_in_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_sup_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T_mix_w_out</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_mix_w_out</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">dV_mix_w_out_max</span>
+
+        <span class="c1"># --- 4. Tank water level ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tank_always_full</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">tank_always_full</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tank_level_lower_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">tank_level_lower_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tank_level_upper_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">tank_level_upper_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_in_refill</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">dV_tank_w_in_refill</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prevent_simultaneous_flow</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">prevent_simultaneous_flow</span>
+
+        <span class="c1"># --- 5. Operating schedule ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">on_schedule</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="n">on_schedule</span>
+
+        <span class="c1"># --- 6. Subsystems ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Subsystem</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">stc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="p">[</span><span class="s2">&quot;stc&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stc</span>
+        <span class="k">if</span> <span class="n">uv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="p">[</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uv</span>
+
+        <span class="c1"># --- Flow-rate sync ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_in</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_sup_w_in</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+
+
+    <span class="c1"># =============================================================</span>
+    <span class="c1"># Steady-state performance</span>
+    <span class="c1"># =============================================================</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calc_state</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">T_tank_w</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">burner_on</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Evaluate combustion + tank at a given operating point.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        T_tank_w : float</span>
+<span class="sd">            Tank water temperature [°C].</span>
+<span class="sd">        T0 : float</span>
+<span class="sd">            Dead-state / outdoor-air temperature [°C].</span>
+<span class="sd">        burner_on : bool</span>
+<span class="sd">            Whether the burner is firing.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Performance dictionary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T_tank_w_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_tank_w</span><span class="p">)</span>
+        <span class="n">T0_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T0</span><span class="p">)</span>
+
+        <span class="c1"># Tank heat loss</span>
+        <span class="n">Q_tank_loss</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">UA_tank</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_tank_w_K</span> <span class="o">-</span> <span class="n">T0_K</span><span class="p">)</span>
+
+        <span class="c1"># Combustion: fuel → useful heat</span>
+        <span class="c1"># Q_comb_w = eta_comb * E_NG  (heat to tank water)</span>
+        <span class="c1"># E_NG = Q_comb_w / eta_comb  (fuel energy)</span>
+        <span class="n">Q_comb_w</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">burner_capacity</span> <span class="k">if</span> <span class="n">burner_on</span> <span class="k">else</span> <span class="mf">0.0</span>
+        <span class="n">E_NG</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Q_comb_w</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_comb</span> <span class="k">if</span> <span class="n">burner_on</span> <span class="k">else</span> <span class="mf">0.0</span>
+        <span class="n">Q_exh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_comb</span><span class="p">)</span> <span class="o">*</span> <span class="n">E_NG</span> <span class="k">if</span> <span class="n">burner_on</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+        <span class="c1"># NG effective temperature for exergy</span>
+        <span class="c1"># T_NG = T0 / (1 - ex_eff_NG)</span>
+        <span class="n">T_NG_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">T0_K</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span>
+            <span class="mf">1e-6</span><span class="p">,</span>
+            <span class="mi">1</span> <span class="o">-</span> <span class="n">ex_eff_NG</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Mixing valve</span>
+        <span class="n">dV_mix_w_out_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out</span>
+        <span class="k">if</span> <span class="n">dV_mix_w_out_val</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">T_mix_w_out_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mix</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">calc_mixing_valve_temp</span><span class="p">(</span>
+                <span class="n">T_tank_w_K</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">T_mix_w_out_val</span> <span class="o">=</span> <span class="n">mix</span><span class="p">[</span><span class="s2">&quot;T_mix_w_out&quot;</span><span class="p">]</span>
+
+        <span class="n">mix_state</span> <span class="o">=</span> <span class="n">calc_mixing_valve_temp</span><span class="p">(</span><span class="n">T_tank_w_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">)</span>
+        <span class="n">alp</span> <span class="o">=</span> <span class="n">mix_state</span><span class="p">[</span><span class="s2">&quot;alp&quot;</span><span class="p">]</span>
+        <span class="n">flows</span> <span class="o">=</span> <span class="n">calc_mixing_valve_flows</span><span class="p">(</span><span class="n">dV_mix_w_out_val</span><span class="p">,</span> <span class="n">alp</span><span class="p">)</span>
+
+        <span class="n">dV_tank_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_hot_in&quot;</span><span class="p">]</span>
+        <span class="n">dV_tank_w_in</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_in</span>
+        <span class="n">dV_mix_sup_w_in</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_cold_in&quot;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;burner_is_on&quot;</span><span class="p">:</span> <span class="n">burner_on</span><span class="p">,</span>
+            <span class="c1"># Temperatures [°C]</span>
+            <span class="s2">&quot;T_tank_w [°C]&quot;</span><span class="p">:</span> <span class="n">T_tank_w</span><span class="p">,</span>
+            <span class="s2">&quot;T_sup_w [°C]&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w</span><span class="p">,</span>
+            <span class="s2">&quot;T_tank_w_in [°C]&quot;</span><span class="p">:</span> <span class="n">cu</span><span class="o">.</span><span class="n">K2C</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_in_K</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;T_mix_w_out [°C]&quot;</span><span class="p">:</span> <span class="n">T_mix_w_out_val</span><span class="p">,</span>
+            <span class="s2">&quot;T_exh [°C]&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_exh</span><span class="p">,</span>
+            <span class="s2">&quot;T0 [°C]&quot;</span><span class="p">:</span> <span class="n">T0</span><span class="p">,</span>
+            <span class="c1"># Volume flow rates [m³/s]</span>
+            <span class="s2">&quot;dV_mix_w_out [m3/s]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">dV_mix_w_out_val</span> <span class="k">if</span> <span class="n">dV_mix_w_out_val</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;dV_tank_w_out [m3/s]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">dV_tank_w_out</span> <span class="k">if</span> <span class="n">dV_tank_w_out</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;dV_tank_w_in [m3/s]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">dV_tank_w_in</span> <span class="k">if</span> <span class="n">dV_tank_w_in</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;dV_mix_sup_w_in [m3/s]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">dV_mix_sup_w_in</span> <span class="k">if</span> <span class="n">dV_mix_sup_w_in</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="c1"># Energy rates [W]</span>
+            <span class="s2">&quot;E_NG [W]&quot;</span><span class="p">:</span> <span class="n">E_NG</span><span class="p">,</span>
+            <span class="s2">&quot;Q_comb_w [W]&quot;</span><span class="p">:</span> <span class="n">Q_comb_w</span><span class="p">,</span>
+            <span class="s2">&quot;Q_exh [W]&quot;</span><span class="p">:</span> <span class="n">Q_exh</span><span class="p">,</span>
+            <span class="s2">&quot;Q_tank_loss [W]&quot;</span><span class="p">:</span> <span class="n">Q_tank_loss</span><span class="p">,</span>
+            <span class="s2">&quot;T_NG [K]&quot;</span><span class="p">:</span> <span class="n">T_NG_K</span><span class="p">,</span>
+            <span class="s2">&quot;E_tot [W]&quot;</span><span class="p">:</span> <span class="n">E_NG</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="c1"># =============================================================</span>
+    <span class="c1"># Steady-state analysis</span>
+    <span class="c1"># =============================================================</span>
+
+<div class="viewcode-block" id="GasBoilerTank.analyze_steady">
+<a class="viewcode-back" href="../../api/engines.html#enex_analysis.gas_boiler_tank.GasBoilerTank.analyze_steady">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyze_steady</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">T_tank_w</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">T0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">Q_heat_target</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">return_dict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run a steady-state performance snapshot.&quot;&quot;&quot;</span>
+        <span class="n">burner_on</span> <span class="o">=</span> <span class="p">(</span><span class="n">Q_heat_target</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out</span> <span class="o">=</span> <span class="mf">0.0</span>
+        
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_state</span><span class="p">(</span>
+            <span class="n">T_tank_w</span><span class="p">,</span>
+            <span class="n">T0</span><span class="p">,</span>
+            <span class="n">burner_on</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># Steady state doesn&#39;t have tank loss because we don&#39;t solve tank mass/energy balance</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">&quot;Q_tank_loss [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">&quot;tank_level [-]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+        <span class="k">if</span> <span class="n">return_dict</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span><span class="n">result</span><span class="p">])</span></div>
+
+
+    <span class="c1"># =============================================================</span>
+    <span class="c1"># Dynamic simulation helpers</span>
+    <span class="c1"># =============================================================</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_determine_burner_state</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">StepContext</span><span class="p">,</span>
+        <span class="n">is_on_prev</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Burner on/off + state evaluation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        ctx : StepContext</span>
+<span class="sd">            Current-step immutable context.</span>
+<span class="sd">        is_on_prev : bool</span>
+<span class="sd">            Burner state at previous step.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple[bool, dict, float]</span>
+<span class="sd">            ``(is_on, result, Q_heat_source)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T_tank_w</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">K2C</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">T_tank_w_K</span><span class="p">)</span>
+
+        <span class="n">is_on</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">determine_heat_source_on_off</span><span class="p">(</span>
+            <span class="n">T_tank_w_C</span><span class="o">=</span><span class="n">T_tank_w</span><span class="p">,</span>
+            <span class="n">T_lower</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_lower_bound</span><span class="p">,</span>
+            <span class="n">T_upper</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_upper_bound</span><span class="p">,</span>
+            <span class="n">is_on_prev</span><span class="o">=</span><span class="n">is_on_prev</span><span class="p">,</span>
+            <span class="n">hour_of_day</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">hour_of_day</span><span class="p">,</span>
+            <span class="n">on_schedule</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">on_schedule</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Mixing valve flows</span>
+        <span class="n">mix_state</span> <span class="o">=</span> <span class="n">calc_mixing_valve_temp</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">T_tank_w_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">)</span>
+        <span class="n">alp</span> <span class="o">=</span> <span class="n">mix_state</span><span class="p">[</span><span class="s2">&quot;alp&quot;</span><span class="p">]</span>
+        <span class="n">flows</span> <span class="o">=</span> <span class="n">calc_mixing_valve_flows</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">dV_mix_w_out</span><span class="p">,</span> <span class="n">alp</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">dV_mix_w_out</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_out</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_hot_in&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_sup_w_in</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_cold_in&quot;</span><span class="p">]</span>
+
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_state</span><span class="p">(</span>
+            <span class="n">T_tank_w</span><span class="p">,</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">T0</span><span class="p">,</span>
+            <span class="n">is_on</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Q_heat_source = Q_comb_w (useful heat to tank)</span>
+        <span class="n">Q_heat_source</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;Q_comb_w [W]&quot;</span><span class="p">,</span>
+            <span class="mf">0.0</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">is_on</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">Q_heat_source</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_assemble_core_results</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">StepContext</span><span class="p">,</span>
+        <span class="n">ctrl</span><span class="p">:</span> <span class="n">ControlState</span><span class="p">,</span>
+        <span class="n">T_solved_K</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">level_solved</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">ier</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build result dict at solved state.&quot;&quot;&quot;</span>
+        <span class="n">mix_state</span> <span class="o">=</span> <span class="n">calc_mixing_valve_temp</span><span class="p">(</span><span class="n">T_solved_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">)</span>
+        <span class="n">alp</span> <span class="o">=</span> <span class="n">mix_state</span><span class="p">[</span><span class="s2">&quot;alp&quot;</span><span class="p">]</span>
+        <span class="n">flows</span> <span class="o">=</span> <span class="n">calc_mixing_valve_flows</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">dV_mix_w_out</span><span class="p">,</span> <span class="n">alp</span><span class="p">)</span>
+
+        <span class="n">dV_tank_w_out</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_hot_in&quot;</span><span class="p">]</span>
+        <span class="n">dV_tank_w_in</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">dV_tank_w_out</span> <span class="k">if</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">dV_tank_w_in_ctrl</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">dV_tank_w_in_ctrl</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_out</span> <span class="o">=</span> <span class="n">dV_tank_w_out</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_in</span> <span class="o">=</span> <span class="n">dV_tank_w_in</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">dV_mix_w_out</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_sup_w_in</span> <span class="o">=</span> <span class="n">flows</span><span class="p">[</span><span class="s2">&quot;dV_cold_in&quot;</span><span class="p">]</span>
+
+        <span class="n">T_mix_w_out_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">calc_mixing_valve_temp</span><span class="p">(</span>
+                <span class="n">T_solved_K</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">,</span>
+            <span class="p">)[</span><span class="s2">&quot;T_mix_w_out&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">dV_mix_w_out</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="p">)</span>
+
+        <span class="n">r</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">r</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">ctrl</span><span class="o">.</span><span class="n">result</span><span class="p">)</span>
+        <span class="n">r</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;burner_is_on&quot;</span><span class="p">:</span> <span class="n">ctrl</span><span class="o">.</span><span class="n">is_on</span><span class="p">,</span>
+                <span class="s2">&quot;Q_tank_loss [W]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">UA_tank</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_solved_K</span> <span class="o">-</span> <span class="n">ctx</span><span class="o">.</span><span class="n">T0_K</span><span class="p">)),</span>
+                <span class="s2">&quot;T_tank_w [°C]&quot;</span><span class="p">:</span> <span class="n">cu</span><span class="o">.</span><span class="n">K2C</span><span class="p">(</span><span class="n">T_solved_K</span><span class="p">),</span>
+                <span class="s2">&quot;T_mix_w_out [°C]&quot;</span><span class="p">:</span> <span class="n">T_mix_w_out_val</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">tank_always_full</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tank_always_full</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">prevent_simultaneous_flow</span><span class="p">):</span>
+            <span class="n">r</span><span class="p">[</span><span class="s2">&quot;tank_level [-]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">level_solved</span>
+
+        <span class="k">return</span> <span class="n">r</span>
+
+    <span class="c1"># =============================================================</span>
+    <span class="c1"># Main dynamic simulation</span>
+    <span class="c1"># =============================================================</span>
+
+<div class="viewcode-block" id="GasBoilerTank.analyze_dynamic">
+<a class="viewcode-back" href="../../api/engines.html#enex_analysis.gas_boiler_tank.GasBoilerTank.analyze_dynamic">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyze_dynamic</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">simulation_period_sec</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">dt_s</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">T_tank_w_init_C</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">dhw_usage_schedule</span><span class="p">,</span>
+        <span class="n">T0_schedule</span><span class="p">,</span>
+        <span class="n">tank_level_init</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">result_save_csv_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run a time-stepping dynamic simulation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        simulation_period_sec : int</span>
+<span class="sd">            Total simulation duration [s].</span>
+<span class="sd">        dt_s : int</span>
+<span class="sd">            Time step size [s].</span>
+<span class="sd">        T_tank_w_init_C : float</span>
+<span class="sd">            Initial tank temperature [°C].</span>
+<span class="sd">        dhw_usage_schedule : array-like</span>
+<span class="sd">            DHW usage schedule.</span>
+<span class="sd">        T0_schedule : array-like</span>
+<span class="sd">            Outdoor temperature per step [°C].</span>
+<span class="sd">        tank_level_init : float</span>
+<span class="sd">            Initial fractional tank level (0–1).</span>
+<span class="sd">        result_save_csv_path : str | None</span>
+<span class="sd">            Optional CSV output path.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        pd.DataFrame</span>
+<span class="sd">            Per-timestep result DataFrame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">fsolve</span>
+
+        <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="mi">0</span><span class="p">,</span>
+            <span class="n">simulation_period_sec</span><span class="p">,</span>
+            <span class="n">dt_s</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">tN</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+
+        <span class="n">T0_schedule</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">T0_schedule</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">T0_schedule</span><span class="p">)</span> <span class="o">!=</span> <span class="n">tN</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;T0_schedule length (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">T0_schedule</span><span class="p">)</span><span class="si">}</span><span class="s2">) != time length (</span><span class="si">{</span><span class="n">tN</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="n">time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">dt_s</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">w_use_frac</span> <span class="o">=</span> <span class="n">build_dhw_usage_ratio</span><span class="p">(</span>
+            <span class="n">dhw_usage_schedule</span><span class="p">,</span>
+            <span class="n">time</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">T_tank_w_K</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T_tank_w_init_C</span><span class="p">)</span>
+        <span class="n">tank_level</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">tank_level_init</span>
+        <span class="n">is_refilling</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">is_on_prev</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">results_data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span>
+            <span class="nb">range</span><span class="p">(</span><span class="n">tN</span><span class="p">),</span>
+            <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;GasBoilerTank Simulating&quot;</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">t_s</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+            <span class="n">hr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">t_s</span> <span class="o">*</span> <span class="n">cu</span><span class="o">.</span><span class="n">s2h</span>
+            <span class="n">hour_of_day</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="n">t_s</span> <span class="o">%</span> <span class="p">(</span><span class="mi">24</span> <span class="o">*</span> <span class="n">cu</span><span class="o">.</span><span class="n">h2s</span><span class="p">))</span> <span class="o">*</span> <span class="n">cu</span><span class="o">.</span><span class="n">s2h</span>
+
+            <span class="n">ctx</span><span class="p">:</span> <span class="n">StepContext</span> <span class="o">=</span> <span class="n">StepContext</span><span class="p">(</span>
+                <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span>
+                <span class="n">current_time_s</span><span class="o">=</span><span class="n">t_s</span><span class="p">,</span>
+                <span class="n">current_hour</span><span class="o">=</span><span class="n">hr</span><span class="p">,</span>
+                <span class="n">hour_of_day</span><span class="o">=</span><span class="n">hour_of_day</span><span class="p">,</span>
+                <span class="n">T0</span><span class="o">=</span><span class="n">T0_schedule</span><span class="p">[</span><span class="n">n</span><span class="p">],</span>
+                <span class="n">T0_K</span><span class="o">=</span><span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">T0_schedule</span><span class="p">[</span><span class="n">n</span><span class="p">]),</span>
+                <span class="n">activation_flags</span><span class="o">=</span><span class="p">{},</span>
+                <span class="n">T_tank_w_K</span><span class="o">=</span><span class="n">T_tank_w_K</span><span class="p">,</span>
+                <span class="n">tank_level</span><span class="o">=</span><span class="n">tank_level</span><span class="p">,</span>
+                <span class="n">dV_mix_w_out</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w_use_frac</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dV_mix_w_out_max</span><span class="p">),</span>
+            <span class="p">)</span>
+
+            <span class="c1"># --- Phase A: control decisions ---</span>
+            <span class="n">is_on</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">Q_heat_source</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_determine_burner_state</span><span class="p">(</span>
+                <span class="n">ctx</span><span class="p">,</span>
+                <span class="n">is_on_prev</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">is_on_prev</span> <span class="o">=</span> <span class="n">is_on</span>
+
+            <span class="n">dV_tank_w_in_ctrl</span><span class="p">,</span> <span class="n">is_refilling</span> <span class="o">=</span> <span class="n">determine_tank_refill_flow</span><span class="p">(</span>
+                <span class="n">dt</span><span class="o">=</span><span class="n">dt_s</span><span class="p">,</span>
+                <span class="n">tank_level</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">tank_level</span><span class="p">,</span>
+                <span class="n">dV_tank_w_out</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_out</span><span class="p">,</span>
+                <span class="n">V_tank_full</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">V_tank_full</span><span class="p">,</span>
+                <span class="n">tank_always_full</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tank_always_full</span><span class="p">,</span>
+                <span class="n">prevent_simultaneous_flow</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prevent_simultaneous_flow</span><span class="p">),</span>
+                <span class="n">tank_level_lower_bound</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tank_level_lower_bound</span><span class="p">),</span>
+                <span class="n">tank_level_upper_bound</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tank_level_upper_bound</span><span class="p">),</span>
+                <span class="n">dV_tank_w_in_refill</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dV_tank_w_in_refill</span><span class="p">),</span>
+                <span class="n">is_refilling</span><span class="o">=</span><span class="n">is_refilling</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="n">ctrl</span><span class="p">:</span> <span class="n">ControlState</span> <span class="o">=</span> <span class="n">ControlState</span><span class="p">(</span>
+                <span class="n">is_on</span><span class="o">=</span><span class="n">is_on</span><span class="p">,</span>
+                <span class="n">Q_heat_source</span><span class="o">=</span><span class="n">Q_heat_source</span><span class="p">,</span>
+                <span class="n">dV_tank_w_in_ctrl</span><span class="o">=</span><span class="n">dV_tank_w_in_ctrl</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">=</span><span class="n">result</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># --- Phase A-2: subsystem step ---</span>
+            <span class="n">sub_states</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">sub_states</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">sub</span><span class="o">.</span><span class="n">step</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="p">,</span>
+                    <span class="n">ctrl</span><span class="p">,</span>
+                    <span class="n">dt_s</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_in_K</span><span class="p">,</span>
+                <span class="p">)</span>
+
+            <span class="c1"># --- Phase B: implicit solve ---</span>
+            <span class="n">sol</span><span class="p">,</span> <span class="n">_info</span><span class="p">,</span> <span class="n">ier</span><span class="p">,</span> <span class="n">_msg</span> <span class="o">=</span> <span class="n">fsolve</span><span class="p">(</span>
+                <span class="n">tank_mass_energy_residual</span><span class="p">,</span>
+                <span class="p">[</span><span class="n">ctx</span><span class="o">.</span><span class="n">T_tank_w_K</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tank_level</span><span class="p">],</span>
+                <span class="n">args</span><span class="o">=</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="p">,</span>
+                    <span class="n">ctrl</span><span class="p">,</span>
+                    <span class="n">dt_s</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">T_tank_w_in_K</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">T_sup_w_K</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">T_mix_w_out_K</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">C_tank</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">UA_tank</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">V_tank_full</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="p">,</span>
+                    <span class="n">sub_states</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="n">full_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="n">T_tank_w_K</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">tank_level</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">sol</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+            <span class="c1"># --- Phase C: core + subsystem results ---</span>
+            <span class="n">r</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assemble_core_results</span><span class="p">(</span>
+                <span class="n">ctx</span><span class="p">,</span>
+                <span class="n">ctrl</span><span class="p">,</span>
+                <span class="n">T_tank_w_K</span><span class="p">,</span>
+                <span class="n">tank_level</span><span class="p">,</span>
+                <span class="n">ier</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">r</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                    <span class="n">sub</span><span class="o">.</span><span class="n">assemble_results</span><span class="p">(</span>
+                        <span class="n">ctx</span><span class="p">,</span>
+                        <span class="n">ctrl</span><span class="p">,</span>
+                        <span class="n">sub_states</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
+                        <span class="n">T_tank_w_K</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="n">results_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+        <span class="n">results_df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">results_data</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">results_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">postprocess_exergy</span><span class="p">(</span><span class="n">results_df</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">result_save_csv_path</span><span class="p">:</span>
+            <span class="n">results_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span>
+                <span class="n">result_save_csv_path</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">results_df</span></div>
+
+
+    <span class="c1"># =============================================================</span>
+    <span class="c1"># Exergy post-processing (Gas boiler specific)</span>
+    <span class="c1"># =============================================================</span>
+
+<div class="viewcode-block" id="GasBoilerTank.postprocess_exergy">
+<a class="viewcode-back" href="../../api/engines.html#enex_analysis.gas_boiler_tank.GasBoilerTank.postprocess_exergy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">postprocess_exergy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute gas-boiler exergy variables.</span>
+
+<span class="sd">        Exergy topology (4 components):</span>
+
+<span class="sd">        1. NG chemical exergy, exhaust exergy</span>
+<span class="sd">        2. Water exergy (tank inlet/outlet, mixing valve)</span>
+<span class="sd">        3. Heat loss exergy, tank stored exergy</span>
+<span class="sd">        4. Component-level exergy destruction</span>
+<span class="sd">        5. Exergetic efficiency metrics</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        df : pd.DataFrame</span>
+<span class="sd">            Result DataFrame from ``analyze_dynamic()``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        pd.DataFrame</span>
+<span class="sd">            DataFrame with exergy columns appended.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="n">T0_K</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T0 [°C]&quot;</span><span class="p">])</span>
+        <span class="n">T_tank_K</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T_tank_w [°C]&quot;</span><span class="p">])</span>
+
+        <span class="c1"># ── 1. NG exergy ───────────────────────────────────</span>
+        <span class="c1"># X_NG = ex_eff_NG * E_NG</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_NG [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ex_eff_NG</span> <span class="o">*</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;E_NG [W]&quot;</span><span class="p">]</span>
+
+        <span class="c1"># ── 2. Exhaust exergy (Carnot form) ────────────────</span>
+        <span class="c1"># X_exh = (1 - T0/T_exh) * Q_exh</span>
+        <span class="n">T_exh_K</span> <span class="o">=</span> <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T_exh [°C]&quot;</span><span class="p">])</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_exh [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Q_exh [W]&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">T0_K</span> <span class="o">/</span> <span class="n">T_exh_K</span><span class="p">)</span>
+
+        <span class="c1"># ── 3. Combustion heat exergy (Carnot at T_comb) ──</span>
+        <span class="c1"># Q_comb_w delivered at tank temperature</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_comb_w [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Q_comb_w [W]&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">T0_K</span> <span class="o">/</span> <span class="n">T_tank_K</span><span class="p">)</span>
+
+        <span class="c1"># ── 4. Electricity = exergy (UV if present) ───────</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">convert_electricity_to_exergy</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+        <span class="c1"># ── 5. Water exergy ────────────────────────────────</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_in [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calc_exergy_flow</span><span class="p">(</span>
+            <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;dV_tank_w_in [m3/s]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T_tank_w_in [°C]&quot;</span><span class="p">]),</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_out [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calc_exergy_flow</span><span class="p">(</span>
+            <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;dV_tank_w_out [m3/s]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">T_tank_K</span><span class="p">,</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_mix_w_out [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calc_exergy_flow</span><span class="p">(</span>
+            <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;dV_mix_w_out [m3/s]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T_mix_w_out [°C]&quot;</span><span class="p">]),</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_mix_sup_w_in [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calc_exergy_flow</span><span class="p">(</span>
+            <span class="n">c_w</span> <span class="o">*</span> <span class="n">rho_w</span> <span class="o">*</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;dV_mix_sup_w_in [m3/s]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">cu</span><span class="o">.</span><span class="n">C2K</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;T_sup_w [°C]&quot;</span><span class="p">]),</span>
+            <span class="n">T0_K</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># ── 6. Heat loss exergy ────────────────────────────</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_loss [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Q_tank_loss [W]&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">T0_K</span> <span class="o">/</span> <span class="n">T_tank_K</span><span class="p">)</span>
+
+        <span class="c1"># ── 7. Tank stored exergy ──────────────────────────</span>
+        <span class="n">tank_level</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;tank_level [-]&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;tank_level [-]&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">else</span> <span class="mf">1.0</span>
+        <span class="n">C_tank_actual</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_tank</span> <span class="o">*</span> <span class="n">tank_level</span>
+        <span class="n">T_tank_K_prev</span> <span class="o">=</span> <span class="n">T_tank_K</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Xst_tank [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">T0_K</span> <span class="o">/</span> <span class="n">T_tank_K</span><span class="p">)</span> <span class="o">*</span> <span class="n">C_tank_actual</span> <span class="o">*</span> <span class="p">(</span><span class="n">T_tank_K</span> <span class="o">-</span> <span class="n">T_tank_K_prev</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span>
+        <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;Xst_tank [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># ── 8. Subsystem exergy ────────────────────────────</span>
+        <span class="n">X_sub_tot_add</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">X_sub_in_tank_add</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">X_sub_out_tank_add</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="k">for</span> <span class="n">_name</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subsystems</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="s2">&quot;calc_exergy&quot;</span><span class="p">):</span>
+                <span class="n">ex_res</span> <span class="o">=</span> <span class="n">sub</span><span class="o">.</span><span class="n">calc_exergy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">T0_K</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">ex_res</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">ex_res</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">df</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+                    <span class="n">X_sub_tot_add</span> <span class="o">=</span> <span class="n">X_sub_tot_add</span> <span class="o">+</span> <span class="n">ex_res</span><span class="o">.</span><span class="n">X_tot_add</span>  <span class="c1"># type: ignore[operator]</span>
+                    <span class="n">X_sub_in_tank_add</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">X_sub_in_tank_add</span> <span class="o">+</span> <span class="n">ex_res</span><span class="o">.</span><span class="n">X_in_tank_add</span>  <span class="c1"># type: ignore[operator]</span>
+                    <span class="p">)</span>
+                    <span class="n">X_sub_out_tank_add</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">X_sub_out_tank_add</span> <span class="o">+</span> <span class="n">ex_res</span><span class="o">.</span><span class="n">X_out_tank_add</span>  <span class="c1"># type: ignore[operator]</span>
+                    <span class="p">)</span>
+
+        <span class="c1"># ── 9. Total exergy input ──────────────────────────</span>
+        <span class="n">X_tot</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_NG [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;X_uv [W]&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">X_tot</span> <span class="o">=</span> <span class="n">X_tot</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_uv [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">X_tot</span> <span class="o">=</span> <span class="n">X_tot</span> <span class="o">+</span> <span class="n">X_sub_tot_add</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tot [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">X_tot</span>
+
+        <span class="c1"># ── 10. Component exergy destruction ───────────────</span>
+        <span class="c1"># Xc = ΣX_in − ΣX_out ≥ 0 (2nd law)</span>
+
+        <span class="c1"># 10a. Combustion chamber</span>
+        <span class="c1"># In: X_NG + X_tank_w_in (water inlet to combustor)</span>
+        <span class="c1"># Out: X_comb_w + X_exh</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Xc_comb [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_NG [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_in [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="o">-</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_comb_w [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="o">-</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_exh [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># 10b. Mixing valve</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Xc_mix [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_out [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_mix_sup_w_in [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_mix_w_out [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># 10c. Storage tank</span>
+        <span class="n">X_in_tank</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_comb_w [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_in [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;X_uv [W]&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">X_in_tank</span> <span class="o">=</span> <span class="n">X_in_tank</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_uv [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">X_in_tank</span> <span class="o">=</span> <span class="n">X_in_tank</span> <span class="o">+</span> <span class="n">X_sub_in_tank_add</span>
+
+        <span class="n">X_out_tank</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_loss [W]&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Xst_tank [W]&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s2">&quot;X_tank_w_out [W]&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">X_out_tank</span> <span class="o">=</span> <span class="n">X_out_tank</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tank_w_out [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">X_out_tank</span> <span class="o">=</span> <span class="n">X_out_tank</span> <span class="o">+</span> <span class="n">X_sub_out_tank_add</span>
+
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Xc_tank [W]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">X_in_tank</span> <span class="o">-</span> <span class="n">X_out_tank</span>
+
+        <span class="c1"># ── 11. Exergetic efficiency ───────────────────────</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_eff_sys [-]&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_comb_w [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;X_tot [W]&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">df</span></div>
+</div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025, betlab
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/bet-lab/enex_analysis_engine" aria-label="GitHub">
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            </a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    </body>
+</html>
