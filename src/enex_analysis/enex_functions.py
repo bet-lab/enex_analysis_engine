@@ -88,6 +88,10 @@ from .tdma import (
 )
 from .thermodynamics import (
     calc_energy_flow,
+    calc_exergy_flow,
+    calc_refrigerant_exergy,
+    convert_electricity_to_exergy,
+    generate_entropy_exergy_term,
 )
 from .uv_treatment import (
     calc_uv_exposure_time as calc_uv_exposure_time,
@@ -364,13 +368,17 @@ def calc_boussinessq_mixing_flow(T_upper, T_lower, A, dz, C_d=0.1):
 
 def calc_HX_perf_for_target_heat(
     Q_ref_target,
-    T_a_in_C,
-    T_ref_sat_K,
-    A_cross,
-    UA_design,
-    dV_fan_design,
+    T_a_in_C=None,
+    T_ref_sat_K=None,
+    A_cross=None,
+    UA_design=None,
+    dV_fan_design=None,
     is_active=True,
     exponent=0.71,
+    # Legacy parameters for backward compatibility
+    T_ou_a_in_C=None,
+    T_ref_evap_sat_K=None,
+    T_ref_cond_sat_l_K=None,
 ):
     """ε-NTU 기반 공기측 열교환기 풍량 수치 해석.
 
@@ -380,9 +388,9 @@ def calc_HX_perf_for_target_heat(
     ----------
     Q_ref_target : float
         목표 열전달량 [W] (항상 양수).
-    T_a_in_C : float
+    T_a_in_C : float, optional
         공기 입구 온도 [°C].
-    T_ref_sat_K : float
+    T_ref_sat_K : float, optional
         냉매 포화 온도 [K] (일정 온도측).
     A_cross : float
         HX 단면적 [m²].
@@ -393,9 +401,12 @@ def calc_HX_perf_for_target_heat(
 
     is_active : bool
         활성화 여부.
+    exponent : float
+        UA scaling exponent (default: 0.71).
+
+    # Legacy Aliases (optional)
     T_ou_a_in_C : float, optional
         (하위 호환성) 과거 버전의 ``T_a_in_C`` 역할을 수행합니다.
-        보일러 모델 등 기존 시스템 호출에서 에러가 발생하지 않도록 유지됩니다.
     T_ref_evap_sat_K : float, optional
         (하위 호환성) 과거 버전의 ``T_ref_sat_K`` 역할을 수행합니다.
     T_ref_cond_sat_l_K : float, optional
@@ -407,26 +418,19 @@ def calc_HX_perf_for_target_heat(
         Dictionary containing:
             - dV_fan : Required air-side flow rate [m3/s]
             - UA : Actual heat exchanger overall heat transfer coefficient at solution point [W/K]
-            - T_ou_a_mid_K : air temperature between heat exchanger and fan [K]
-            - LMTD : Log-mean temperature difference at operating point [K]
-            - Q_LMTD : Heat transfer rate at operating point [W]
+            - T_a_mid_C : air temperature between heat exchanger and fan [°C]
+            - Q_air : Heat transfer rate at operating point [W]
             - epsilon : Effectiveness at operating point [–]
+            - converged : Whether the solver converged
         Returns dict with all values as np.nan if is_active=False
-
-    Notes
-    -----
-    팬 전력은 포함하지 않으며, 호출측에서 ``calc_fan_power_from_dV_fan``
-    으로 별도 계산합니다.
     """
     # ── Legacy alias 하위호환 ──
-    if T_ou_a_in_C is not None and T_a_in_C is None:
+    if T_a_in_C is None:
         T_a_in_C = T_ou_a_in_C
-    if T_ref_evap_sat_K is not None and T_ref_sat_K is None:
+    if T_ref_sat_K is None:
         T_ref_sat_K = T_ref_evap_sat_K
 
-    T_a_in_K = cu.C2K(T_a_in_C)
-
-    if not is_active:
+    if not is_active or T_a_in_C is None or T_ref_sat_K is None:
         return {
             "converged": True,
             "dV_fan": np.nan,
@@ -439,88 +443,74 @@ def calc_HX_perf_for_target_heat(
             "Q_ou_air": np.nan,
         }
 
+    T_a_in_K = cu.C2K(T_a_in_C)
+
     if abs(Q_ref_target) < 1e-6:
         return {
             "converged": True,
             "dV_fan": 0.0,
             "UA": 0.0,
-            "T_a_mid_C": cu.K2C(T_a_in_K),
+            "T_a_mid_C": T_a_in_C,
             "Q_air": 0.0,
             "epsilon": 0.0,
             # Legacy keys
-            "T_ou_a_mid": cu.K2C(T_a_in_K),
+            "T_ou_a_mid": T_a_in_C,
             "Q_ou_air": 0.0,
         }
 
     def _error_function(dV_fan):
+        if dV_fan <= 0:
+            return -Q_ref_target
         UA = calc_UA_from_dV_fan(dV_fan, dV_fan_design, A_cross, UA_design, exponent)
-        epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan))
-        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = T_ou_a_in_K - (T_ou_a_in_K - T_ref_evap_sat_K) * epsilon  # Heating assumption (Q_ref_target > 0)
+        C_air = c_a * rho_a * dV_fan
+        epsilon = 1 - np.exp(-UA / C_air)
+        # Heat transfer Q = C_air * epsilon * abs(T_air_in - T_ref_sat)
+        Q_air = C_air * epsilon * abs(T_a_in_K - T_ref_sat_K)
+        return Q_air - Q_ref_target
 
+    # Search range: 1% to 100% of design flow
     dV_min = dV_fan_design * 0.05
     dV_max = dV_fan_design
 
-    f_min = _error_function(dV_min)
-    f_max = _error_function(dV_max)
-
-    if f_min * f_max > 0:
-        dV_fallback = dV_min if abs(f_min) <= abs(f_max) else dV_max
-
-        UA_fb = calc_UA_from_dV_fan(dV_fallback, dV_fan_design, A_cross, UA_design, exponent)
-        eps_fb = 1 - np.exp(-UA_fb / (c_a * rho_a * dV_fallback))
-        T_mid_fb = T_ou_a_in_K - eps_fb * (T_ou_a_in_K - T_ref_evap_sat_K)
-        Q_fb = c_a * rho_a * dV_fallback * (T_ou_a_in_K - T_mid_fb)
-
-        Q_at_dV_min = Q_ref_target + f_min
-        Q_at_dV_max = Q_ref_target + f_max
-
+    try:
+        sol = root_scalar(_error_function, bracket=[dV_min, dV_max], method="bisect")
+        dV_sol = sol.root
+        converged = sol.converged
+    except ValueError:
+        # Optimization loop penalty handling: return failure flag
         return {
             "converged": False,
-            "dV_fan": dV_fallback,
-            "UA": UA_fb,
-            "T_a_mid_C": T_mid,
-            "Q_air": Q_fb,
-            "epsilon": eps_fb,
-            # Diagnostic
-            "Q_at_dV_min": Q_at_dV_min,
-            "Q_at_dV_max": Q_at_dV_max,
-            "Q_ref_target": Q_ref_target,
-            # Legacy keys
-            "T_ou_a_mid": T_mid,
-            "Q_ou_air": Q_fb,
+            "dV_fan": np.nan,
+            "UA": np.nan,
+            "T_a_mid_C": np.nan,
+            "Q_air": np.nan,
+            "epsilon": np.nan,
+            "T_ou_a_mid": np.nan,
+            "Q_ou_air": np.nan,
         }
 
-    sol = root_scalar(_error_function, bracket=[dV_min, dV_max], method="bisect")
-    dV_fan_sol = sol.root
-    UA_sol = calc_UA_from_dV_fan(dV_fan_sol, dV_fan_design, A_cross, UA_design)
-    C_air_sol = c_a * rho_a * dV_fan_sol
-    eps_sol = 1 - np.exp(-UA_sol / C_air_sol)
+    # Final calculations at solved point
+    UA_sol = calc_UA_from_dV_fan(dV_sol, dV_fan_design, A_cross, UA_design, exponent)
+    C_air_sol = c_a * rho_a * dV_sol
+    eps_sol = 1 - np.exp(-UA_sol / C_air_sol) if dV_sol > 0 else 0.0
 
-    if sol.converged:
-        # 수렴된 dV_fan 값을 사용하여 최종 값들 계산
-        dV_fan_converged = sol.root
-        UA = calc_UA_from_dV_fan(dV_fan_converged, dV_fan_design, A_cross, UA_design, exponent)
-        epsilon = 1 - np.exp(-UA / (c_a * rho_a * dV_fan_converged))
-        # 증발기 계산이므로 T_ref_evap_sat_K 사용 (포화 증발 온도)
-        T_ou_a_mid_K = T_ou_a_in_K - epsilon * (
-            T_ou_a_in_K - T_ref_evap_sat_K
-        )  # Heating assumption (Q_ref_target > 0)
-
-    Q_air = C_air_sol * abs(T_mid_K - T_a_in_K)
-    T_mid_C = cu.K2C(T_mid_K)
+    # Exit air temperature (before fan heat if any)
+    T_a_mid_K = T_a_in_K - (T_a_in_K - T_ref_sat_K) * eps_sol
+    T_a_mid_C = cu.K2C(T_a_mid_K)
+    Q_air_sol = C_air_sol * abs(T_a_in_K - T_a_mid_K)
 
     return {
-        "converged": sol.converged,
-        "dV_fan": dV_fan_sol,
+        "converged": converged,
+        "dV_fan": dV_sol,
         "UA": UA_sol,
-        "T_a_mid_C": T_mid_C,
-        "Q_air": Q_air,
+        "T_a_mid_C": T_a_mid_C,
+        "Q_air": Q_air_sol,
         "epsilon": eps_sol,
         # Legacy keys
-        "T_ou_a_mid": T_mid_C,
-        "Q_ou_air": Q_air,
+        "T_ou_a_mid": T_a_mid_C,
+        "Q_ou_air": Q_air_sol,
     }
+
 
 
 

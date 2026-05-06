@@ -29,6 +29,8 @@ from .constants import c_a, rho_a
 from .enex_functions import (
     calc_HX_perf_for_target_heat,
     calc_fan_power_from_dV_fan,
+)
+from .refrigerant import (
     calc_ref_state,
 )
 from .hx_fan import calc_UA_from_dV_fan
@@ -347,12 +349,15 @@ class AirSourceHeatPump:
         # Total electrical input
         E_tot: float = E_cmp + E_iu_fan + E_ou_fan
 
+        # Check overall convergence
+        is_converged = ou_hx.get("converged", True) and iu_hx.get("converged", True)
+
         result: dict = cycle_states.copy()
         result.update(
             {
                 "hp_is_on": is_active,
                 "mode": mode,
-                "converged": True,
+                "converged": is_converged,
                 # Temperatures [°C]
                 "T_ou_a_in [°C]": T0,
                 "T_ou_a_mid [°C]": T_ou_a_mid,

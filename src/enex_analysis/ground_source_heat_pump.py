@@ -35,8 +35,10 @@ from .constants import c_a, c_w as c_f, rho_a, rho_w as rho_f
 from .enex_functions import (
     calc_exergy_flow,
     calc_fan_power_from_dV_fan,
-    calc_ref_state,
     calc_HX_perf_for_target_heat,
+)
+from .refrigerant import (
+    calc_ref_state,
 )
 from .g_function import precompute_gfunction
 from .hx_fan import calc_UA_from_dV_fan

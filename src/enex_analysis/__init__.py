@@ -150,9 +150,6 @@ from .ground_source_heat_pump import GroundSourceHeatPump
 from .ground_source_heat_pump_boiler import (
     GroundSourceHeatPumpBoiler,
 )
-from .ground_source_heat_pump_ref_cycle import (
-    GroundSourceHeatPump_RefCycle,
-)
 from .gshpb_pv_ess import GSHPB_PV_ESS
 from .gshpb_stc_preheat import GSHPB_STC_preheat
 from .gshpb_stc_tank import GSHPB_STC_tank
